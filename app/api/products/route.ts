@@ -1,4 +1,4 @@
-import db from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 
 
 // GET PRODUCTS
@@ -7,15 +7,23 @@ export async function GET() {
 
   try {
 
-    const [rows] = await db.query(
-      "SELECT * FROM products ORDER BY id DESC"
-    );
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .order("id", {
+        ascending: false
+      });
 
 
-    return Response.json(rows);
+    if (error) {
+      throw error;
+    }
 
 
-  } catch(error:any) {
+    return Response.json(data);
+
+
+  } catch (error:any) {
 
 
     return Response.json(
@@ -36,11 +44,10 @@ export async function GET() {
 
 
 
-
 // ADD PRODUCT
 
 export async function POST(
-  req:Request
+  req: Request
 ) {
 
 
@@ -57,67 +64,91 @@ export async function POST(
       category,
       price,
       old_price,
+
       image,
+      image2,
+      image3,
+      image4,
+      image5,
+      image6,
+
       affiliate_link,
+
       description,
+
       features,
+
       rating,
+
       stock
 
     } = body;
 
 
 
+    const { data, error } = await supabase
 
-    await db.query(
+      .from("products")
 
-      `
-      INSERT INTO products
-      (
-        name,
-        category,
-        price,
-        old_price,
-        image,
-        affiliate_link,
-        description,
-        features,
-        rating,
-        stock
-      )
+      .insert([
 
-      VALUES (?,?,?,?,?,?,?,?,?,?)
+        {
 
-      `,
+          name,
+
+          category,
+
+          price,
+
+          old_price,
 
 
-      [
+          image,
 
-        name,
+          image2,
 
-        category,
+          image3,
 
-        price,
+          image4,
 
-        old_price,
+          image5,
 
-        image,
-
-        affiliate_link,
-
-        description,
-
-        features,
-
-        rating,
-
-        stock
-
-      ]
+          image6,
 
 
-    );
+          affiliate_link,
 
+
+          description,
+
+
+          features,
+
+
+          rating,
+
+
+          stock,
+
+
+          views:0,
+
+          clicks:0
+
+        }
+
+      ])
+
+      .select();
+
+
+
+
+    if(error){
+
+      throw error;
+
+    }
 
 
 
@@ -126,19 +157,17 @@ export async function POST(
 
       success:true,
 
-      message:"Product added successfully"
+      message:"Product added successfully",
+
+      product:data
 
     });
 
 
 
-  } catch(error:any) {
 
-
-    console.log(
-      "ADD PRODUCT ERROR:",
-      error
-    );
+  }
+  catch(error:any){
 
 
 

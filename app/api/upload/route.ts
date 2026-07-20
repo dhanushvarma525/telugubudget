@@ -1,5 +1,4 @@
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
+import { supabase } from "@/lib/supabase";
 
 
 export async function POST(req: Request) {
@@ -17,6 +16,7 @@ export async function POST(req: Request) {
 
     if (!file) {
 
+
       return Response.json({
 
         success:false,
@@ -25,8 +25,8 @@ export async function POST(req: Request) {
 
       });
 
-    }
 
+    }
 
 
 
@@ -34,7 +34,6 @@ export async function POST(req: Request) {
 
 
     const buffer = Buffer.from(bytes);
-
 
 
 
@@ -48,54 +47,48 @@ export async function POST(req: Request) {
 
 
 
+    const { data, error } = await supabase.storage
 
-    const uploadFolder = path.join(
+      .from("product-images")
 
-      process.cwd(),
+      .upload(
 
-      "public",
+        fileName,
 
-      "uploads"
+        buffer,
 
-    );
+        {
 
+          contentType:file.type,
 
+          upsert:false
 
+        }
 
-
-    await mkdir(
-
-      uploadFolder,
-
-      {
-        recursive:true
-      }
-
-    );
+      );
 
 
 
 
+    if(error){
 
-    const filePath = path.join(
+      throw error;
 
-      uploadFolder,
-
-      fileName
-
-    );
+    }
 
 
 
 
 
-    await writeFile(
+    const { data:urlData } = supabase.storage
 
-      filePath,
+      .from("product-images")
 
-      buffer
+      .getPublicUrl(
 
-    );
+        fileName
+
+      );
 
 
 
@@ -105,15 +98,15 @@ export async function POST(req: Request) {
 
       success:true,
 
-      image:`/uploads/${fileName}`
+      image:urlData.publicUrl
 
     });
 
 
 
 
-
   }
+
 
   catch(error:any){
 

@@ -1,71 +1,149 @@
-import db from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 import { cookies } from "next/headers";
 import { createToken } from "@/lib/auth";
 
+
 export async function POST(req: Request) {
+
+
   try {
-    const { username, password } = await req.json();
 
-    const [rows]: any = await db.query(
-      `
-      SELECT *
-      FROM admins
-      WHERE username = ? AND password = ?
-      `,
-      [username, password]
-    );
 
-    if (rows.length === 0) {
+    const body = await req.json();
+
+
+    const {
+      username,
+      password
+    } = body;
+
+
+
+    const { data, error } = await supabase
+
+      .from("admins")
+
+      .select("*")
+
+      .eq(
+        "username",
+        username
+      )
+
+      .eq(
+        "password",
+        password
+      )
+
+      .single();
+
+
+
+
+
+    if(error || !data){
+
+
       return Response.json(
+
         {
-          success: false,
-          message: "Invalid username or password",
+          success:false,
+          message:"Invalid username or password"
         },
+
         {
-          status: 401,
+          status:401
         }
+
       );
+
+
     }
 
+
+
+
+
     const token = createToken({
-      id: rows[0].id,
-      username: rows[0].username,
+
+      id:data.id,
+
+      username:data.username
+
     });
 
-    console.log("TOKEN CREATED:", token);
 
-const cookieStore = await cookies();
 
-cookieStore.set({
-  name: "admin_token",
-  value: token,
-  httpOnly: true,
-  secure: false,
-  sameSite: "lax",
-  path: "/",
-  maxAge: 60 * 60 * 24,
-});
 
-console.log("COOKIE SAVED");
 
-    return Response.json({
-      success: true,
-      message: "Login successful",
-    });
+    const cookieStore = await cookies();
 
-  } catch (error: any) {
 
-    console.log(error);
 
-    return Response.json(
+    cookieStore.set(
+
+      "admin_token",
+
+      token,
+
       {
-        success: false,
-        message: error.message,
-      },
-      {
-        status: 500,
+
+        httpOnly:true,
+
+        secure:
+          process.env.NODE_ENV === "production",
+
+        sameSite:"strict",
+
+        maxAge:
+          60 * 60 * 24 * 7
+
       }
+
     );
 
+
+
+
+
+
+    return Response.json({
+
+      success:true,
+
+      message:"Login successful"
+
+    });
+
+
+
+
   }
+
+  catch(error:any){
+
+
+
+    return Response.json(
+
+      {
+
+        success:false,
+
+        message:error.message
+
+      },
+
+      {
+
+        status:500
+
+      }
+
+    );
+
+
+  }
+
+
 }

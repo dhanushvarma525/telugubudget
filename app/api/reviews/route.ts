@@ -1,18 +1,20 @@
-import db from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 
 
 
 // GET REVIEWS FOR PRODUCT
 
 export async function GET(
-  req:Request
+  req: Request
 ) {
 
 
   try {
 
 
-    const { searchParams } = new URL(req.url);
+    const { searchParams } =
+      new URL(req.url);
+
 
 
     const product_id =
@@ -20,40 +22,66 @@ export async function GET(
 
 
 
-    const [rows] = await db.query(
 
-      `
-      SELECT *
-      FROM reviews
-      WHERE product_id = ?
-      ORDER BY id DESC
-      `,
 
-      [
+    const { data, error } = await supabase
+
+      .from("reviews")
+
+      .select("*")
+
+      .eq(
+        "product_id",
         product_id
-      ]
+      )
 
-    );
+      .order(
+        "id",
+        {
+          ascending:false
+        }
+      );
 
 
 
-    return Response.json(rows);
+
+
+    if(error){
+
+      throw error;
+
+    }
+
+
+
+
+
+    return Response.json(data);
+
+
 
 
 
   }
+
+
   catch(error:any){
 
 
     return Response.json(
 
       {
+
         success:false,
+
         message:error.message
+
       },
 
       {
+
         status:500
+
       }
 
     );
@@ -63,6 +91,8 @@ export async function GET(
 
 
 }
+
+
 
 
 
@@ -81,7 +111,9 @@ export async function POST(
 
 
     const body =
-    await req.json();
+      await req.json();
+
+
 
 
 
@@ -102,35 +134,39 @@ export async function POST(
 
 
 
-    await db.query(
 
-      `
-      INSERT INTO reviews
 
-      (
-        product_id,
-        name,
-        rating,
-        comment
-      )
+    const { error } = await supabase
 
-      VALUES (?,?,?,?)
+      .from("reviews")
 
-      `,
+      .insert([
 
-      [
+        {
 
-        product_id,
+          product_id,
 
-        name,
+          name,
 
-        rating,
+          rating,
 
-        comment
+          comment
 
-      ]
+        }
 
-    );
+      ]);
+
+
+
+
+
+
+    if(error){
+
+      throw error;
+
+    }
+
 
 
 
@@ -149,7 +185,10 @@ export async function POST(
 
 
 
+
   }
+
+
   catch(error:any){
 
 

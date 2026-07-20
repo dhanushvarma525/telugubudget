@@ -1,51 +1,111 @@
-import db from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 import { NextRequest } from "next/server";
 
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id:string }> }
 ) {
 
+
   try {
+
 
     const { id } = await params;
 
 
-    await db.query(
-      `
-      UPDATE products
-      SET views = views + 1
-      WHERE id = ?
-      `,
-      [id]
-    );
+
+    // Get current views
+
+    const { data: product, error: fetchError } = await supabase
+
+      .from("products")
+
+      .select("views")
+
+      .eq("id", id)
+
+      .single();
+
+
+
+
+    if(fetchError){
+
+      throw fetchError;
+
+    }
+
+
+
+
+    // Update views + 1
+
+    const { error:updateError } = await supabase
+
+      .from("products")
+
+      .update({
+
+        views:
+          (product.views || 0) + 1
+
+      })
+
+      .eq(
+        "id",
+        id
+      );
+
+
+
+
+
+    if(updateError){
+
+      throw updateError;
+
+    }
+
+
 
 
     return Response.json({
 
-      success: true
+      success:true
 
     });
 
 
-  } catch(error:any) {
+
+
+
+  }
+
+  catch(error:any){
+
 
 
     return Response.json(
 
       {
+
         success:false,
+
         message:error.message
+
       },
 
       {
+
         status:500
+
       }
 
     );
 
 
   }
+
 
 }
