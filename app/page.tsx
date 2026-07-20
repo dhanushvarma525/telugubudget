@@ -16,11 +16,15 @@ async function getProducts() {
   );
 
 
-  if (!res.ok) {
+ if (!res.ok) {
 
-    throw new Error("Failed to fetch products");
+  const errorText = await res.text();
 
-  }
+  console.log("PRODUCT API ERROR:", errorText);
+
+  throw new Error(errorText);
+
+}
 
 
   return res.json();
