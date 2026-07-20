@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 
-
+console.log("🔥 SUPABASE PRODUCTS ROUTE RUNNING");
 // GET PRODUCTS
 
 export async function GET() {
