@@ -1,17 +1,14 @@
 import Link from "next/link";
-
+import { getBaseUrl } from "@/lib/getBaseUrl";
 
 async function getProducts(){
 
 
 const res = await fetch(
-
-"http://localhost:3000/api/products",
-
-{
-cache:"no-store"
-}
-
+  `${getBaseUrl()}/api/products`,
+  {
+    cache: "no-store",
+  }
 );
 
 

@@ -2,65 +2,45 @@ import Link from "next/link";
 import ReviewSection from "@/components/ReviewSection";
 import WishlistButton from "@/components/WishlistButton";
 import ShareButton from "@/components/ShareButton";
-async function getProduct(id:string) {
+import { getBaseUrl } from "@/lib/getBaseUrl";
 
-
+async function getProduct(id: string) {
   const res = await fetch(
-    `http://localhost:3000/api/products/${id}`,
+    `${getBaseUrl()}/api/products/${id}`,
     {
-      cache:"no-store"
+      cache: "no-store",
     }
   );
 
-
-  if(!res.ok){
-
+  if (!res.ok) {
     return null;
-
   }
 
-
   return await res.json();
-
-
 }
 
-
-
-
-async function getSimilarProducts(category:string,id:string){
-
-
+async function getSimilarProducts(category: string, id: string) {
   const res = await fetch(
-
-    `http://localhost:3000/api/products`,
-
+    `${getBaseUrl()}/api/products`,
     {
-      cache:"no-store"
+      cache: "no-store",
     }
-
   );
 
+  if (!res.ok) {
+    return [];
+  }
 
   const products = await res.json();
 
-
-
   return products
     .filter(
-      (item:any)=>
-        item.category===category &&
+      (item: any) =>
+        item.category === category &&
         item.id !== Number(id)
     )
-    .slice(0,4);
-
-
-
+    .slice(0, 4);
 }
-
-
-
-
 
 export default async function ProductPage({
 
