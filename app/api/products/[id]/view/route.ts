@@ -1,20 +1,22 @@
 import { supabase } from "@/lib/supabase";
 
 
+
 /* ==========================
    GET SINGLE PRODUCT
 ========================== */
 
 export async function GET(
   req: Request,
-  { params }: { params: Promise<{ id:string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-
 
   try {
 
-
     const { id } = await params;
+
+
+    const productId = Number(id);
 
 
 
@@ -24,7 +26,7 @@ export async function GET(
 
       .select("*")
 
-      .eq("id", id)
+      .eq("id", productId)
 
       .single();
 
@@ -32,18 +34,24 @@ export async function GET(
 
 
 
-    if(error || !data){
+    if (error || !data) {
+
+
+      console.log(
+        "GET PRODUCT ERROR:",
+        error
+      );
 
 
       return Response.json(
 
         {
-          success:false,
-          message:"Product not found"
+          success: false,
+          message: "Product not found"
         },
 
         {
-          status:404
+          status: 404
         }
 
       );
@@ -59,9 +67,8 @@ export async function GET(
 
 
 
-
-
   }
+
 
   catch(error:any){
 
@@ -95,8 +102,8 @@ export async function GET(
 
 
 export async function PUT(
-  req:Request,
-  { params }: { params:Promise<{id:string}> }
+  req: Request,
+  { params }: { params: Promise<{ id:string }> }
 ){
 
 
@@ -104,6 +111,9 @@ export async function PUT(
 
 
     const { id } = await params;
+
+
+    const productId = Number(id);
 
 
     const body = await req.json();
@@ -121,19 +131,42 @@ export async function PUT(
 
         category: body.category,
 
+        categories: body.categories,
+
         price: body.price,
 
         old_price: body.old_price,
 
         image: body.image,
 
-        affiliate_link: body.affiliate_link
+        image2: body.image2,
+
+        image3: body.image3,
+
+        image4: body.image4,
+
+        image5: body.image5,
+
+        image6: body.image6,
+
+        affiliate_link: body.affiliate_link,
+
+        description: body.description,
+
+        features: body.features,
+
+        rating: body.rating,
+
+        stock: body.stock,
+
+        hot_pick: body.hot_pick,
+
 
       })
 
       .eq(
         "id",
-        id
+        productId
       );
 
 
@@ -160,8 +193,8 @@ export async function PUT(
 
 
 
-
   }
+
 
   catch(error:any){
 
@@ -169,17 +202,12 @@ export async function PUT(
     return Response.json(
 
       {
-
         success:false,
-
         message:error.message
-
       },
 
       {
-
         status:500
-
       }
 
     );
@@ -203,9 +231,9 @@ export async function PUT(
 
 export async function DELETE(
 
-  req:Request,
+  req: Request,
 
-  { params }: { params:Promise<{id:string}> }
+  { params }: { params: Promise<{ id:string }> }
 
 ){
 
@@ -214,6 +242,10 @@ export async function DELETE(
 
 
     const { id } = await params;
+
+
+    const productId = Number(id);
+
 
 
 
@@ -225,7 +257,7 @@ export async function DELETE(
 
       .eq(
         "id",
-        id
+        productId
       );
 
 
@@ -237,6 +269,7 @@ export async function DELETE(
       throw error;
 
     }
+
 
 
 
@@ -254,6 +287,7 @@ export async function DELETE(
 
 
   }
+
 
   catch(error:any){
 
