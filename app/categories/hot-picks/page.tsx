@@ -28,7 +28,8 @@ async function getProducts(page: number) {
 
 
 
-export default async function TodaysDealsPage({
+
+export default async function HotPicksPage({
 
   searchParams,
 
@@ -58,17 +59,18 @@ export default async function TodaysDealsPage({
 
 
 
-  // 🔥 Today's Deals
-  // Only discounted products will appear here
+  // 🔥 Today's Hot Picks
+  // Based on selected category
 
-  const dealsProducts = products.filter(
+  const hotPickProducts = products.filter(
 
     (product:any) =>
 
-      product.old_price &&
-
-      Number(product.old_price) >
-      Number(product.price)
+      product.categories?.includes(
+        "Today's Hot Picks"
+      )
+      ||
+      product.category === "Today's Hot Picks"
 
   );
 
@@ -95,7 +97,7 @@ export default async function TodaysDealsPage({
         "
       >
 
-        🔥 Today's Deals
+        🔥 Today's Hot Picks
 
       </h1>
 
@@ -104,7 +106,7 @@ export default async function TodaysDealsPage({
 
       <p className="mb-8 text-gray-600">
 
-        Best offers and discounted products available today.
+        Hand-picked trending products you should check today.
 
       </p>
 
@@ -124,11 +126,11 @@ export default async function TodaysDealsPage({
 
 
         {
-          dealsProducts.length === 0 ? (
+          hotPickProducts.length === 0 ? (
 
-            <p className="text-lg text-gray-500">
+            <p className="text-gray-500 text-lg">
 
-              No deals available.
+              No hot picks available.
 
             </p>
 
@@ -136,25 +138,29 @@ export default async function TodaysDealsPage({
           ) : (
 
 
-            dealsProducts.map((product:any)=>(
+            hotPickProducts.map(
+
+              (product:any)=>(
 
 
-              <CategoryProductCard
+                <CategoryProductCard
 
-                key={product.id}
+                  key={product.id}
 
-                id={product.id}
+                  id={product.id}
 
-                name={product.name}
+                  name={product.name}
 
-                price={product.price}
+                  price={product.price}
 
-                image={product.image}
+                  image={product.image}
 
-              />
+                />
 
 
-            ))
+              )
+
+            )
 
 
           )
@@ -162,6 +168,7 @@ export default async function TodaysDealsPage({
 
 
       </div>
+
 
 
 

@@ -35,7 +35,9 @@ q:string
 const {q}=await searchParams;
 
 
-const products = await getProducts();
+const data = await getProducts();
+
+const products = data.products || data;
 
 
 

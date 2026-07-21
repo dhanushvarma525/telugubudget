@@ -2,13 +2,27 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
 export default function Navbar() {
   const router = useRouter();
+  const pathname = usePathname();
 
   const [search, setSearch] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+
+  function goHome() {
+    setMenuOpen(false);
+
+    if (pathname === "/") {
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    } else {
+      router.push("/");
+    }
+  }
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -26,19 +40,22 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
 
         {/* Logo */}
-        <Link
-          href="/"
-          className="text-2xl font-extrabold text-orange-500"
+        <button
+          onClick={goHome}
+          className="text-2xl font-extrabold text-orange-500 cursor-pointer"
         >
           TeluguBudget
-        </Link>
+        </button>
 
         {/* Desktop Menu */}
         <div className="hidden lg:flex items-center gap-8 font-semibold">
 
-          <Link href="/" className="hover:text-orange-500">
+          <button
+            onClick={goHome}
+            className="hover:text-orange-500 cursor-pointer"
+          >
             Home
-          </Link>
+          </button>
 
           <Link
             href="/categories/todays-deals"
@@ -135,13 +152,30 @@ export default function Navbar() {
           {/* Mobile Links */}
           <div className="flex flex-col">
 
-            <Link
-              href="/"
-              onClick={() => setMenuOpen(false)}
-              className="px-5 py-4 border-b hover:bg-gray-100"
-            >
-              🏠 Home
-            </Link>
+           <button
+  onClick={goHome}
+  type="button"
+  className="
+    w-full
+    flex
+    items-center
+    px-5
+    py-4
+    border-b
+    hover:bg-gray-100
+    bg-transparent
+    text-gray-800
+    text-base
+    font-normal
+    cursor-pointer
+    appearance-none
+    border-x-0
+    border-t-0
+  "
+>
+  <span className="mr-3">🏠</span>
+  <span>Home</span>
+</button>
 
             <Link
               href="/categories"
@@ -151,16 +185,15 @@ export default function Navbar() {
               📂 Categories
             </Link>
 
+            <Link
+              href="/favorites"
+              onClick={() => setMenuOpen(false)}
+              className="px-5 py-4 border-b hover:bg-gray-100"
+            >
+              ❤️ Favorites
+            </Link>
 
-<Link
-  href="/favorites"
-  onClick={() => setMenuOpen(false)}
-  className="px-5 py-4 border-b hover:bg-gray-100"
->
-  ❤️ Favorites
-</Link>
-
-  <Link
+            <Link
               href="/categories/todays-deals"
               onClick={() => setMenuOpen(false)}
               className="px-5 py-4 border-b hover:bg-gray-100"

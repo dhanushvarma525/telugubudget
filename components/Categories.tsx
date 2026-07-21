@@ -1,47 +1,68 @@
 import Link from "next/link";
 
 export default function Categories() {
+
   const categories = [
-    {
-      name: "🔥 Today's Deals",
-      image: "/images/todays-deals.png",
-      link: "/categories/todays-deals",
-    },
-    {
-      name: "💰 Products Under ₹150",
-      image: "/images/under-150.png",
-      link: "/categories/under-150",
-    },
-    {
-      name: "❤️ Impress Your Crush",
-      image: "/images/crush.png",
-      link: "/categories/crush",
-    },
-    {
-      name: "👩 Mom's Favorites",
-      image: "/images/mom.png",
-      link: "/categories/mom",
-    },
-    {
-      name: "👨 Dad's Essentials",
-      image: "/images/dad.png",
-      link: "/categories/dad",
-    },
-    {
-      name: "🕉️ Devotional",
-      image: "/images/devotional.png",
-      link: "/categories/devotional",
-    },
-  ];
+ {
+  name: "🔥 Today's Deals",
+  image: "/images/uploads/todays-deals.png",
+  link: "/categories/todays-deals",
+},
+  {
+    name: "💰 Products Under ₹150",
+    image: "/images/uploads/under-150.png",
+    link: "/categories/under-150",
+  },
+  {
+    name: "❤️ Impress Your Crush",
+    image: "/images/uploads/crush.png",
+    link: "/categories/crush",
+  },
+  {
+    name: "👩 Mom's Favorites",
+    image: "/images/uploads/mom.png",
+    link: "/categories/mom",
+  },
+ {
+  name: "👗 Men & Women Wear",
+  image: "/images/uploads/dresses.png",
+  link: "/categories/men-women-wear",
+},
+  {
+    name: "🕉️ Devotional",
+    image: "/images/uploads/devotional.png",
+    link: "/categories/devotional",
+  },
+  {
+    name: "📱 Electronics",
+    image: "/images/uploads/electronics.png",
+    link: "/categories/electronics",
+  },
+  {
+    name: "👗 Fashion",
+    image: "/images/uploads/fashion.png",
+    link: "/categories/fashion",
+  },
+];
+
 
   return (
-    <section className="max-w-7xl mx-auto px-6 py-12">
 
-      <h2 className="text-4xl font-bold mb-8">
+    <section className="max-w-7xl mx-auto px-4 py-8">
+
+      <h2 className="text-2xl md:text-3xl font-bold mb-6">
         Shop by Category
       </h2>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+
+      <div
+        className="
+        grid
+        grid-cols-4
+        gap-3
+        md:gap-5
+        "
+      >
 
         {categories.map((category) => (
 
@@ -53,12 +74,12 @@ export default function Categories() {
             <div
               className="
               bg-white
-              rounded-2xl
-              shadow-md
-              overflow-hidden
-              hover:shadow-xl
-              hover:-translate-y-1
+              rounded-xl
+              shadow-sm
+              hover:shadow-lg
               transition
+              p-3
+              text-center
               cursor-pointer
               "
             >
@@ -66,12 +87,27 @@ export default function Categories() {
               <img
                 src={category.image}
                 alt={category.name}
-                className="w-full h-40 object-cover"
+                className="
+                w-full
+                aspect-square
+                object-cover
+                rounded-lg
+                "
               />
 
-              <div className="p-4 text-center font-semibold">
+
+              <p
+                className="
+                mt-2
+                text-xs
+                md:text-sm
+                font-semibold
+                line-clamp-2
+                "
+              >
                 {category.name}
-              </div>
+              </p>
+
 
             </div>
 
@@ -81,6 +117,8 @@ export default function Categories() {
 
       </div>
 
+
     </section>
+
   );
 }

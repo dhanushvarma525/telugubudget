@@ -3,136 +3,72 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+const PRODUCTS_PER_PAGE = 20;
 
 export default function AdminProducts() {
+  const [products, setProducts] = useState<any[]>([]);
 
+  const [search, setSearch] = useState("");
 
- const [products, setProducts] = useState<any[]>([]);
-const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("All Categories");
 
-const [category, setCategory] = useState("All Categories");
+  const [sort, setSort] = useState("latest");
 
-const [sort, setSort] = useState("latest");
-
+  const [currentPage, setCurrentPage] = useState(1);
 
   async function loadProducts() {
+  const res = await fetch("/api/products", {
+    cache: "no-store",
+  });
 
+  const data = await res.json();
 
-    const res = await fetch(
-      "/api/products",
-      {
-        cache:"no-store"
-      }
-    );
+  console.log("API RESPONSE:", data);
 
+  console.log("API RESPONSE:", data);
 
-    const data = await res.json();
+setProducts(data.products || data);
+}
 
-
-    setProducts(data);
-
-
-  }
-
-
-
-
-
-  useEffect(()=>{
-
+  useEffect(() => {
     loadProducts();
+  }, []);
 
-  },[]);
-
-
-
-
-
-
-
-  async function deleteProduct(id:number){
-
-
+  async function deleteProduct(id: number) {
     const confirmDelete = confirm(
       "Are you sure you want to delete this product?"
     );
 
+    if (!confirmDelete) return;
 
-
-    if(!confirmDelete){
-
-      return;
-
-    }
-
-
-
-
-    const response = await fetch(
-
-      `/api/products/${id}`,
-
-      {
-        method:"DELETE"
-      }
-
-    );
-
-
-
+    const response = await fetch(`/api/products/${id}`, {
+      method: "DELETE",
+    });
 
     const data = await response.json();
 
-
-
-
-    if(data.success){
-
-
-      alert(
-        "Product deleted successfully"
-      );
-
+    if (data.success) {
+      alert("Product deleted successfully");
 
       loadProducts();
-
-
-
+    } else {
+      alert(data.message);
     }
-    else{
-
-
-      alert(
-        data.message
-      );
-
-
-    }
-
-
-
   }
 
-
-
-
-const filteredProducts = products
+  const filteredProducts = products
     .filter((product) => {
-
-      const matchesSearch =
-        product.name
-          .toLowerCase()
-          .includes(search.toLowerCase());
+      const matchesSearch = product.name
+        .toLowerCase()
+        .includes(search.toLowerCase());
 
       const matchesCategory =
         category === "All Categories" ||
         product.category === category;
 
       return matchesSearch && matchesCategory;
-
     })
     .sort((a, b) => {
-
       if (sort === "priceHigh") {
         return Number(b.price) - Number(a.price);
       }
@@ -153,199 +89,166 @@ const filteredProducts = products
         new Date(b.created_at).getTime() -
         new Date(a.created_at).getTime()
       );
-
     });
 
+  // ===========================
+  // PAGINATION
+  // ===========================
 
-  return (
+  const totalPages = Math.ceil(
+    filteredProducts.length / PRODUCTS_PER_PAGE
+  );
 
-    <main className="
-    min-h-screen
-    bg-gray-100
-    p-10
-    ">
+  const startIndex =
+    (currentPage - 1) * PRODUCTS_PER_PAGE;
 
+  const endIndex =
+    startIndex + PRODUCTS_PER_PAGE;
 
+  const paginatedProducts =
+    filteredProducts.slice(startIndex, endIndex);
 
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5 mb-8">
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, category, sort]);
+return (
 
-  <div>
+  <main className="min-h-screen bg-gray-100 p-10">
 
-    <h1 className="text-4xl font-bold text-gray-800">
-      📦 Manage Products
-    </h1>
+    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5 mb-8">
 
-   <p className="text-gray-500 mt-2">
+      <div>
 
-  Manage all affiliate products from one place.
+        <h1 className="text-4xl font-bold text-gray-800">
+          📦 Manage Products
+        </h1>
 
-  <span className="ml-3 font-semibold text-orange-500">
-    Total Products: {products.length}
-  </span>
+        <p className="text-gray-500 mt-2">
 
-  <span className="ml-3 font-semibold text-blue-500">
-    Showing: {filteredProducts.length}
-  </span>
+          Manage all affiliate products from one place.
 
-</p>
+          <span className="ml-3 font-semibold text-orange-500">
+            Total Products: {products.length}
+          </span>
 
-  </div>
+          <span className="ml-3 font-semibold text-blue-500">
+            Showing: {paginatedProducts.length}
+          </span>
 
-  <div className="flex flex-col sm:flex-row gap-3">
+        </p>
 
-    <input
-  type="text"
-  placeholder="🔍 Search Products..."
-  value={search}
-  onChange={(e) => setSearch(e.target.value)}
-  className="border rounded-lg px-4 py-3 w-72 focus:outline-none focus:ring-2 focus:ring-orange-400"
-/>
+        <p className="text-sm text-gray-500 mt-1">
+          Page {currentPage} of {Math.max(totalPages, 1)}
+        </p>
 
-   <select
-  value={category}
-  onChange={(e) => setCategory(e.target.value)}
-  className="border rounded-lg px-4 py-3 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
->
-  <option>
-  All Categories
-</option>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3">
+
+        <input
+          type="text"
+          placeholder="🔍 Search Products..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="border rounded-lg px-4 py-3 w-72 focus:outline-none focus:ring-2 focus:ring-orange-400"
+        />
+
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          className="border rounded-lg px-4 py-3 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
+        >
+
+          <option>
+            All Categories
+          </option>
+
+          {
+            [...new Set(
+              products.map((product) => product.category)
+            )].map((cat) => (
+
+              <option
+                key={cat}
+                value={cat}
+              >
+                {cat}
+              </option>
+
+            ))
+          }
+
+        </select>
+
+        <select
+          value={sort}
+          onChange={(e) => setSort(e.target.value)}
+          className="border rounded-lg px-4 py-3 bg-white"
+        >
+
+          <option value="latest">
+            Latest
+          </option>
+
+          <option value="priceHigh">
+            Price High → Low
+          </option>
+
+          <option value="priceLow">
+            Price Low → High
+          </option>
+
+          <option value="clicks">
+            Most Clicked
+          </option>
+
+          <option value="views">
+            Most Viewed
+          </option>
+
+        </select>
+
+        <Link
+          href="/admin/products/add"
+          className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg font-semibold text-center"
+        >
+          + Add Product
+        </Link>
+
+      </div>
+
+    </div>
+
+    <div className="bg-white rounded-xl shadow overflow-x-auto">
+
+      <table className="w-full">
+
+        <thead className="bg-gray-200">
+
+          <tr>
+
+            <th className="p-4">Image</th>
+
+            <th className="p-4">Name</th>
+
+            <th className="p-4">Category</th>
+
+            <th className="p-4">Price</th>
+
+            <th className="p-4">Clicks</th>
+
+            <th className="p-4">Views</th>
+
+            <th className="p-4">Actions</th>
+
+          </tr>
+
+        </thead>
+
+       <tbody>
 
 {
-  [...new Set(
-    products.map(
-      (product) => product.category
-    )
-  )].map((cat) => (
-
-    <option
-      key={cat}
-      value={cat}
-    >
-      {cat}
-    </option>
-
-
- ))
-}
-</select>
-<select
-  value={sort}
-  onChange={(e)=>setSort(e.target.value)}
-  className="border rounded-lg px-4 py-3 bg-white"
->
-
-  <option value="latest">
-    Latest
-  </option>
-
-  <option value="priceHigh">
-    Price High → Low
-  </option>
-
-  <option value="priceLow">
-    Price Low → High
-  </option>
-
-  <option value="clicks">
-    Most Clicked
-  </option>
-
-  <option value="views">
-    Most Viewed
-  </option>
-
-</select>
-
-
-<Link
-  href="/admin/products/add"
-  className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg font-semibold text-center"
->
-  + Add Product
-</Link>
-
-  </div>
-
-</div>
-
-
-
-
-
-
-
-      <div className="
-      bg-white
-      rounded-xl
-      shadow
-      overflow-hidden
-      ">
-
-
-        <table className="
-        w-full
-        ">
-
-
-          <thead className="
-          bg-gray-200
-          ">
-
-
-            <tr>
-
-
-              <th className="p-4">
-                Image
-              </th>
-
-
-              <th className="p-4">
-                Name
-              </th>
-
-
-              <th className="p-4">
-                Category
-              </th>
-
-
-              <th className="p-4">
-                Price
-              </th>
-
-
-              <th className="p-4">
-                Clicks
-              </th>
-
-<th className="p-4">
-  Views
-</th>
-
-              <th className="p-4">
-                Actions
-              </th>
-
-
-            </tr>
-
-
-          </thead>
-
-
-
-
-
-
-<tbody>
-
-{
-  filteredProducts.length === 0
-
-  ?
-
-  (
+  paginatedProducts.length === 0 ? (
 
     <tr>
 
@@ -353,20 +256,14 @@ const filteredProducts = products
         colSpan={7}
         className="text-center py-12 text-gray-500 text-lg"
       >
-
         📦 No products found.
-
       </td>
 
     </tr>
 
-  )
+  ) : (
 
-  :
-
-  (
-
-    filteredProducts.map((product) => (
+    paginatedProducts.map((product) => (
 
       <tr
         key={product.id}
@@ -375,84 +272,72 @@ const filteredProducts = products
 
         <td className="p-4">
 
-          {
-            product.image ?
+          {product.image ? (
 
-            (
-              <img
-                src={product.image}
-                alt={product.name}
-                className="
-                w-20
-                h-20
-                object-cover
-                rounded-lg
-                "
-              />
-            )
+            <img
+              src={product.image}
+              alt={product.name}
+              className="
+              w-20
+              h-20
+              object-cover
+              rounded-lg
+              "
+            />
 
-            :
+          ) : (
 
-            (
-              <span>
-                No Image
-              </span>
-            )
-          }
+            <span>No Image</span>
+
+          )}
 
         </td>
-
 
         <td className="p-4 font-semibold">
           {product.name}
         </td>
 
-
         <td className="p-4">
           {product.category}
         </td>
-
 
         <td className="p-4">
           ₹{product.price}
         </td>
 
-
         <td className="p-4">
 
-          <span className="
-          bg-green-100
-          text-green-700
-          px-3
-          py-1
-          rounded-full
-          text-sm
-          ">
-
+          <span
+            className="
+            bg-green-100
+            text-green-700
+            px-3
+            py-1
+            rounded-full
+            text-sm
+            "
+          >
             {product.clicks}
-
           </span>
 
         </td>
-
 
         <td className="p-4">
 
-          <span className="
-          bg-blue-100
-          text-blue-700
-          px-3
-          py-1
-          rounded-full
-          text-sm
-          ">
-
+          <span
+            className="
+            bg-blue-100
+            text-blue-700
+            px-3
+            py-1
+            rounded-full
+            text-sm
+            "
+          >
             {product.views}
-
           </span>
 
         </td>
-
 
         <td className="p-4">
 
@@ -462,6 +347,7 @@ const filteredProducts = products
               href={`/admin/products/edit/${product.id}`}
               className="
               bg-blue-500
+              hover:bg-blue-600
               text-white
               px-4
               py-2
@@ -471,11 +357,11 @@ const filteredProducts = products
               Edit
             </Link>
 
-
             <button
               onClick={() => deleteProduct(product.id)}
               className="
               bg-red-500
+              hover:bg-red-600
               text-white
               px-4
               py-2
@@ -485,11 +371,9 @@ const filteredProducts = products
               Delete
             </button>
 
-
           </div>
 
         </td>
-
 
       </tr>
 
@@ -501,21 +385,85 @@ const filteredProducts = products
 
 </tbody>
 
+</table>
 
+</div>
+{/* Pagination */}
 
+{totalPages > 1 && (
 
-        </table>
+  <div className="flex justify-center items-center gap-2 mt-8 flex-wrap">
 
+    <button
+      onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+      disabled={currentPage === 1}
+      className="
+      px-4
+      py-2
+      rounded-lg
+      border
+      bg-white
+      hover:bg-gray-100
+      disabled:opacity-50
+      disabled:cursor-not-allowed
+      "
+    >
+      ← Previous
+    </button>
 
+    {Array.from(
+      { length: totalPages },
+      (_, index) => index + 1
+    ).map((page) => (
 
-      </div>
+      <button
+        key={page}
+        onClick={() => setCurrentPage(page)}
+        className={`
+          px-4
+          py-2
+          rounded-lg
+          border
+          transition
 
+          ${
+            currentPage === page
+              ? "bg-orange-500 text-white border-orange-500"
+              : "bg-white hover:bg-gray-100"
+          }
+        `}
+      >
+        {page}
+      </button>
 
+    ))}
 
+    <button
+      onClick={() =>
+        setCurrentPage((page) =>
+          Math.min(totalPages, page + 1)
+        )
+      }
+      disabled={currentPage === totalPages}
+      className="
+      px-4
+      py-2
+      rounded-lg
+      border
+      bg-white
+      hover:bg-gray-100
+      disabled:opacity-50
+      disabled:cursor-not-allowed
+      "
+    >
+      Next →
+    </button>
 
-    </main>
+  </div>
 
-  );
+)}
 
+</main>
 
+);
 }

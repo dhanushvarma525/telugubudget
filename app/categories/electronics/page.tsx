@@ -4,7 +4,9 @@ import { getBaseUrl } from "@/lib/getBaseUrl";
 
 const PRODUCTS_PER_PAGE = 30;
 
+
 async function getProducts(page: number) {
+
   const res = await fetch(
     `${getBaseUrl()}/api/products?page=${page}&limit=${PRODUCTS_PER_PAGE}`,
     {
@@ -12,29 +14,61 @@ async function getProducts(page: number) {
     }
   );
 
+
   if (!res.ok) {
+
     throw new Error("Failed to fetch products");
+
   }
 
+
   return res.json();
+
 }
 
-export default async function CrushPage({
+
+
+export default async function ElectronicsPage({
+
   searchParams,
+
 }: {
+
   searchParams: Promise<{ page?: string }>;
+
 }) {
+
+
   const params = await searchParams;
 
-  const currentPage = Number(params.page || "1");
 
-  const { products, totalPages } = await getProducts(currentPage);
-
-  const crushProducts = products.filter(
-    (product: any) => product.category === "Impress Your Crush"
+  const currentPage = Number(
+    params.page || "1"
   );
 
+
+
+  const {
+    products,
+    totalPages
+
+  } = await getProducts(currentPage);
+
+
+
+
+  // Support multiple categories
+  const electronicsProducts = products.filter(
+    (product:any) =>
+      product.categories?.includes("Electronics") ||
+      product.category === "Electronics"
+  );
+
+
+
+
   return (
+
     <main
       className="
       min-h-screen
@@ -42,6 +76,8 @@ export default async function CrushPage({
       p-8
       "
     >
+
+
       <h1
         className="
         text-4xl
@@ -49,17 +85,19 @@ export default async function CrushPage({
         mb-3
         "
       >
-        ❤️ Impress Your Crush
+        📱 Electronics
       </h1>
 
-      <p
-        className="
-        mb-8
-        text-gray-600
-        "
-      >
-        Special gifts and products to impress someone special.
+
+
+      <p className="mb-8 text-gray-600">
+
+        Latest electronics and gadgets.
+
       </p>
+
+
+
 
       <div
         className="
@@ -70,29 +108,71 @@ export default async function CrushPage({
         gap-6
         "
       >
-        {crushProducts.length === 0 ? (
-          <p className="text-gray-500 text-lg">
-            No products found.
-          </p>
-        ) : (
-          crushProducts.map((product: any) => (
-            <CategoryProductCard
-              key={product.id}
-              id={product.id}
-              name={product.name}
-              price={product.price}
-              image={product.image}
-            />
-          ))
-        )}
+
+
+        {
+          electronicsProducts.length === 0 ? (
+
+            <p className="text-gray-500 text-lg">
+
+              No products found.
+
+            </p>
+
+
+          ) : (
+
+
+            electronicsProducts.map(
+              (product:any)=>(
+
+
+                <CategoryProductCard
+
+                  key={product.id}
+
+                  id={product.id}
+
+                  name={product.name}
+
+                  price={product.price}
+
+                  image={product.image}
+
+                />
+
+
+              )
+            )
+
+
+          )
+        }
+
+
       </div>
 
+
+
+
       <div className="mt-12 flex justify-center">
+
+
         <Pagination
+
           currentPage={currentPage}
+
           totalPages={totalPages}
+
         />
+
+
       </div>
+
+
+
     </main>
+
   );
+
 }

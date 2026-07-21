@@ -3,38 +3,60 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import {
+  Home,
+  Folder,
+  Flame,
+  Search,
+  MessageCircle,
+} from "lucide-react";
+
+
 export default function BottomNavigation() {
+
+
   const pathname = usePathname();
 
+
+
   const menu = [
+
     {
-      name: "Home",
-      icon: "🏠",
-      href: "/",
+      name:"Home",
+      icon:Home,
+      href:"/",
     },
+
     {
-      name: "Categories",
-      icon: "📂",
-      href: "/categories",
+      name:"Categories",
+      icon:Folder,
+      href:"/categories",
     },
+
     {
-      name: "Deals",
-      icon: "🔥",
-      href: "/categories/todays-deals",
+      name:"Deals",
+      icon:Flame,
+      href:"/categories/todays-deals",
     },
+
     {
-      name: "Search",
-      icon: "🔍",
-      href: "/search?q=",
+      name:"Search",
+      icon:Search,
+      href:"/search?q=",
     },
+
     {
-      name: "Contact",
-      icon: "📞",
-      href: "/contact",
+      name:"Contact",
+      icon:MessageCircle,
+      href:"/contact",
     },
+
   ];
 
+
+
   return (
+
     <div
       className="
       fixed
@@ -48,40 +70,75 @@ export default function BottomNavigation() {
       z-50
       "
     >
+
+
       <div className="grid grid-cols-5">
 
-        {menu.map((item) => (
 
-          <Link
+      {
+        menu.map((item)=>{
+
+
+          const Icon = item.icon;
+
+
+          return (
+
+            <Link
+
             key={item.name}
+
             href={item.href}
+
             className={`
-              flex
-              flex-col
-              items-center
-              justify-center
-              py-3
-              text-xs
-              ${
-                pathname === item.href
-                  ? "text-orange-500 font-bold"
-                  : "text-gray-600"
-              }
+            flex
+            flex-col
+            items-center
+            justify-center
+            py-3
+            text-xs
+            ${
+              pathname === item.href
+              ?
+              "text-orange-500 font-bold"
+              :
+              "text-gray-600"
+            }
             `}
-          >
-            <span className="text-xl">
-              {item.icon}
-            </span>
 
-            <span className="mt-1">
+            >
+
+
+              <Icon
+
+              size={26}
+
+              strokeWidth={2.5}
+
+              />
+
+
+              <span className="mt-1">
+
               {item.name}
-            </span>
 
-          </Link>
+              </span>
 
-        ))}
+
+            </Link>
+
+          )
+
+
+        })
+      }
+
 
       </div>
+
+
     </div>
+
   );
+
 }

@@ -1,39 +1,100 @@
 import { supabase } from "@/lib/supabase";
 
 console.log("🔥 SUPABASE PRODUCTS ROUTE RUNNING");
-// GET PRODUCTS
 
-export async function GET() {
+
+// ===========================
+// GET PRODUCTS
+// ===========================
+
+export async function GET(req: Request) {
 
   try {
 
-    const { data, error } = await supabase
+    const { searchParams } = new URL(req.url);
+
+
+    const page = Number(
+      searchParams.get("page") || "1"
+    );
+
+    const limit = Number(
+      searchParams.get("limit") || "30"
+    );
+
+
+    const hotPick = searchParams.get("hotPick");
+
+
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+
+
+    let query = supabase
       .from("products")
-      .select("*")
-      .order("id", {
-        ascending: false
-      });
+      .select("*", { count: "exact" })
+      .order("id", { ascending: false });
 
 
-    if (error) {
-      throw error;
+
+    // 🔥 ONLY HOT PICKS
+    if (hotPick === "true") {
+
+      query = query.eq(
+        "hot_pick",
+        true
+      );
+
     }
 
 
-    return Response.json(data);
+
+    const { data, error, count } = await query
+      .range(from, to);
+
+
+
+    if (error) {
+
+      throw error;
+
+    }
+
+
+
+    return Response.json({
+
+      products: data || [],
+
+      total: count || 0,
+
+      page,
+
+      limit,
+
+      totalPages: Math.ceil(
+        (count || 0) / limit
+      ),
+
+    });
+
 
 
   } catch (error:any) {
 
 
     return Response.json(
+
       {
         success:false,
-        message:error.message
+        message:error.message,
       },
+
       {
-        status:500
+        status:500,
       }
+
     );
 
 
@@ -44,32 +105,39 @@ export async function GET() {
 
 
 
+
+// ===========================
 // ADD PRODUCT
-
-export async function POST(
-  req: Request
-) {
-
+// ===========================
+export async function POST(req: Request) {
 
   try {
 
-
     const body = await req.json();
-
 
 
     const {
 
       name,
+
       category,
+
+      categories,
+
       price,
+
       old_price,
 
       image,
+
       image2,
+
       image3,
+
       image4,
+
       image5,
+
       image6,
 
       affiliate_link,
@@ -80,7 +148,9 @@ export async function POST(
 
       rating,
 
-      stock
+      stock,
+
+      hot_pick,
 
     } = body;
 
@@ -96,7 +166,13 @@ export async function POST(
 
           name,
 
+          // Main category (old system)
           category,
+
+
+          // Multiple categories (new system)
+          categories,
+
 
           price,
 
@@ -131,16 +207,19 @@ export async function POST(
           stock,
 
 
-          views:0,
+          views: 0,
 
-          clicks:0
+          clicks: 0,
+
+
+          hot_pick: hot_pick || false,
+
 
         }
 
       ])
 
       .select();
-
 
 
 
@@ -152,23 +231,19 @@ export async function POST(
 
 
 
-
     return Response.json({
 
       success:true,
 
       message:"Product added successfully",
 
-      product:data
+      product:data,
 
     });
 
 
 
-
-  }
-  catch(error:any){
-
+  } catch(error:any){
 
 
     return Response.json(
@@ -177,13 +252,13 @@ export async function POST(
 
         success:false,
 
-        message:error.message
+        message:error.message,
 
       },
 
       {
 
-        status:500
+        status:500,
 
       }
 
@@ -192,5 +267,7 @@ export async function POST(
 
   }
 
-
 }
+
+
+  

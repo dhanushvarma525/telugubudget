@@ -1,30 +1,38 @@
 import Navbar from "@/components/Navbar";
-import Hero from "@/components/Hero";
+import TrendingDeals from "@/components/TrendingDeals";
 import Categories from "@/components/Categories";
 import ProductCard from "@/components/ProductCard";
 import Footer from "@/components/Footer";
+import Pagination from "@/components/Pagination";
 import { getBaseUrl } from "@/lib/getBaseUrl";
 
 
-async function getProducts() {
+const PRODUCTS_PER_PAGE = 30;
+
+
+
+async function getProducts(page:number){
 
   const res = await fetch(
-    `${getBaseUrl()}/api/products`,
+    `${getBaseUrl()}/api/products?page=${page}&limit=${PRODUCTS_PER_PAGE}`,
     {
-      cache: "no-store",
+      cache:"no-store",
     }
   );
 
 
- if (!res.ok) {
+  if(!res.ok){
 
-  const errorText = await res.text();
+    const errorText = await res.text();
 
-  console.log("PRODUCT API ERROR:", errorText);
+    console.log(
+      "PRODUCT API ERROR:",
+      errorText
+    );
 
-  throw new Error(errorText);
+    throw new Error(errorText);
 
-}
+  }
 
 
   return res.json();
@@ -33,10 +41,40 @@ async function getProducts() {
 
 
 
-export default async function Home() {
+
+export default async function Home({
+
+  searchParams,
+
+}:{
+
+  searchParams: Promise<{page?:string}>;
+
+}){
 
 
-  const products = await getProducts();
+  const params = await searchParams;
+
+
+  const currentPage = Number(
+    params.page || "1"
+  );
+
+
+
+  const {
+    products,
+    totalPages
+
+  } = await getProducts(currentPage);
+
+
+
+
+  // Trending Products = latest products
+  // Hot Picks are handled separately
+
+  const trendingProducts = products;
 
 
 
@@ -50,13 +88,20 @@ export default async function Home() {
     >
 
 
+
       <Navbar />
 
 
-      <Hero />
+
+      {/* 🔥 TOP HOT PICKS SLIDER */}
+
+      <TrendingDeals />
+
 
 
       <Categories />
+
+
 
 
 
@@ -64,21 +109,52 @@ export default async function Home() {
         className="
         mx-auto
         max-w-7xl
-        px-6
-        py-10
+        px-4
+        py-8
+        sm:px-6
         "
       >
 
 
-        <h2
+
+        <div
           className="
+          flex
+          items-center
+          justify-between
           mb-6
-          text-3xl
-          font-bold
           "
         >
-          🔥 Trending Products
-        </h2>
+
+
+          <h2
+            className="
+            text-2xl
+            sm:text-3xl
+            font-bold
+            "
+          >
+
+            🔥 Trending Products
+
+          </h2>
+
+
+
+          <p
+            className="
+            text-sm
+            text-gray-500
+            "
+          >
+
+            Page {currentPage} / {totalPages}
+
+          </p>
+
+
+        </div>
+
 
 
 
@@ -86,37 +162,96 @@ export default async function Home() {
         <div
           className="
           grid
-          gap-6
-          md:grid-cols-3
+          grid-cols-2
+          gap-4
+          sm:grid-cols-2
+          lg:grid-cols-3
+          sm:gap-6
           "
         >
 
 
-          {products.map((product: any) => (
+          {
 
-            <ProductCard
+            trendingProducts.length === 0 ? (
 
-              key={product.id}
+              <p
+                className="
+                col-span-full
+                text-gray-500
+                "
+              >
 
-              id={product.id}
+                No products available.
 
-              name={product.name}
+              </p>
 
-              price={product.price}
 
-              image={product.image}
+            ) : (
 
-              affiliate_link={product.affiliate_link}
 
-            />
+              trendingProducts.map((product:any)=>(
 
-          ))}
+
+                <ProductCard
+
+                  key={product.id}
+
+                  id={product.id}
+
+                  name={product.name}
+
+                  price={product.price}
+
+                  image={product.image}
+
+                  affiliate_link={
+                    product.affiliate_link
+                  }
+
+                />
+
+
+              ))
+
+
+            )
+
+
+          }
+
 
 
         </div>
 
 
+
+
+
+        <div
+          className="
+          mt-10
+          flex
+          justify-center
+          "
+        >
+
+
+          <Pagination
+
+            currentPage={currentPage}
+
+            totalPages={totalPages}
+
+          />
+
+
+        </div>
+
+
+
       </section>
+
 
 
 

@@ -4,43 +4,63 @@ import WishlistButton from "@/components/WishlistButton";
 import ShareButton from "@/components/ShareButton";
 import { getBaseUrl } from "@/lib/getBaseUrl";
 
-async function getProduct(id: string) {
+
+async function getProduct(id:string){
+
   const res = await fetch(
     `${getBaseUrl()}/api/products/${id}`,
     {
-      cache: "no-store",
+      cache:"no-store",
     }
   );
 
-  if (!res.ok) {
+
+  if(!res.ok){
     return null;
   }
 
+
   return await res.json();
+
 }
 
-async function getSimilarProducts(category: string, id: string) {
+
+
+async function getSimilarProducts(
+  category:string,
+  id:string
+){
+
   const res = await fetch(
     `${getBaseUrl()}/api/products`,
     {
-      cache: "no-store",
+      cache:"no-store",
     }
   );
 
-  if (!res.ok) {
+
+  if(!res.ok){
     return [];
   }
 
-  const products = await res.json();
+
+  const data = await res.json();
+
+
+  const products=data.products || [];
+
 
   return products
-    .filter(
-      (item: any) =>
-        item.category === category &&
-        item.id !== Number(id)
-    )
-    .slice(0, 4);
+  .filter(
+    (item:any)=>
+      item.category===category &&
+      item.id!==Number(id)
+  )
+  .slice(0,4);
+
 }
+
+
 
 export default async function ProductPage({
 
@@ -56,15 +76,13 @@ params:Promise<{id:string}>
 const {id}=await params;
 
 
-
-const product = await getProduct(id);
+const product=await getProduct(id);
 
 
 
 if(!product){
 
-
-return (
+return(
 
 <div className="p-10 text-center">
 
@@ -74,13 +92,11 @@ Product Not Found
 
 );
 
-
 }
 
 
 
-
-const similarProducts =
+const similarProducts=
 await getSimilarProducts(
 product.category,
 id
@@ -88,38 +104,46 @@ id
 
 
 
-
-
-const rating =
+const rating=
 Number(product.rating || 0);
-
-
-
 return (
 
-<main className="
-bg-gray-100
+<main
+className="
 min-h-screen
-p-6
-">
+bg-gray-100
+p-3
+sm:p-6
+"
+>
 
 
-<div className="
+<div
+className="
 max-w-7xl
 mx-auto
 bg-white
 rounded-xl
 shadow
-p-8
+p-4
+sm:p-8
 grid
 md:grid-cols-2
-gap-10
-">
+gap-6
+"
+>
 
 
-{/* IMAGE */}
 
-<div>
+{/* PRODUCT IMAGE */}
+
+<div
+className="
+flex
+justify-center
+items-start
+"
+>
 
 
 <img
@@ -130,8 +154,10 @@ alt={product.name}
 
 className="
 w-full
-h-[450px]
-object-cover
+max-w-sm
+h-64
+sm:h-96
+object-contain
 rounded-xl
 "
 
@@ -144,15 +170,20 @@ rounded-xl
 
 
 
-{/* DETAILS */}
+{/* PRODUCT DETAILS */}
 
 <div>
 
 
-<h1 className="
-text-4xl
+
+<h1
+className="
+text-xl
+sm:text-3xl
 font-bold
-">
+leading-snug
+"
+>
 
 {product.name}
 
@@ -162,24 +193,41 @@ font-bold
 
 
 
-<div className="mt-4">
+<div
+className="
+mt-3
+flex
+items-center
+gap-2
+"
+>
 
 
-<span className="
+<span
+className="
 text-yellow-500
-text-2xl
-">
+text-lg
+sm:text-2xl
+"
+>
 
+{"★".repeat(
+Math.floor(rating)
+)}
 
-{"★".repeat(Math.floor(rating))}
-
-{"☆".repeat(5-Math.floor(rating))}
-
+{"☆".repeat(
+5-Math.floor(rating)
+)}
 
 </span>
 
 
-<span className="ml-3">
+<span
+className="
+text-gray-600
+text-sm
+"
+>
 
 {rating}/5
 
@@ -192,11 +240,24 @@ text-2xl
 
 
 
-<p className="
-text-3xl
+<div
+className="
+mt-4
+flex
+items-center
+gap-3
+"
+>
+
+
+<p
+className="
+text-2xl
+sm:text-3xl
 font-bold
-mt-5
-">
+text-orange-500
+"
+>
 
 ₹{product.price}
 
@@ -204,75 +265,109 @@ mt-5
 
 
 
-
 {
 product.old_price &&
 
-<div className="mt-2">
-
-
-<p className="
+<p
+className="
 line-through
-text-gray-500
-text-xl
-">
+text-gray-400
+"
+>
 
 ₹{product.old_price}
 
 </p>
 
+}
 
 
-<p className="
+</div>
+
+
+
+
+
+
+{
+product.old_price &&
+
+<p
+className="
+mt-2
 text-green-600
 font-bold
-text-lg
-">
+"
+>
 
 🔥
 
 {
 Math.round(
+
 (
-(Number(product.old_price)-Number(product.price))
+(Number(product.old_price)
+-
+Number(product.price))
+
 /
+
 Number(product.old_price)
-)*100
+
 )
+
+*100
+
+)
+
 }
 
 % OFF
 
 </p>
 
-
-</div>
-
 }
 
 
 
-<div className="
-mt-5
-font-semibold
-">
+<div
+className="
+mt-4
+"
+>
 
 
 {
 
-product.stock === "In Stock"
+product.stock==="In Stock"
 
 ?
 
-<span className="text-green-600">
+<span
+className="
+text-green-600
+font-semibold
+"
+>
+
 🟢 In Stock
+
 </span>
+
 
 :
 
-<span className="text-red-600">
+<span
+className="
+text-red-600
+font-semibold
+"
+>
+
 🔴 Out of Stock
+
 </span>
+
 
 }
 
@@ -280,60 +375,95 @@ product.stock === "In Stock"
 </div>
 
 
-<WishlistButton product={product} />
 
-<a
-href={product.affiliate_link}
-target="_blank"
+
+
+<div
 className="
-inline-block
 mt-4
-w-full
-bg-orange-500
-text-white
-text-center
-px-8
-py-4
-rounded-xl
-font-bold
 "
 >
+
+<WishlistButton product={product}/>
+
+</div>
+
+
+
+
+
+
+<a
+
+href={product.affiliate_link}
+
+target="_blank"
+
+className="
+mt-4
+block
+w-full
+bg-orange-500
+hover:bg-orange-600
+text-white
+text-center
+py-3
+rounded-xl
+font-bold
+text-base
+"
+>
+
 🛒 Buy Now
+
 </a>
 
+
+
+
+
+<div
+className="
+mt-4
+"
+>
+
 <ShareButton
-  name={product.name}
+name={product.name}
 />
-</div>
-
 
 </div>
 
 
 
+</div>
 
 
-
-
+</div>
 {/* ABOUT ITEM */}
 
-
-<div className="
+<div
+className="
 max-w-7xl
 mx-auto
 bg-white
-mt-8
+mt-5
 rounded-xl
 shadow
-p-8
-">
+p-4
+sm:p-8
+"
+>
 
 
-<h2 className="
-text-2xl
+<h2
+className="
+text-xl
+sm:text-2xl
 font-bold
 mb-4
-">
+"
+>
 
 About this item
 
@@ -341,9 +471,14 @@ About this item
 
 
 
-<div className="
+<div
+className="
 text-gray-700
-">
+text-sm
+sm:text-base
+"
+>
+
 
 {
 
@@ -356,14 +491,18 @@ product.features
 .map(
 (item:string,index:number)=>(
 
+
 <p
 key={index}
-className="mb-2"
+className="
+mb-2
+"
 >
 
 ✓ {item}
 
 </p>
+
 
 )
 
@@ -375,16 +514,14 @@ className="mb-2"
 No features added
 </p>
 
+
 }
 
 
 </div>
 
 
-
 </div>
-
-
 
 
 
@@ -392,41 +529,54 @@ No features added
 
 {/* DESCRIPTION */}
 
-
-<div className="
+<div
+className="
 max-w-7xl
 mx-auto
 bg-white
-mt-8
+mt-5
 rounded-xl
 shadow
-p-8
-">
+p-4
+sm:p-8
+"
+>
 
 
-<h2 className="
-text-2xl
+<h2
+className="
+text-xl
+sm:text-2xl
 font-bold
 mb-4
-">
+"
+>
 
 Product Description
 
 </h2>
 
 
-<p className="
+
+<p
+className="
 whitespace-pre-line
 text-gray-700
-">
+text-sm
+sm:text-base
+"
+>
 
-{product.description || "No description added"}
+{
+product.description ||
+"No description added"
+}
 
 </p>
 
 
-</div>
 
+</div>
 
 
 
@@ -435,19 +585,22 @@ text-gray-700
 
 {/* SIMILAR PRODUCTS */}
 
-
-<div className="
+<div
+className="
 max-w-7xl
 mx-auto
-mt-8
-">
+mt-6
+"
+>
 
 
-<h2 className="
-text-3xl
+<h2
+className="
+text-2xl
 font-bold
-mb-6
-">
+mb-4
+"
+>
 
 Similar Products
 
@@ -455,11 +608,15 @@ Similar Products
 
 
 
-<div className="
+<div
+className="
 grid
+grid-cols-2
+sm:grid-cols-3
 md:grid-cols-4
-gap-6
-">
+gap-4
+"
+>
 
 
 {
@@ -479,8 +636,6 @@ rounded-xl
 shadow
 overflow-hidden
 "
-
-
 >
 
 
@@ -488,28 +643,46 @@ overflow-hidden
 
 src={item.image}
 
+alt={item.name}
+
 className="
 w-full
-h-48
-object-cover
+h-36
+sm:h-48
+object-contain
 "
 
 />
 
 
-<div className="p-4">
+
+<div
+className="
+p-3
+"
+>
 
 
-<h3 className="
+<h3
+className="
 font-bold
-">
+text-sm
+line-clamp-2
+"
+>
 
 {item.name}
 
 </h3>
 
 
-<p className="mt-2">
+
+<p
+className="
+mt-2
+font-semibold
+"
+>
 
 ₹{item.price}
 
@@ -535,14 +708,33 @@ font-bold
 
 
 
+
+
+{/* REVIEWS */}
+
+
+<div
+className="
+mt-6
+"
+>
+
+
 <ReviewSection
+
 productId={product.id}
+
 />
+
+
+</div>
+
+
+
 
 </main>
 
 
 );
-
 
 }
