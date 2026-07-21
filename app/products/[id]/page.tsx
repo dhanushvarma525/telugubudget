@@ -4,6 +4,7 @@ import WishlistButton from "@/components/WishlistButton";
 import ShareButton from "@/components/ShareButton";
 import { getBaseUrl } from "@/lib/getBaseUrl";
 import ProductImageSlider from "@/components/ProductImageSlider";
+import ViewTracker from "@/components/ViewTracker";
 
 async function getProduct(id:string){
 
@@ -116,7 +117,7 @@ p-3
 sm:p-6
 "
 >
-
+<ViewTracker productId={product.id} />
 
 <div
 className="
