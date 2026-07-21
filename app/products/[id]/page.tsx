@@ -3,7 +3,7 @@ import ReviewSection from "@/components/ReviewSection";
 import WishlistButton from "@/components/WishlistButton";
 import ShareButton from "@/components/ShareButton";
 import { getBaseUrl } from "@/lib/getBaseUrl";
-
+import ProductImageSlider from "@/components/ProductImageSlider";
 
 async function getProduct(id:string){
 
@@ -137,34 +137,16 @@ gap-6
 
 {/* PRODUCT IMAGE */}
 
-<div
-className="
-flex
-justify-center
-items-start
-"
->
-
-
-<img
-
-src={product.image}
-
-alt={product.name}
-
-className="
-w-full
-max-w-sm
-h-64
-sm:h-96
-object-contain
-rounded-xl
-"
-
+<ProductImageSlider
+  images={[
+    product.image,
+    product.image2,
+    product.image3,
+    product.image4,
+    product.image5,
+    product.image6,
+  ]}
 />
-
-
-</div>
 
 
 
