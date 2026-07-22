@@ -6,6 +6,7 @@ import { getBaseUrl } from "@/lib/getBaseUrl";
 import ProductImageSlider from "@/components/ProductImageSlider";
 import ViewTracker from "@/components/ViewTracker";
 
+
 async function getProduct(id:string){
 
   const res = await fetch(
@@ -24,6 +25,8 @@ async function getProduct(id:string){
   return await res.json();
 
 }
+
+
 
 
 
@@ -60,6 +63,9 @@ async function getSimilarProducts(
   .slice(0,4);
 
 }
+
+
+
 
 
 
@@ -105,8 +111,17 @@ id
 
 
 
-const rating=
+const rating =
 Number(product.rating || 0);
+
+
+
+const siteUrl =
+process.env.NEXT_PUBLIC_SITE_URL ||
+"http://localhost:3000";
+
+
+
 return (
 
 <main
@@ -117,590 +132,203 @@ p-3
 sm:p-6
 "
 >
-<ViewTracker productId={product.id} />
 
-<div
-className="
-max-w-7xl
-mx-auto
-bg-white
-rounded-xl
-shadow
-p-4
-sm:p-8
-grid
-md:grid-cols-2
-gap-6
-"
->
 
+{/* PRODUCT SCHEMA */}
 
+<script
+type="application/ld+json"
+dangerouslySetInnerHTML={{
+__html:JSON.stringify({
 
-{/* PRODUCT IMAGE */}
+"@context":"https://schema.org",
 
-<ProductImageSlider
-  images={[
-    product.image,
-    product.image2,
-    product.image3,
-    product.image4,
-    product.image5,
-    product.image6,
-  ]}
-/>
+"@type":"Product",
 
 
+name:product.name,
 
 
+image:[
+product.image,
+product.image2,
+product.image3,
+product.image4
+].filter(Boolean),
 
-{/* PRODUCT DETAILS */}
 
-<div>
 
+description:
+product.description,
 
 
-<h1
-className="
-text-xl
-sm:text-3xl
-font-bold
-leading-snug
-"
->
 
-{product.name}
+brand:{
 
-</h1>
+"@type":"Brand",
 
+name:"TeluguBudget"
 
+},
 
 
 
-<div
-className="
-mt-3
-flex
-items-center
-gap-2
-"
->
+offers:{
 
 
-<span
-className="
-text-yellow-500
-text-lg
-sm:text-2xl
-"
->
+"@type":"Offer",
 
-{"★".repeat(
-Math.floor(rating)
-)}
 
-{"☆".repeat(
-5-Math.floor(rating)
-)}
+url:
+`${siteUrl}/products/${product.id}`,
 
-</span>
 
+priceCurrency:"INR",
 
-<span
-className="
-text-gray-600
-text-sm
-"
->
 
-{rating}/5
+price:
+product.price,
 
-</span>
 
-
-</div>
-
-
-
-
-
-<div
-className="
-mt-4
-flex
-items-center
-gap-3
-"
->
-
-
-<p
-className="
-text-2xl
-sm:text-3xl
-font-bold
-text-orange-500
-"
->
-
-₹{product.price}
-
-</p>
-
-
-
-{
-product.old_price &&
-
-<p
-className="
-line-through
-text-gray-400
-"
->
-
-₹{product.old_price}
-
-</p>
-
-}
-
-
-</div>
-
-
-
-
-
-
-{
-product.old_price &&
-
-<p
-className="
-mt-2
-text-green-600
-font-bold
-"
->
-
-🔥
-
-{
-Math.round(
-
-(
-(Number(product.old_price)
--
-Number(product.price))
-
-/
-
-Number(product.old_price)
-
-)
-
-*100
-
-)
-
-}
-
-% OFF
-
-</p>
-
-}
-
-
-
-<div className="mt-4">
-
-  {product.stock === "In Stock" ? (
-
-    <span className="text-green-600 font-semibold">
-      🟢 In Stock
-    </span>
-
-  ) : (
-
-    <span className="text-red-600 font-semibold">
-      🔴 Out of Stock
-    </span>
-
-  )}
-
-</div>
-
-<div className="mt-4">
-
-  {product.coupon_available ? (
-
-    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-
-      <p className="text-green-700 font-bold">
-        🎉 Coupon Available
-      </p>
-
-      <p className="text-green-600 mt-1">
-        Use Code:
-        <span className="font-bold ml-1">
-          {product.coupon}
-        </span>
-      </p>
-
-    </div>
-
-  ) : (
-
-    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-
-      <p className="text-red-600 font-semibold">
-        ❌ No coupon available for this product
-      </p>
-
-    </div>
-
-  )}
-
-</div>
-
-
-
-
-
-<div
-className="
-mt-4
-"
->
-
-<WishlistButton product={product}/>
-
-</div>
-
-
-
-
-
-
-<a
-
-href={product.affiliate_link}
-
-target="_blank"
-
-className="
-mt-4
-block
-w-full
-bg-orange-500
-hover:bg-orange-600
-text-white
-text-center
-py-3
-rounded-xl
-font-bold
-text-base
-"
->
-
-🛒 Buy Now
-
-</a>
-
-
-
-
-
-<div
-className="
-mt-4
-"
->
-
-<ShareButton
-name={product.name}
-/>
-
-</div>
-
-
-
-</div>
-
-
-</div>
-{/* ABOUT ITEM */}
-
-<div
-className="
-max-w-7xl
-mx-auto
-bg-white
-mt-5
-rounded-xl
-shadow
-p-4
-sm:p-8
-"
->
-
-
-<h2
-className="
-text-xl
-sm:text-2xl
-font-bold
-mb-4
-"
->
-
-About this item
-
-</h2>
-
-
-
-<div
-className="
-text-gray-700
-text-sm
-sm:text-base
-"
->
-
-
-{
-
-product.features
+availability:
+product.stock === "In Stock"
 
 ?
-
-product.features
-.split("\n")
-.map(
-(item:string,index:number)=>(
-
-
-<p
-key={index}
-className="
-mb-2
-"
->
-
-✓ {item}
-
-</p>
-
-
-)
-
-)
+"https://schema.org/InStock"
 
 :
 
-<p>
-No features added
-</p>
+"https://schema.org/OutOfStock",
 
+
+
+seller:{
+
+"@type":"Organization",
+
+name:"TeluguBudget"
 
 }
 
 
-</div>
-
-
-</div>
+},
 
 
 
 
+aggregateRating:
+rating > 0
 
-{/* DESCRIPTION */}
-
-<div
-className="
-max-w-7xl
-mx-auto
-bg-white
-mt-5
-rounded-xl
-shadow
-p-4
-sm:p-8
-"
->
-
-
-<h2
-className="
-text-xl
-sm:text-2xl
-font-bold
-mb-4
-"
->
-
-Product Description
-
-</h2>
-
-
-
-<p
-className="
-whitespace-pre-line
-text-gray-700
-text-sm
-sm:text-base
-"
->
+?
 
 {
-product.description ||
-"No description added"
+
+"@type":"AggregateRating",
+
+ratingValue:
+rating,
+
+bestRating:"5",
+
+worstRating:"1"
+
 }
 
-</p>
+:
+
+undefined
 
 
 
-</div>
+})
 
-
-
-
-
-
-{/* SIMILAR PRODUCTS */}
-
-<div
-className="
-max-w-7xl
-mx-auto
-mt-6
-"
->
-
-
-<h2
-className="
-text-2xl
-font-bold
-mb-4
-"
->
-
-Similar Products
-
-</h2>
-
-
-
-<div
-className="
-grid
-grid-cols-2
-sm:grid-cols-3
-md:grid-cols-4
-gap-4
-"
->
-
-
-{
-
-similarProducts.map((item:any)=>(
-
-
-<Link
-
-key={item.id}
-
-href={`/products/${item.id}`}
-
-className="
-bg-white
-rounded-xl
-shadow
-overflow-hidden
-"
->
-
-
-<img
-
-src={item.image}
-
-alt={item.name}
-
-className="
-w-full
-h-36
-sm:h-48
-object-contain
-"
-
+}}
 />
 
 
 
-<div
-className="
-p-3
-"
->
-
-
-<h3
-className="
-font-bold
-text-sm
-line-clamp-2
-"
->
-
-{item.name}
-
-</h3>
 
 
 
-<p
-className="
-mt-2
-font-semibold
-"
->
-
-₹{item.price}
-
-</p>
+{/* BREADCRUMB SCHEMA */}
 
 
-</div>
+<script
+type="application/ld+json"
+dangerouslySetInnerHTML={{
+__html:JSON.stringify({
 
 
-</Link>
+"@context":"https://schema.org",
 
 
-))
+"@type":"BreadcrumbList",
 
+
+
+itemListElement:[
+
+
+
+{
+
+
+"@type":"ListItem",
+
+position:1,
+
+name:"Home",
+
+item:siteUrl
+
+},
+
+
+
+
+{
+
+
+"@type":"ListItem",
+
+position:2,
+
+name:
+product.category,
+
+item:
+`${siteUrl}/categories/${encodeURIComponent(product.category)}`
+
+},
+
+
+
+
+{
+
+
+"@type":"ListItem",
+
+position:3,
+
+name:
+product.name,
+
+item:
+`${siteUrl}/products/${product.id}`
 
 }
 
 
-</div>
 
-
-</div>
-
+]
 
 
 
+})
 
-{/* REVIEWS */}
+}}
+/>{/* REVIEWS */}
 
 
 <div
@@ -718,6 +346,7 @@ productId={product.id}
 
 
 </div>
+
 
 
 

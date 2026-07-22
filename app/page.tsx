@@ -1,4 +1,3 @@
-import Navbar from "@/components/Navbar";
 import TrendingDeals from "@/components/TrendingDeals";
 import Categories from "@/components/Categories";
 import ProductCard from "@/components/ProductCard";
@@ -8,7 +7,6 @@ import { getBaseUrl } from "@/lib/getBaseUrl";
 
 
 const PRODUCTS_PER_PAGE = 30;
-
 
 
 async function getProducts(page:number){
@@ -23,243 +21,177 @@ async function getProducts(page:number){
 
   if(!res.ok){
 
-    const errorText = await res.text();
-
-    console.log(
-      "PRODUCT API ERROR:",
-      errorText
+    throw new Error(
+      "Products API failed"
     );
-
-    throw new Error(errorText);
 
   }
 
 
-  return res.json();
+  const data = await res.json();
+
+  console.log("HOME PRODUCTS DATA:", data);
+
+
+  return data;
 
 }
 
 
 
-
 export default async function Home({
 
-  searchParams,
+searchParams,
 
 }:{
 
-  searchParams: Promise<{page?:string}>;
+searchParams: Promise<{page?:string}>;
 
 }){
 
 
-  const params = await searchParams;
+const params = await searchParams;
 
 
-  const currentPage = Number(
-    params.page || "1"
-  );
+const currentPage = Number(
+params.page || "1"
+);
 
 
 
-  const {
-    products,
-    totalPages
+const data = await getProducts(
+currentPage
+);
 
-  } = await getProducts(currentPage);
 
 
+const products =
+Array.isArray(data)
+?
+data
+:
+data.products || [];
 
 
-  // Trending Products = latest products
-  // Hot Picks are handled separately
 
-  const trendingProducts = products;
+const totalPages =
+data.totalPages || 1;
 
 
 
-  return (
+return (
 
-    <main
-      className="
-      min-h-screen
-      bg-gray-100
-      "
-    >
+<main
+className="
+min-h-screen
+bg-gray-100
+"
+>
 
 
+<TrendingDeals />
 
-      <Navbar />
 
+<Categories />
 
 
-      {/* 🔥 TOP HOT PICKS SLIDER */}
 
-      <TrendingDeals />
+<section
+className="
+max-w-7xl
+mx-auto
+px-4
+py-8
+"
+>
 
 
+<h2
+className="
+text-2xl
+font-bold
+mb-6
+"
+>
 
-      <Categories />
+🔥 Trending Products
 
+</h2>
 
 
 
+<div
+className="
+grid
+grid-cols-2
+lg:grid-cols-3
+gap-4
+"
+>
 
-      <section
-        className="
-        mx-auto
-        max-w-7xl
-        px-4
-        py-8
-        sm:px-6
-        "
-      >
 
+{
+products.length === 0 ?
 
+<p>
+No products available
+</p>
 
-        <div
-          className="
-          flex
-          items-center
-          justify-between
-          mb-6
-          "
-        >
 
+:
 
-          <h2
-            className="
-            text-2xl
-            sm:text-3xl
-            font-bold
-            "
-          >
+products.map((product:any)=>(
 
-            🔥 Trending Products
 
-          </h2>
+<ProductCard
 
+key={product.id}
 
+id={product.id}
 
-          <p
-            className="
-            text-sm
-            text-gray-500
-            "
-          >
+name={product.name}
 
-            Page {currentPage} / {totalPages}
+price={product.price}
 
-          </p>
+image={product.image}
 
+affiliate_link={product.affiliate_link}
 
-        </div>
+/>
 
 
+))
 
+}
 
 
-        <div
-          className="
-          grid
-          grid-cols-2
-          gap-4
-          sm:grid-cols-2
-          lg:grid-cols-3
-          sm:gap-6
-          "
-        >
 
+</div>
 
-          {
 
-            trendingProducts.length === 0 ? (
 
-              <p
-                className="
-                col-span-full
-                text-gray-500
-                "
-              >
 
-                No products available.
+<Pagination
 
-              </p>
+currentPage={currentPage}
 
+totalPages={totalPages}
 
-            ) : (
+/>
 
 
-              trendingProducts.map((product:any)=>(
 
+</section>
 
-                <ProductCard
 
-                  key={product.id}
 
-                  id={product.id}
+<Footer />
 
-                  name={product.name}
 
-                  price={product.price}
 
-                  image={product.image}
+</main>
 
-                  affiliate_link={
-                    product.affiliate_link
-                  }
 
-                />
-
-
-              ))
-
-
-            )
-
-
-          }
-
-
-
-        </div>
-
-
-
-
-
-        <div
-          className="
-          mt-10
-          flex
-          justify-center
-          "
-        >
-
-
-          <Pagination
-
-            currentPage={currentPage}
-
-            totalPages={totalPages}
-
-          />
-
-
-        </div>
-
-
-
-      </section>
-
-
-
-
-      <Footer />
-
-
-    </main>
-
-  );
+)
 
 }
