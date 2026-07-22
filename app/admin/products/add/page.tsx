@@ -55,7 +55,9 @@ export default function AddProductPage() {
 
   const [brand, setBrand] = useState("");
 
-  const [coupon, setCoupon] = useState("");
+const [couponAvailable, setCouponAvailable] = useState(false);
+
+const [coupon, setCoupon] = useState("");
 
   const [delivery, setDelivery] = useState("Free Delivery");
 
@@ -390,6 +392,7 @@ export default function AddProductPage() {
           stock,
 
 
+coupon_available: couponAvailable,
 
 
           brand,
@@ -1033,25 +1036,33 @@ mb-4
 
 
 
-<input
+<div className="mb-4">
 
-placeholder="Coupon (Example: EXTRA10)"
+  <label className="flex items-center gap-3 mb-3">
 
-value={coupon}
+    <input
+      type="checkbox"
+      checked={couponAvailable}
+      onChange={(e) => setCouponAvailable(e.target.checked)}
+      className="w-5 h-5"
+    />
 
-onChange={(e)=>
-setCoupon(e.target.value)
-}
+    <span className="font-semibold">
+      Coupon Available
+    </span>
 
-className="
-w-full
-border
-p-3
-rounded
-mb-4
-"
+  </label>
 
-/>
+  {couponAvailable && (
+    <input
+      placeholder="Coupon Code (Example: EXTRA10)"
+      value={coupon}
+      onChange={(e) => setCoupon(e.target.value)}
+      className="w-full border p-3 rounded"
+    />
+  )}
+
+</div>
 
 
 

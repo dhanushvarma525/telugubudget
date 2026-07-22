@@ -149,44 +149,51 @@ export async function POST(
 
 
 
-    const {
+   const {
 
-      name,
+  name,
 
-      category,
+  category,
 
-      categories,
+  categories,
 
-      price,
+  price,
 
-      old_price,
+  old_price,
 
-      image,
+  image,
 
-      image2,
+  image2,
 
-      image3,
+  image3,
 
-      image4,
+  image4,
 
-      image5,
+  image5,
 
-      image6,
+  image6,
 
-      affiliate_link,
+  affiliate_link,
 
-      description,
+  description,
 
-      features,
+  features,
 
-      rating,
+  rating,
 
-      stock,
+  stock,
 
-      hot_pick,
+  brand,
 
+  coupon,
 
-    } = body;
+  coupon_available,
+
+  delivery,
+
+  hot_pick,
+
+} = body;
 
 
 
@@ -230,16 +237,21 @@ export async function POST(
 
           rating,
 
-          stock,
+stock,
 
+brand,
 
-          views:0,
+coupon,
 
-          clicks:0,
+coupon_available,
 
+delivery,
 
-          hot_pick:
-            hot_pick || false,
+views: 0,
+
+clicks: 0,
+
+hot_pick: hot_pick || false,
 
 
         }

@@ -143,19 +143,15 @@ export default async function HotPicksPage({
               (product:any)=>(
 
 
-                <CategoryProductCard
-
-                  key={product.id}
-
-                  id={product.id}
-
-                  name={product.name}
-
-                  price={product.price}
-
-                  image={product.image}
-
-                />
+             <CategoryProductCard
+  key={product.id}
+  id={product.id}
+  name={product.name}
+  price={product.price}
+  image={product.image}
+  coupon={product.coupon}
+  coupon_available={product.coupon_available}
+/>
 
 
               )

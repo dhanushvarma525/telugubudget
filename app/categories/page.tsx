@@ -1,8 +1,8 @@
 import Categories from "@/components/Categories";
 
 
-export default function CategoriesPage(){
-
+export default async function CategoriesPage(){
+await new Promise((resolve) => setTimeout(resolve, 2000));
   return (
 
     <main

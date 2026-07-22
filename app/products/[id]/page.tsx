@@ -313,47 +313,54 @@ Number(product.old_price)
 
 
 
-<div
-className="
-mt-4
-"
->
+<div className="mt-4">
 
+  {product.stock === "In Stock" ? (
 
-{
+    <span className="text-green-600 font-semibold">
+      🟢 In Stock
+    </span>
 
-product.stock==="In Stock"
+  ) : (
 
-?
+    <span className="text-red-600 font-semibold">
+      🔴 Out of Stock
+    </span>
 
-<span
-className="
-text-green-600
-font-semibold
-"
->
+  )}
 
-🟢 In Stock
+</div>
 
-</span>
+<div className="mt-4">
 
+  {product.coupon_available ? (
 
-:
+    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
 
-<span
-className="
-text-red-600
-font-semibold
-"
->
+      <p className="text-green-700 font-bold">
+        🎉 Coupon Available
+      </p>
 
-🔴 Out of Stock
+      <p className="text-green-600 mt-1">
+        Use Code:
+        <span className="font-bold ml-1">
+          {product.coupon}
+        </span>
+      </p>
 
-</span>
+    </div>
 
+  ) : (
 
-}
+    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
 
+      <p className="text-red-600 font-semibold">
+        ❌ No coupon available for this product
+      </p>
+
+    </div>
+
+  )}
 
 </div>
 

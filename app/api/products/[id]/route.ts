@@ -156,11 +156,19 @@ export async function PUT(
 
         features: body.features,
 
-        rating: body.rating,
+       rating: body.rating,
 
-        stock: body.stock,
+stock: body.stock,
 
-        hot_pick: body.hot_pick
+brand: body.brand,
+
+coupon: body.coupon,
+
+coupon_available: body.coupon_available,
+
+delivery: body.delivery,
+
+hot_pick: body.hot_pick
 
       })
 
