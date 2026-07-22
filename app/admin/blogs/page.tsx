@@ -1,90 +1,89 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
-export default function ManageBlogs() {
+export default function BlogsPage() {
 
   const [blogs,setBlogs] = useState<any[]>([]);
   const [loading,setLoading] = useState(true);
 
 
-  async function loadBlogs(){
-
-    const res = await fetch("/api/blogs");
-
-    const data = await res.json();
-
-    setBlogs(data.blogs || []);
-
-    setLoading(false);
-
-  }
-
-
   useEffect(()=>{
+
     loadBlogs();
+
   },[]);
 
 
 
-  async function deleteBlog(slug:string){
+  async function loadBlogs(){
 
-    const confirmDelete = confirm(
-      "Delete this blog?"
-    );
+    try{
 
-    if(!confirmDelete) return;
+      const res = await fetch("/api/blogs");
 
+      const data = await res.json();
 
-    await fetch(
-      `/api/blogs/${slug}`,
-      {
-        method:"DELETE"
+      if(data.success){
+        setBlogs(data.blogs || []);
       }
-    );
 
+    }catch(error){
 
-    loadBlogs();
+      console.log(error);
+
+    }
+    finally{
+
+      setLoading(false);
+
+    }
 
   }
 
 
 
-  if(loading)
-  {
+  if(loading){
+
     return (
-      <div className="p-6">
-        Loading blogs...
+      <div className="p-10 text-2xl font-bold">
+        Loading Blogs...
       </div>
-    )
+    );
+
   }
 
 
 
   return (
 
-    <div className="p-6">
+    <main className="max-w-7xl mx-auto p-8">
 
 
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-8">
 
-        <h1 className="text-2xl font-bold">
-          Manage Blogs
+
+        <h1 className="text-3xl font-bold">
+          📝 Manage Blogs
         </h1>
 
 
         <Link
-        href="/admin/blogs/add"
-        className="
-        bg-black
-        text-white
-        px-4
-        py-2
-        rounded
-        "
+
+          href="/admin/blogs/add"
+
+          className="
+          bg-green-600
+          text-white
+          px-6
+          py-3
+          rounded-lg
+          "
         >
-          + Add Blog
+
+          ➕ Add Blog
+
         </Link>
 
 
@@ -92,85 +91,118 @@ export default function ManageBlogs() {
 
 
 
-      <div className="space-y-4">
 
 
       {
-        blogs.map((blog)=>(
-          
-          <div
-          key={blog.id}
-          className="
-          border
-          rounded
-          p-4
-          flex
-          justify-between
-          items-center
-          "
-          >
+        blogs.length === 0 ? (
+
+          <div className="bg-white shadow rounded-xl p-6">
+
+            No blogs created yet.
+
+          </div>
 
 
-            <div>
-
-              <h2 className="font-bold">
-                {blog.title}
-              </h2>
+        ) : (
 
 
-              <p className="text-sm text-gray-500">
-                {blog.category}
-              </p>
+          <div className="grid gap-5">
 
 
-            </div>
+          {
+            blogs.map((blog:any)=>(
 
 
+              <div
 
-            <div className="flex gap-3">
+                key={blog.id}
 
+                className="
+                bg-white
+                shadow
+                rounded-xl
+                p-5
+                "
 
-              <Link
-              href={`/admin/blogs/edit/${blog.slug}`}
-              className="
-              bg-blue-500
-              text-white
-              px-3
-              py-1
-              rounded
-              "
               >
-                Edit
-              </Link>
 
 
-              <button
-              onClick={()=>deleteBlog(blog.slug)}
-              className="
-              bg-red-500
-              text-white
-              px-3
-              py-1
-              rounded
-              "
-              >
-                Delete
-              </button>
+                <h2 className="text-xl font-bold">
+
+                  {blog.title}
+
+                </h2>
 
 
-            </div>
+                <p className="text-gray-600 mt-2">
+
+                  {blog.excerpt}
+
+                </p>
+
+
+
+                <div className="mt-4 flex gap-3">
+
+
+                  <Link
+
+                    href={`/blog/${blog.slug}`}
+
+                    className="
+                    bg-blue-600
+                    text-white
+                    px-4
+                    py-2
+                    rounded
+                    "
+
+                  >
+
+                    View
+
+                  </Link>
+
+
+
+                  <Link
+
+                    href={`/admin/blogs/edit/${blog.slug}`}
+
+                    className="
+                    bg-yellow-500
+                    text-white
+                    px-4
+                    py-2
+                    rounded
+                    "
+
+                  >
+
+                    Edit
+
+                  </Link>
+
+
+                </div>
+
+
+              </div>
+
+
+            ))
+          }
 
 
           </div>
 
-        ))
+
+        )
       }
 
 
-      </div>
+    </main>
 
+  );
 
-    </div>
-
-  )
 }

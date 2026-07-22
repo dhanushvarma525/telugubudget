@@ -372,7 +372,23 @@ export default function DashboardPage() {
           📩 Contacts
 
         </Link>
+<Link
 
+  href="/admin/blogs"
+
+  className="
+  bg-orange-600
+  text-white
+  px-6
+  py-3
+  rounded-lg
+"
+
+>
+
+  📝 Manage Blogs
+
+</Link>
 
 
 
