@@ -28,6 +28,7 @@ async function getProducts(page: number) {
 
 
 
+
 export default async function MenWomenWearPage({
 
   searchParams,
@@ -57,12 +58,17 @@ export default async function MenWomenWearPage({
 
 
 
-  // Support multiple categories
+
   const menWomenProducts = products.filter(
+
     (product:any) =>
+
       product.categories?.includes("Men & Women Wear") ||
+
       product.category === "Men & Women Wear"
+
   );
+
 
 
 
@@ -73,24 +79,36 @@ export default async function MenWomenWearPage({
       className="
       min-h-screen
       bg-gray-100
-      p-8
+      p-4
+      sm:p-8
       "
     >
 
 
+
       <h1
         className="
-        text-4xl
+        text-2xl
+        sm:text-4xl
         font-bold
         mb-3
         "
       >
+
         👕 Men & Women Wear
+
       </h1>
 
 
 
-      <p className="mb-8 text-gray-600">
+
+      <p
+        className="
+        mb-6
+        sm:mb-8
+        text-gray-600
+        "
+      >
 
         Fashion collections for men and women.
 
@@ -99,15 +117,19 @@ export default async function MenWomenWearPage({
 
 
 
+
+
       <div
         className="
         grid
-        grid-cols-1
-        md:grid-cols-3
+        grid-cols-2
+        sm:grid-cols-3
         lg:grid-cols-4
-        gap-6
+        gap-3
+        sm:gap-6
         "
       >
+
 
 
         {
@@ -124,21 +146,31 @@ export default async function MenWomenWearPage({
 
 
             menWomenProducts.map(
+
               (product:any)=>(
 
 
-               <CategoryProductCard
-  key={product.id}
-  id={product.id}
-  name={product.name}
-  price={product.price}
-  image={product.image}
-  coupon={product.coupon}
-  coupon_available={product.coupon_available}
-/>
+                <CategoryProductCard
+
+                  key={product.id}
+
+                  id={product.id}
+
+                  name={product.name}
+
+                  price={product.price}
+
+                  image={product.image}
+
+                  coupon={product.coupon}
+
+                  coupon_available={product.coupon_available}
+
+                />
 
 
               )
+
             )
 
 
@@ -151,7 +183,16 @@ export default async function MenWomenWearPage({
 
 
 
-      <div className="mt-12 flex justify-center">
+
+
+      <div
+        className="
+        mt-10
+        sm:mt-12
+        flex
+        justify-center
+        "
+      >
 
 
         <Pagination

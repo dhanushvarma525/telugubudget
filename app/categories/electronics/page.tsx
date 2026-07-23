@@ -28,6 +28,7 @@ async function getProducts(page: number) {
 
 
 
+
 export default async function ElectronicsPage({
 
   searchParams,
@@ -57,12 +58,18 @@ export default async function ElectronicsPage({
 
 
 
-  // Support multiple categories
+
   const electronicsProducts = products.filter(
+
     (product:any) =>
+
       product.categories?.includes("Electronics") ||
+
       product.category === "Electronics"
+
   );
+
+
 
 
 
@@ -73,24 +80,37 @@ export default async function ElectronicsPage({
       className="
       min-h-screen
       bg-gray-100
-      p-8
+      p-4
+      sm:p-8
       "
     >
 
 
+
       <h1
         className="
-        text-4xl
+        text-2xl
+        sm:text-4xl
         font-bold
         mb-3
         "
       >
+
         📱 Electronics
+
       </h1>
 
 
 
-      <p className="mb-8 text-gray-600">
+
+
+      <p
+        className="
+        mb-6
+        sm:mb-8
+        text-gray-600
+        "
+      >
 
         Latest electronics and gadgets.
 
@@ -99,15 +119,19 @@ export default async function ElectronicsPage({
 
 
 
+
+
       <div
         className="
         grid
-        grid-cols-1
-        md:grid-cols-3
+        grid-cols-2
+        sm:grid-cols-3
         lg:grid-cols-4
-        gap-6
+        gap-3
+        sm:gap-6
         "
       >
+
 
 
         {
@@ -124,21 +148,31 @@ export default async function ElectronicsPage({
 
 
             electronicsProducts.map(
+
               (product:any)=>(
 
 
-              <CategoryProductCard
-  key={product.id}
-  id={product.id}
-  name={product.name}
-  price={product.price}
-  image={product.image}
-  coupon={product.coupon}
-  coupon_available={product.coupon_available}
-/>
+                <CategoryProductCard
+
+                  key={product.id}
+
+                  id={product.id}
+
+                  name={product.name}
+
+                  price={product.price}
+
+                  image={product.image}
+
+                  coupon={product.coupon}
+
+                  coupon_available={product.coupon_available}
+
+                />
 
 
               )
+
             )
 
 
@@ -151,7 +185,16 @@ export default async function ElectronicsPage({
 
 
 
-      <div className="mt-12 flex justify-center">
+
+
+      <div
+        className="
+        mt-10
+        sm:mt-12
+        flex
+        justify-center
+        "
+      >
 
 
         <Pagination
@@ -164,6 +207,7 @@ export default async function ElectronicsPage({
 
 
       </div>
+
 
 
 

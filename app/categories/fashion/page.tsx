@@ -28,6 +28,7 @@ async function getProducts(page: number) {
 
 
 
+
 export default async function FashionPage({
 
   searchParams,
@@ -57,12 +58,18 @@ export default async function FashionPage({
 
 
 
-  // Support multiple categories
+
   const fashionProducts = products.filter(
+
     (product:any) =>
+
       product.categories?.includes("Fashion") ||
+
       product.category === "Fashion"
+
   );
+
+
 
 
 
@@ -73,24 +80,37 @@ export default async function FashionPage({
       className="
       min-h-screen
       bg-gray-100
-      p-8
+      p-4
+      sm:p-8
       "
     >
 
 
+
       <h1
         className="
-        text-4xl
+        text-2xl
+        sm:text-4xl
         font-bold
         mb-3
         "
       >
+
         👗 Fashion
+
       </h1>
 
 
 
-      <p className="mb-8 text-gray-600">
+
+
+      <p
+        className="
+        mb-6
+        sm:mb-8
+        text-gray-600
+        "
+      >
 
         Trending fashion products for your style.
 
@@ -99,15 +119,19 @@ export default async function FashionPage({
 
 
 
+
+
       <div
         className="
         grid
-        grid-cols-1
-        md:grid-cols-3
+        grid-cols-2
+        sm:grid-cols-3
         lg:grid-cols-4
-        gap-6
+        gap-3
+        sm:gap-6
         "
       >
+
 
 
         {
@@ -124,23 +148,31 @@ export default async function FashionPage({
 
 
             fashionProducts.map(
+
               (product:any)=>(
 
 
-              <CategoryProductCard
-  key={product.id}
-  id={product.id}
-  name={product.name}
-  price={product.price}
-  image={product.image}
-  coupon={product.coupon}
-  coupon_available={product.coupon_available}
-/>
+                <CategoryProductCard
 
-                
+                  key={product.id}
+
+                  id={product.id}
+
+                  name={product.name}
+
+                  price={product.price}
+
+                  image={product.image}
+
+                  coupon={product.coupon}
+
+                  coupon_available={product.coupon_available}
+
+                />
 
 
               )
+
             )
 
 
@@ -153,7 +185,16 @@ export default async function FashionPage({
 
 
 
-      <div className="mt-12 flex justify-center">
+
+
+      <div
+        className="
+        mt-10
+        sm:mt-12
+        flex
+        justify-center
+        "
+      >
 
 
         <Pagination
@@ -166,6 +207,7 @@ export default async function FashionPage({
 
 
       </div>
+
 
 
 

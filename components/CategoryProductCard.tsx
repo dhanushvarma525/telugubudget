@@ -5,96 +5,173 @@ type CategoryProductCardProps = {
   name: string;
   price: string;
   image: string;
-
   coupon?: string;
   coupon_available?: boolean;
 };
 
+
 export default function CategoryProductCard({
+
   id,
   name,
   price,
   image,
   coupon,
   coupon_available,
-}: CategoryProductCardProps) {
-  return (
-    <Link href={`/products/${id}`}>
-      <div
-        className="
-        bg-white
-        rounded-2xl
-        shadow-md
-        overflow-hidden
-        hover:shadow-xl
-        transition
-        cursor-pointer
-        "
-      >
-        <img
-          src={image}
-          alt={name}
-          className="
-          w-full
-          h-48
-          object-cover
-          "
-        />
 
-        <div className="p-5">
-          <h2
-            className="
-            text-xl
-            font-bold
-            "
-          >
-            {name}
-          </h2>
+}:CategoryProductCardProps){
 
-          <p
-            className="
-            text-lg
-            font-semibold
-            mt-2
-            "
-          >
-            ₹{price}
-          </p>
 
-          <p
-            className="
-            mt-2
-            text-yellow-500
-            "
-          >
-            ⭐⭐⭐⭐⭐
-          </p>
+return (
 
-          {coupon_available ? (
-            <p className="mt-2 text-green-600 font-semibold">
-              🟢 Coupon: <span className="font-bold">{coupon}</span>
-            </p>
-          ) : (
-            <p className="mt-2 text-red-600 font-semibold">
-              🔴 No coupon available
-            </p>
-          )}
+<Link href={`/products/${id}`}>
 
-          <button
-            className="
-            mt-4
-            w-full
-            bg-orange-500
-            text-white
-            py-2
-            rounded-lg
-            font-semibold
-            "
-          >
-            View Product
-          </button>
-        </div>
-      </div>
-    </Link>
-  );
+<div
+className="
+bg-white
+rounded-xl
+shadow-md
+overflow-hidden
+hover:shadow-xl
+transition
+"
+>
+
+
+{/* IMAGE */}
+
+<div
+className="
+w-full
+h-32
+sm:h-40
+bg-white
+flex
+items-center
+justify-center
+overflow-hidden
+"
+>
+
+<img
+
+src={image}
+
+alt={name}
+
+className="
+w-full
+h-full
+object-contain
+p-2
+"
+
+/>
+
+</div>
+
+
+
+
+{/* CONTENT */}
+
+<div
+className="
+p-3
+"
+>
+
+
+<h2
+
+className="
+text-sm
+font-bold
+line-clamp-2
+min-h-[40px]
+"
+
+>
+
+{name}
+
+</h2>
+
+
+
+<p
+
+className="
+text-base
+font-semibold
+mt-2
+text-orange-600
+"
+
+>
+
+₹{price}
+
+</p>
+
+
+
+
+{
+coupon_available && (
+
+<p
+
+className="
+text-xs
+text-green-600
+font-semibold
+mt-1
+"
+
+>
+
+🟢 Coupon Available
+
+</p>
+
+)
+
+}
+
+
+
+
+<button
+
+className="
+mt-3
+w-full
+bg-orange-500
+text-white
+py-2
+rounded-lg
+text-sm
+font-bold
+"
+
+>
+
+View Product
+
+</button>
+
+
+
+</div>
+
+
+
+</div>
+
+
+</Link>
+
+);
+
 }
