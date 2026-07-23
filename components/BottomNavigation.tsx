@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+
 export default function BottomNavigation() {
 
   const pathname = usePathname();
@@ -17,7 +18,7 @@ export default function BottomNavigation() {
     {
       name: "Deals",
       icon: "🔥",
-      href: "/categories/todays-deals",
+      href: "/category/todays-deals",
     },
     {
       name: "Blogs",
@@ -25,14 +26,9 @@ export default function BottomNavigation() {
       href: "/blog",
     },
     {
-      name: "Categories",
-      icon: "📂",
-      href: "/categories",
-    },
-    {
-      name: "Contact",
-      icon: "📞",
-      href: "/contact",
+      name: "Search",
+      icon: "🔍",
+      href: "/search",
     },
   ];
 
@@ -40,61 +36,30 @@ export default function BottomNavigation() {
 
   return (
 
-    <nav
-      className="
-      fixed
-      bottom-0
-      left-0
-      right-0
-      z-50
-      bg-white
-      border-t
-      shadow-lg
-      lg:hidden
-      "
-    >
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t shadow-md md:hidden">
 
-      <div
-        className="
-        flex
-        justify-around
-        items-center
-        h-16
-        "
-      >
-
+      <div className="flex justify-around items-center h-16">
 
         {
-          items.map((item)=>(
-
+          items.map((item) => (
 
             <Link
 
-              key={item.name}
+              key={item.href}
 
               href={item.href}
 
-              className={`
-              flex
-              flex-col
-              items-center
-              justify-center
-              text-xs
-              font-semibold
-              transition
-              ${
+              className={`flex flex-col items-center justify-center text-xs ${
                 pathname === item.href
-                ? "text-blue-600"
-                : "text-gray-500"
-              }
-              `}
+                ? "text-blue-600 font-bold"
+                : "text-gray-600"
+              }`}
 
             >
 
               <span className="text-xl">
                 {item.icon}
               </span>
-
 
               <span>
                 {item.name}
@@ -103,13 +68,10 @@ export default function BottomNavigation() {
 
             </Link>
 
-
           ))
         }
 
-
       </div>
-
 
     </nav>
 

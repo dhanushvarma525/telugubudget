@@ -3,92 +3,83 @@ import { notFound } from "next/navigation";
 import RelatedBlogs from "@/components/RelatedBlogs";
 
 
-async function getBlog(slug:string){
+async function getBlog(slug: string) {
 
   const res = await fetch(
     `${getBaseUrl()}/api/blogs/${slug}`,
     {
-      cache:"no-store"
+      cache: "no-store",
     }
   );
 
 
-  if(!res.ok){
+  if (!res.ok) {
     return null;
   }
 
 
-  return res.json();
+  const data = await res.json();
+
+
+  return data.blog || null;
 
 }
-
 
 
 
 
 export async function generateMetadata(
 {
- params
+  params
 }:{
- params:Promise<{slug:string}>
-}){
+  params: Promise<{slug:string}>
+}) {
 
 
- const {slug}=await params;
+  const { slug } = await params;
 
 
- const blog = await getBlog(slug);
-
-
-
- if(!blog){
-
-   return {
-     title:"Blog Not Found"
-   }
-
- }
+  const blog = await getBlog(slug);
 
 
 
- return {
+  if (!blog) {
 
-   title:
-   `${blog.title} | Telugu Budget`,
+    return {
+      title: "Blog Not Found",
+    };
 
-
-   description:
-   blog.excerpt ||
-   blog.content?.slice(0,150),
+  }
 
 
-   openGraph:{
 
-     title:
-     blog.title,
+  return {
 
+    title: `${blog.title} | AnantaGo`,
 
-     description:
-     blog.excerpt,
-
-
-     images:
-     blog.cover_image
-     ?
-     [blog.cover_image]
-     :
-     []
-
-   }
+    description:
+      blog.excerpt ||
+      blog.content?.slice(0,150),
 
 
- }
+    openGraph: {
 
+      title: blog.title,
+
+      description: blog.excerpt,
+
+      images:
+        blog.cover_image
+        ?
+        [blog.cover_image]
+        :
+        [],
+
+    },
+
+  };
 
 }
-
-
-
 
 
 
@@ -96,314 +87,133 @@ export async function generateMetadata(
 
 export default async function BlogArticlePage(
 {
- params
+  params
 }:{
- params:Promise<{slug:string}>
-}){
+  params: Promise<{slug:string}>
+}) {
 
 
- const {slug}=await params;
+  const { slug } = await params;
 
 
- const blog =
- await getBlog(slug);
+  const blog = await getBlog(slug);
 
 
 
- if(!blog){
+  if (!blog) {
 
-   notFound();
+    notFound();
 
- }
+  }
 
 
 
 
+  await fetch(
+    `${getBaseUrl()}/api/blogs/${slug}/view`,
+    {
+      method:"POST",
+      cache:"no-store",
+    }
+  );
 
- // Increase blog views
 
- await fetch(
-   `${getBaseUrl()}/api/blogs/${slug}/view`,
-   {
-     method:"POST",
-     cache:"no-store"
-   }
- );
 
 
 
+  return (
 
+    <article className="max-w-4xl mx-auto p-6">
 
- const siteUrl =
- process.env.NEXT_PUBLIC_SITE_URL ||
- "http://localhost:3000";
 
+      <h1 className="
+      text-4xl
+      font-bold
+      mb-4
+      ">
 
+        {blog.title}
 
+      </h1>
 
 
 
- return (
 
- <article
- className="
- max-w-4xl
- mx-auto
- p-6
- "
- >
 
+      <div className="
+      text-sm
+      text-gray-500
+      mb-6
+      ">
 
+        {blog.category}
 
+        {" • "}
 
- {/* Article Schema */}
+        {blog.author || "AnantaGo"}
 
- <script
- type="application/ld+json"
- dangerouslySetInnerHTML={{
- __html:JSON.stringify({
+        {" • "}
 
-   "@context":"https://schema.org",
+        👁️ {blog.views || 0} views
 
-   "@type":"Article",
 
-   headline:blog.title,
+      </div>
 
 
-   description:
-   blog.excerpt,
 
 
-   image:
-   blog.cover_image
-   ?
-   [blog.cover_image]
-   :
-   [],
 
+      {
+        blog.cover_image && (
 
-   author:{
+          <img
 
-     "@type":"Person",
+            src={blog.cover_image}
 
-     name:
-     blog.author || "Telugu Budget"
+            alt={blog.title}
 
-   },
+            className="
+            w-full
+            rounded-xl
+            mb-8
+            "
 
+          />
 
-   publisher:{
+        )
+      }
 
-     "@type":"Organization",
 
-     name:"Telugu Budget"
 
-   },
 
 
-   datePublished:
-   blog.created_at,
+      <div className="
+      whitespace-pre-line
+      text-lg
+      leading-8
+      ">
 
+        {blog.content}
 
-   dateModified:
-   blog.updated_at
+      </div>
 
 
- })
 
- }}
- />
 
 
+      <RelatedBlogs
 
+        category={blog.category}
 
+        slug={blog.slug}
 
+      />
 
 
- {/* Breadcrumb Schema */}
 
- <script
- type="application/ld+json"
- dangerouslySetInnerHTML={{
- __html:JSON.stringify({
 
-   "@context":"https://schema.org",
+    </article>
 
-   "@type":"BreadcrumbList",
-
-
-   itemListElement:[
-
-
-   {
-
-    "@type":"ListItem",
-
-    position:1,
-
-    name:"Home",
-
-    item:siteUrl
-
-   },
-
-
-   {
-
-    "@type":"ListItem",
-
-    position:2,
-
-    name:"Blog",
-
-    item:`${siteUrl}/blog`
-
-   },
-
-
-   {
-
-    "@type":"ListItem",
-
-    position:3,
-
-    name:blog.title,
-
-    item:`${siteUrl}/blog/${blog.slug}`
-
-   }
-
-
-   ]
-
-
- })
-
- }}
- />
-
-
-
-
-
-
-
-
-
- <h1
- className="
- text-4xl
- font-bold
- mb-4
- "
- >
-
- {blog.title}
-
- </h1>
-
-
-
-
-
-
-
- <div
- className="
- text-sm
- text-gray-500
- mb-6
- "
- >
-
- {blog.category}
-
- {" • "}
-
- {blog.author}
-
-
- {" • "}
-
- 👁️ {blog.views || 0} views
-
-
- </div>
-
-
-
-
-
-
-
- {
- blog.cover_image &&
-
-
- <img
-
- src={blog.cover_image}
-
- alt={blog.title}
-
- className="
- w-full
- rounded-xl
- mb-8
- "
-
- />
-
- }
-
-
-
-
-
-
-
-
-
- <div
- className="
- whitespace-pre-line
- text-lg
- leading-8
- "
- >
-
- {blog.content}
-
-
- </div>
-
-
-
-
-
-
-
-
- {/* Related Blogs */}
-
- <RelatedBlogs
-
- category={blog.category}
-
- slug={blog.slug}
-
- />
-
-
-
-
-
-
-
-
- </article>
-
- )
-
+  );
 
 }
