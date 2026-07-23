@@ -1,23 +1,21 @@
-import Link from "next/link";
 import ReviewSection from "@/components/ReviewSection";
 import WishlistButton from "@/components/WishlistButton";
 import ShareButton from "@/components/ShareButton";
-import { getBaseUrl } from "@/lib/getBaseUrl";
 import ProductImageSlider from "@/components/ProductImageSlider";
-import ViewTracker from "@/components/ViewTracker";
+import { getBaseUrl } from "@/lib/getBaseUrl";
 
 
-async function getProduct(id:string){
+async function getProduct(id: string) {
 
   const res = await fetch(
     `${getBaseUrl()}/api/products/${id}`,
     {
-      cache:"no-store",
+      cache: "no-store",
     }
   );
 
 
-  if(!res.ok){
+  if (!res.ok) {
     return null;
   }
 
@@ -28,22 +26,20 @@ async function getProduct(id:string){
 
 
 
-
-
 async function getSimilarProducts(
-  category:string,
-  id:string
-){
+  category: string,
+  id: string
+) {
 
   const res = await fetch(
     `${getBaseUrl()}/api/products`,
     {
-      cache:"no-store",
+      cache: "no-store",
     }
   );
 
 
-  if(!res.ok){
+  if (!res.ok) {
     return [];
   }
 
@@ -51,309 +47,467 @@ async function getSimilarProducts(
   const data = await res.json();
 
 
-  const products=data.products || [];
+  const products = data.products || [];
 
 
   return products
-  .filter(
-    (item:any)=>
-      item.category===category &&
-      item.id!==Number(id)
-  )
-  .slice(0,4);
+    .filter(
+      (item: any) =>
+        item.category === category &&
+        item.id !== Number(id)
+    )
+    .slice(0, 4);
 
 }
-
-
 
 
 
 
 export default async function ProductPage({
 
-params
+  params,
 
-}:{
+}: {
 
-params:Promise<{id:string}>
+  params: Promise<{ id: string }>
 
-}){
+}) {
 
 
-const {id}=await params;
+  const { id } = await params;
 
 
-const product=await getProduct(id);
+  const product = await getProduct(id);
 
 
 
-if(!product){
+  if (!product) {
 
-return(
+    return (
 
-<div className="p-10 text-center">
+      <div className="p-10 text-center">
 
-Product Not Found
+        Product Not Found
 
-</div>
+      </div>
 
-);
+    );
 
-}
+  }
 
 
 
-const similarProducts=
-await getSimilarProducts(
-product.category,
-id
-);
+  const similarProducts =
+    await getSimilarProducts(
+      product.category,
+      id
+    );
 
 
 
-const rating =
-Number(product.rating || 0);
+  return (
 
+    <main
+      className="
+      min-h-screen
+      bg-gray-100
+      p-3
+      sm:p-6
+      "
+    >
 
 
-const siteUrl =
-process.env.NEXT_PUBLIC_SITE_URL ||
-"http://localhost:3000";
 
+      {/* PRODUCT CARD */}
 
+      <div
+        className="
+        max-w-5xl
+        mx-auto
+        bg-white
+        rounded-xl
+        shadow-md
+        p-5
+        "
+      >
 
-return (
 
-<main
-className="
-min-h-screen
-bg-gray-100
-p-3
-sm:p-6
-"
->
 
+        {/* IMAGE */}
 
-{/* PRODUCT SCHEMA */}
+        <ProductImageSlider
 
-<script
-type="application/ld+json"
-dangerouslySetInnerHTML={{
-__html:JSON.stringify({
+          images={[
+            product.image,
+            product.image2,
+            product.image3,
+            product.image4,
+          ].filter(Boolean)}
 
-"@context":"https://schema.org",
+        />
 
-"@type":"Product",
 
 
-name:product.name,
 
+        {/* NAME */}
 
-image:[
-product.image,
-product.image2,
-product.image3,
-product.image4
-].filter(Boolean),
+        <h1
+          className="
+          text-2xl
+          sm:text-4xl
+          font-bold
+          mt-6
+          "
+        >
 
+          {product.name}
 
+        </h1>
 
-description:
-product.description,
 
 
 
-brand:{
+        {/* BRAND */}
 
-"@type":"Brand",
+        {
+          product.brand &&
 
-name:"TeluguBudget"
+          <p className="text-gray-500 mt-2">
 
-},
+            Brand: {product.brand}
 
+          </p>
 
+        }
 
-offers:{
 
 
-"@type":"Offer",
 
+        {/* PRICE */}
 
-url:
-`${siteUrl}/products/${product.id}`,
+        <p
+          className="
+          text-3xl
+          font-bold
+          text-orange-600
+          mt-4
+          "
+        >
 
+          ₹{product.price}
 
-priceCurrency:"INR",
+        </p>
 
 
-price:
-product.price,
 
 
-availability:
-product.stock === "In Stock"
 
-?
-"https://schema.org/InStock"
+        {/* COUPON */}
 
-:
+        {
+          product.coupon &&
 
-"https://schema.org/OutOfStock",
+          <div
+            className="
+            mt-4
+            bg-yellow-100
+            p-3
+            rounded-lg
+            "
+          >
 
+            🎟️ Coupon:
+            <b> {product.coupon}</b>
 
 
-seller:{
+          </div>
 
-"@type":"Organization",
+        }
 
-name:"TeluguBudget"
 
-}
 
 
-},
 
+        {/* DESCRIPTION */}
 
+        <p
+          className="
+          text-gray-700
+          mt-5
+          leading-relaxed
+          "
+        >
 
+          {product.description}
 
-aggregateRating:
-rating > 0
+        </p>
 
-?
 
-{
 
-"@type":"AggregateRating",
 
-ratingValue:
-rating,
 
-bestRating:"5",
+        {/* ACTION BUTTONS */}
 
-worstRating:"1"
+        <div
+          className="
+          flex
+          gap-3
+          mt-6
+          "
+        >
 
-}
-
-:
-
-undefined
-
-
-
-})
-
-}}
+         <WishlistButton
+  product={product}
 />
 
 
+           <ShareButton
+    name={product.name}
+  />
 
+        </div>
 
 
 
-{/* BREADCRUMB SCHEMA */}
 
 
-<script
-type="application/ld+json"
-dangerouslySetInnerHTML={{
-__html:JSON.stringify({
 
+        {/* BUY BUTTON */}
 
-"@context":"https://schema.org",
+        <a
 
+          href={product.affiliate_link}
 
-"@type":"BreadcrumbList",
+          target="_blank"
 
+          rel="noopener noreferrer"
 
+          className="
+          block
+          mt-6
+          bg-orange-500
+          hover:bg-orange-600
+          text-white
+          text-center
+          py-3
+          rounded-xl
+          font-bold
+          "
 
-itemListElement:[
+        >
 
+          🛒 Buy Now
 
+        </a>
 
-{
 
 
-"@type":"ListItem",
 
-position:1,
+        {/* PROS */}
 
-name:"Home",
+        {
+          product.pros &&
 
-item:siteUrl
+          <div className="mt-8">
 
-},
 
+            <h2 className="text-xl font-bold">
 
+              ✅ Pros
 
+            </h2>
 
-{
 
+            <p
+              className="
+              mt-2
+              whitespace-pre-line
+              text-gray-700
+              "
+            >
 
-"@type":"ListItem",
+              {product.pros}
 
-position:2,
+            </p>
 
-name:
-product.category,
 
-item:
-`${siteUrl}/categories/${encodeURIComponent(product.category)}`
+          </div>
 
-},
+        }
 
 
 
 
-{
 
 
-"@type":"ListItem",
 
-position:3,
+        {/* CONS */}
 
-name:
-product.name,
+        {
+          product.cons &&
 
-item:
-`${siteUrl}/products/${product.id}`
+          <div className="mt-6">
 
-}
 
+            <h2 className="text-xl font-bold">
 
+              ❌ Cons
 
-]
+            </h2>
 
 
+            <p
+              className="
+              mt-2
+              whitespace-pre-line
+              text-gray-700
+              "
+            >
 
-})
+              {product.cons}
 
-}}
-/>{/* REVIEWS */}
+            </p>
 
 
-<div
-className="
-mt-6
-"
->
+          </div>
 
+        }
 
-<ReviewSection
 
-productId={product.id}
 
-/>
+      </div>
 
 
-</div>
 
 
 
+      {/* REVIEWS */}
 
+      <div
+        className="
+        max-w-5xl
+        mx-auto
+        mt-6
+        bg-white
+        rounded-xl
+        shadow-md
+        p-5
+        "
+      >
 
-</main>
+        <ReviewSection
 
+          productId={product.id}
 
-);
+        />
+
+      </div>
+
+
+
+
+
+      {/* SIMILAR PRODUCTS */}
+
+      {
+        similarProducts.length > 0 &&
+
+        <div
+          className="
+          max-w-5xl
+          mx-auto
+          mt-8
+          "
+        >
+
+          <h2
+            className="
+            text-2xl
+            font-bold
+            mb-4
+            "
+          >
+
+            Similar Products
+
+          </h2>
+
+
+          <div
+            className="
+            grid
+            grid-cols-2
+            sm:grid-cols-4
+            gap-4
+            "
+          >
+
+            {
+              similarProducts.map((item:any)=>(
+
+                <a
+
+                  key={item.id}
+
+                  href={`/products/${item.id}`}
+
+                  className="
+                  bg-white
+                  rounded-xl
+                  shadow
+                  p-3
+                  "
+
+                >
+
+                  <img
+
+                    src={item.image}
+
+                    alt={item.name}
+
+                    className="
+                    h-32
+                    w-full
+                    object-cover
+                    rounded-lg
+                    "
+
+                  />
+
+
+                  <p
+                    className="
+                    font-semibold
+                    mt-2
+                    text-sm
+                    "
+                  >
+
+                    {item.name}
+
+                  </p>
+
+
+                </a>
+
+
+              ))
+            }
+
+
+          </div>
+
+
+        </div>
+
+      }
+
+
+
+
+    </main>
+
+  );
 
 }
