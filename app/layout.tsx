@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 import Navbar from "@/components/Navbar";
@@ -22,49 +23,49 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
 
   title: {
-    default: "TeluguBudget - Best Budget Deals & Buying Guides",
-    template: "%s | TeluguBudget",
+    default: "AnantaGo - Best Budget Deals & Buying Guides",
+    template: "%s | AnantaGo",
   },
 
 
   description:
-    "TeluguBudget helps you discover best budget products, Amazon deals, Flipkart offers, buying guides and useful recommendations in Telugu.",
+    "AnantaGo helps you discover best budget products, Amazon deals, Flipkart offers, buying guides and useful recommendations.",
 
 
   keywords: [
-    "TeluguBudget",
+    "AnantaGo",
     "budget products",
     "Amazon deals",
     "Flipkart deals",
     "best gadgets",
     "buying guides",
-    "Telugu tech",
+    "tech deals",
   ],
 
 
   authors:[
     {
-      name:"TeluguBudget"
+      name:"AnantaGo"
     }
   ],
 
 
-  creator:"TeluguBudget",
+  creator:"AnantaGo",
 
 
   openGraph:{
 
     title:
-    "TeluguBudget - Best Budget Deals & Buying Guides",
+    "AnantaGo - Best Budget Deals & Buying Guides",
 
 
     description:
-    "Discover affordable products, deals and buying guides curated for Telugu users.",
+    "Discover affordable products, deals and buying guides curated for smart shoppers.",
 
 
     type:"website",
 
-    siteName:"TeluguBudget"
+    siteName:"AnantaGo"
 
   },
 
@@ -98,7 +99,7 @@ export default function RootLayout({
 
 const siteUrl =
 process.env.NEXT_PUBLIC_SITE_URL ||
-"http://localhost:3000";
+"https://anatago.com";
 
 
 
@@ -128,10 +129,51 @@ antialiased
 >
 
 
+{/* Google Analytics */}
+
+<Script
+
+strategy="afterInteractive"
+
+src="https://www.googletagmanager.com/gtag/js?id=G-TRKKZ0DQC5"
+
+/>
+
+
+<Script
+
+id="google-analytics"
+
+strategy="afterInteractive"
+
+>
+
+{`
+
+window.dataLayer = window.dataLayer || [];
+
+function gtag(){
+
+dataLayer.push(arguments);
+
+}
+
+gtag('js', new Date());
+
+gtag('config', 'G-TRKKZ0DQC5');
+
+`}
+
+</Script>
+
+
+
+
 
 {/* Navbar */}
 
 <Navbar />
+
 
 
 
@@ -153,19 +195,20 @@ __html:JSON.stringify({
 
 "@type":"Organization",
 
-"name":"TeluguBudget",
+"name":"AnantaGo",
 
 "url":siteUrl,
 
 
 "description":
-"TeluguBudget provides budget product recommendations, deals and buying guides."
+"AnantaGo provides budget product recommendations, deals and buying guides."
 
 })
 
 }}
 
 />
+
 
 
 
@@ -182,13 +225,14 @@ type="application/ld+json"
 
 dangerouslySetInnerHTML={{
 
+
 __html:JSON.stringify({
 
 "@context":"https://schema.org",
 
 "@type":"WebSite",
 
-"name":"TeluguBudget",
+"name":"AnantaGo",
 
 "url":siteUrl,
 
@@ -217,8 +261,8 @@ __html:JSON.stringify({
 
 
 
-
 {children}
+
 
 
 
