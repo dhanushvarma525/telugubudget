@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 
+
 export default function ContactPage() {
+
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -10,62 +12,105 @@ export default function ContactPage() {
   const [loading, setLoading] = useState(false);
 
 
+
   async function submitContact() {
+
 
     if (!name || !email || !message) {
 
       alert("Please fill all fields");
 
       return;
+
     }
 
 
-    setLoading(true);
+
+    try {
 
 
-    const res = await fetch(
-      "/api/contact",
-      {
-        method: "POST",
+      setLoading(true);
 
-        headers: {
-          "Content-Type": "application/json",
-        },
 
-        body: JSON.stringify({
-          name,
-          email,
-          message,
-        }),
+
+      const res = await fetch(
+        "/api/contact",
+        {
+
+          method: "POST",
+
+          headers: {
+
+            "Content-Type": "application/json",
+
+          },
+
+
+          body: JSON.stringify({
+
+            name,
+            email,
+            message,
+
+          }),
+
+        }
+      );
+
+
+
+      const data = await res.json();
+
+
+
+      if (data.success) {
+
+
+        alert("Message sent successfully");
+
+
+        setName("");
+        setEmail("");
+        setMessage("");
+
+
+      } else {
+
+
+        alert(
+          data.message || "Something went wrong"
+        );
+
+
       }
-    );
 
 
-    const data = await res.json();
+
+    } catch(error) {
 
 
-    if (data.success) {
+      alert(
+        "Unable to send message. Please try again."
+      );
 
-      alert("Message sent successfully");
 
-      setName("");
-      setEmail("");
-      setMessage("");
+    } finally {
 
-    } else {
 
-      alert(data.message);
+      setLoading(false);
+
 
     }
 
-
-    setLoading(false);
 
   }
 
 
 
+
+
   return (
+
 
     <main className="min-h-screen bg-slate-50 py-10 px-4">
 
@@ -80,7 +125,6 @@ export default function ContactPage() {
       ">
 
 
-        {/* Header */}
 
         <div className="
         bg-gradient-to-r
@@ -96,22 +140,27 @@ export default function ContactPage() {
           text-4xl
           font-extrabold
           ">
+
             📩 Contact AnantaGo
+
           </h1>
+
 
 
           <p className="
           mt-3
           text-blue-100
-          max-w-2xl
           leading-7
           ">
-            Have a question, suggestion, or want to share feedback?
-            Our team would love to hear from you.
+
+            Have questions, suggestions, or feedback?
+            We would love to hear from you.
+
           </p>
 
 
         </div>
+
 
 
 
@@ -126,7 +175,6 @@ export default function ContactPage() {
         ">
 
 
-          {/* Information */}
 
           <div>
 
@@ -136,18 +184,24 @@ export default function ContactPage() {
             font-bold
             mb-5
             ">
+
               Get In Touch
+
             </h2>
+
 
 
             <p className="
             text-gray-700
             leading-8
             ">
-              At <strong>AnantaGo</strong>, we help users discover
-              useful products, trending deals, and smart shopping
+
+              At <strong>AnantaGo</strong>, we share useful
+              products, deals, buying guides and shopping
               recommendations.
+
             </p>
+
 
 
 
@@ -159,26 +213,27 @@ export default function ContactPage() {
 
 
               <p>
-                🔥 Latest Deals & Offers
-              </p>
-
-
-              <p>
                 🛍️ Product Recommendations
               </p>
 
 
               <p>
-                💡 Suggestions & Feedback
+                🔥 Deals & Offers
               </p>
 
 
               <p>
-                🤝 Partnership Opportunities
+                💡 Feedback & Suggestions
+              </p>
+
+
+              <p>
+                🤝 Business Opportunities
               </p>
 
 
             </div>
+
 
 
           </div>
@@ -187,12 +242,13 @@ export default function ContactPage() {
 
 
 
-          {/* Form */}
 
           <div>
 
 
             <input
+
+              type="text"
 
               placeholder="Your Name"
 
@@ -208,8 +264,8 @@ export default function ContactPage() {
               rounded-lg
               p-3
               mb-4
-              outline-none
               focus:border-blue-500
+              outline-none
               "
 
             />
@@ -217,7 +273,12 @@ export default function ContactPage() {
 
 
 
+
+
             <input
+
+
+              type="email"
 
               placeholder="Email Address"
 
@@ -227,15 +288,17 @@ export default function ContactPage() {
                 e => setEmail(e.target.value)
               }
 
+
               className="
               w-full
               border
               rounded-lg
               p-3
               mb-4
-              outline-none
               focus:border-blue-500
+              outline-none
               "
+
 
             />
 
@@ -243,7 +306,10 @@ export default function ContactPage() {
 
 
 
+
+
             <textarea
+
 
               placeholder="Your Message"
 
@@ -253,6 +319,7 @@ export default function ContactPage() {
                 e => setMessage(e.target.value)
               }
 
+
               className="
               w-full
               border
@@ -260,9 +327,10 @@ export default function ContactPage() {
               p-3
               mb-4
               h-36
-              outline-none
               focus:border-blue-500
+              outline-none
               "
+
 
             />
 
@@ -270,22 +338,31 @@ export default function ContactPage() {
 
 
 
+
+
             <button
 
+
               onClick={submitContact}
+
+
+              disabled={loading}
+
 
               className="
               w-full
               bg-blue-600
               hover:bg-blue-700
+              disabled:bg-gray-400
               text-white
               font-bold
               py-3
               rounded-lg
-              transition
               "
 
+
             >
+
 
               {
                 loading
@@ -295,20 +372,31 @@ export default function ContactPage() {
                 "Send Message"
               }
 
+
+
             </button>
+
 
 
           </div>
 
 
+
+
         </div>
+
+
 
 
       </div>
 
 
+
+
     </main>
 
+
   );
+
 
 }

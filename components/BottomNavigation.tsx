@@ -3,116 +3,115 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import {
-  Home,
-  Folder,
-  Flame,
-  Search,
-  MessageCircle,
-} from "lucide-react";
-
-
 export default function BottomNavigation() {
 
   const pathname = usePathname();
 
 
-  const menu = [
-
+  const items = [
     {
       name: "Home",
-      icon: Home,
+      icon: "🏠",
       href: "/",
     },
-
-    {
-      name: "Categories",
-      icon: Folder,
-      href: "/categories",
-    },
-
     {
       name: "Deals",
-      icon: Flame,
+      icon: "🔥",
       href: "/categories/todays-deals",
     },
-
     {
-      name: "Search",
-      icon: Search,
-      href: "/search?q=",
+      name: "Blogs",
+      icon: "📝",
+      href: "/blog",
     },
-
+    {
+      name: "Categories",
+      icon: "📂",
+      href: "/categories",
+    },
     {
       name: "Contact",
-      icon: MessageCircle,
+      icon: "📞",
       href: "/contact",
     },
-
   ];
 
 
 
   return (
 
-    <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg lg:hidden z-50">
+    <nav
+      className="
+      fixed
+      bottom-0
+      left-0
+      right-0
+      z-50
+      bg-white
+      border-t
+      shadow-lg
+      lg:hidden
+      "
+    >
 
-
-      <div className="grid grid-cols-5">
+      <div
+        className="
+        flex
+        justify-around
+        items-center
+        h-16
+        "
+      >
 
 
         {
-          menu.map((item) => {
+          items.map((item)=>(
 
 
-            const Icon = item.icon;
+            <Link
+
+              key={item.name}
+
+              href={item.href}
+
+              className={`
+              flex
+              flex-col
+              items-center
+              justify-center
+              text-xs
+              font-semibold
+              transition
+              ${
+                pathname === item.href
+                ? "text-blue-600"
+                : "text-gray-500"
+              }
+              `}
+
+            >
+
+              <span className="text-xl">
+                {item.icon}
+              </span>
 
 
-            const active =
-              pathname === item.href;
+              <span>
+                {item.name}
+              </span>
 
 
-            return (
-
-              <Link
-
-                key={item.name}
-
-                href={item.href}
-
-                className={`flex flex-col items-center justify-center py-3 text-xs ${
-                  active
-                    ? "text-orange-500 font-bold"
-                    : "text-gray-600"
-                }`}
-
-              >
+            </Link>
 
 
-                <Icon
-                  size={26}
-                  strokeWidth={2.5}
-                />
-
-
-                <span className="mt-1">
-                  {item.name}
-                </span>
-
-
-              </Link>
-
-            );
-
-
-          })
+          ))
         }
 
 
       </div>
 
 
-    </div>
+    </nav>
 
   );
 

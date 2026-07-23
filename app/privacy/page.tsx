@@ -4,6 +4,7 @@ export default function PrivacyPage() {
 
       <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-lg overflow-hidden">
 
+
         {/* Header */}
 
         <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-8 py-10">
@@ -20,9 +21,11 @@ export default function PrivacyPage() {
 
         </div>
 
+
         {/* Content */}
 
         <div className="p-8 md:p-10">
+
 
           <p className="text-gray-700 leading-8">
             Welcome to <strong>AnantaGo</strong>. We are committed to
@@ -30,6 +33,8 @@ export default function PrivacyPage() {
             trust. By using our website, you agree to the practices
             described in this Privacy Policy.
           </p>
+
+
 
           {/* Information We Collect */}
 
@@ -52,11 +57,16 @@ export default function PrivacyPage() {
 
               <li>Messages sent through our Contact page</li>
 
-              <li>Anonymous analytics data such as browser type and pages visited</li>
+              <li>
+                Anonymous analytics data such as browser type and pages visited
+              </li>
 
             </ul>
 
           </section>
+
+
+
 
           {/* How We Use Your Information */}
 
@@ -85,7 +95,12 @@ export default function PrivacyPage() {
             </ul>
 
           </section>
-                    {/* Affiliate Disclosure */}
+
+
+
+
+
+          {/* Affiliate Disclosure */}
 
           <section className="mt-10">
 
@@ -109,6 +124,10 @@ export default function PrivacyPage() {
           </section>
 
 
+
+
+
+
           {/* Cookies */}
 
           <section className="mt-10">
@@ -125,6 +144,55 @@ export default function PrivacyPage() {
             </p>
 
           </section>
+
+
+
+
+
+
+          {/* Google Analytics */}
+
+          <section className="mt-10">
+
+            <h2 className="text-2xl font-bold mb-4">
+              Google Analytics
+            </h2>
+
+            <p className="text-gray-700 leading-8">
+              AnantaGo uses Google Analytics to understand how visitors
+              interact with our website. Google Analytics may collect
+              information such as pages visited, device information,
+              browser type, and general location data to help us improve
+              our website experience.
+            </p>
+
+          </section>
+
+
+
+
+
+
+          {/* Advertising */}
+
+          <section className="mt-10">
+
+            <h2 className="text-2xl font-bold mb-4">
+              Advertising
+            </h2>
+
+            <p className="text-gray-700 leading-8">
+              We may display advertisements from third-party advertising
+              partners such as Google AdSense. These partners may use
+              cookies or similar technologies to show relevant ads based
+              on user interests and browsing activity.
+            </p>
+
+          </section>
+
+
+
+
 
 
           {/* Third Party Links */}
@@ -145,6 +213,10 @@ export default function PrivacyPage() {
           </section>
 
 
+
+
+
+
           {/* Data Security */}
 
           <section className="mt-10">
@@ -161,6 +233,10 @@ export default function PrivacyPage() {
             </p>
 
           </section>
+
+
+
+
 
 
           {/* Contact */}
@@ -180,6 +256,9 @@ export default function PrivacyPage() {
           </section>
 
 
+
+
+
           <div className="mt-10 pt-6 border-t">
 
             <p className="text-sm text-gray-500">
@@ -191,7 +270,9 @@ export default function PrivacyPage() {
 
         </div>
 
+
       </div>
+
 
     </main>
   );
