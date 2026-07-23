@@ -2,254 +2,313 @@
 
 import { useState } from "react";
 
+export default function ContactPage() {
 
-export default function ContactPage(){
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
 
-const [name,setName]=useState("");
+  async function submitContact() {
 
-const [email,setEmail]=useState("");
+    if (!name || !email || !message) {
 
-const [message,setMessage]=useState("");
+      alert("Please fill all fields");
 
-const [loading,setLoading]=useState(false);
+      return;
+    }
 
 
+    setLoading(true);
 
 
+    const res = await fetch(
+      "/api/contact",
+      {
+        method: "POST",
 
-async function submitContact(){
+        headers: {
+          "Content-Type": "application/json",
+        },
 
+        body: JSON.stringify({
+          name,
+          email,
+          message,
+        }),
+      }
+    );
 
-if(!name || !email || !message){
 
-alert("Please fill all fields");
+    const data = await res.json();
 
-return;
 
-}
+    if (data.success) {
 
+      alert("Message sent successfully");
 
+      setName("");
+      setEmail("");
+      setMessage("");
 
-setLoading(true);
+    } else {
 
+      alert(data.message);
 
+    }
 
-const res = await fetch(
 
-"/api/contact",
+    setLoading(false);
 
-{
+  }
 
-method:"POST",
 
-headers:{
 
-"Content-Type":"application/json"
+  return (
 
-},
+    <main className="min-h-screen bg-slate-50 py-10 px-4">
 
 
-body:JSON.stringify({
+      <div className="
+      max-w-5xl
+      mx-auto
+      bg-white
+      rounded-2xl
+      shadow-lg
+      overflow-hidden
+      ">
 
-name,
 
-email,
+        {/* Header */}
 
-message
+        <div className="
+        bg-gradient-to-r
+        from-blue-600
+        to-indigo-700
+        text-white
+        px-8
+        py-10
+        ">
 
-})
 
+          <h1 className="
+          text-4xl
+          font-extrabold
+          ">
+            📩 Contact AnantaGo
+          </h1>
 
-}
 
-);
+          <p className="
+          mt-3
+          text-blue-100
+          max-w-2xl
+          leading-7
+          ">
+            Have a question, suggestion, or want to share feedback?
+            Our team would love to hear from you.
+          </p>
 
 
+        </div>
 
-const data = await res.json();
 
 
 
-if(data.success){
 
-alert(
-"Message sent successfully"
-);
+        <div className="
+        p-8
+        md:p-10
+        grid
+        md:grid-cols-2
+        gap-10
+        ">
 
 
-setName("");
+          {/* Information */}
 
-setEmail("");
+          <div>
 
-setMessage("");
 
-}
-else{
+            <h2 className="
+            text-2xl
+            font-bold
+            mb-5
+            ">
+              Get In Touch
+            </h2>
 
-alert(data.message);
 
-}
+            <p className="
+            text-gray-700
+            leading-8
+            ">
+              At <strong>AnantaGo</strong>, we help users discover
+              useful products, trending deals, and smart shopping
+              recommendations.
+            </p>
 
 
 
-setLoading(false);
+            <div className="
+            mt-8
+            space-y-4
+            text-gray-700
+            ">
 
 
-}
+              <p>
+                🔥 Latest Deals & Offers
+              </p>
 
 
+              <p>
+                🛍️ Product Recommendations
+              </p>
 
 
+              <p>
+                💡 Suggestions & Feedback
+              </p>
 
-return (
 
-<main className="
-min-h-screen
-bg-gray-100
-p-5
-">
+              <p>
+                🤝 Partnership Opportunities
+              </p>
 
 
-<div className="
-max-w-xl
-mx-auto
-bg-white
-rounded-2xl
-shadow
-p-6
-md:p-10
-">
+            </div>
 
 
-<h1 className="
-text-3xl
-md:text-4xl
-font-bold
-mb-6
-">
+          </div>
 
-📩 Contact TeluguBudget
 
-</h1>
 
 
 
+          {/* Form */}
 
-<input
+          <div>
 
-placeholder="Your Name"
 
-value={name}
+            <input
 
-onChange={
-e=>setName(e.target.value)
-}
+              placeholder="Your Name"
 
-className="
-w-full
-border
-rounded-lg
-p-3
-mb-4
-"
+              value={name}
 
-/>
+              onChange={
+                e => setName(e.target.value)
+              }
 
+              className="
+              w-full
+              border
+              rounded-lg
+              p-3
+              mb-4
+              outline-none
+              focus:border-blue-500
+              "
 
+            />
 
 
-<input
 
-placeholder="Email Address"
 
-value={email}
+            <input
 
-onChange={
-e=>setEmail(e.target.value)
-}
+              placeholder="Email Address"
 
-className="
-w-full
-border
-rounded-lg
-p-3
-mb-4
-"
+              value={email}
 
-/>
+              onChange={
+                e => setEmail(e.target.value)
+              }
 
+              className="
+              w-full
+              border
+              rounded-lg
+              p-3
+              mb-4
+              outline-none
+              focus:border-blue-500
+              "
 
+            />
 
 
 
-<textarea
 
-placeholder="Your Message"
 
-value={message}
+            <textarea
 
-onChange={
-e=>setMessage(e.target.value)
-}
+              placeholder="Your Message"
 
-className="
-w-full
-border
-rounded-lg
-p-3
-mb-4
-h-32
-"
+              value={message}
 
-/>
+              onChange={
+                e => setMessage(e.target.value)
+              }
 
+              className="
+              w-full
+              border
+              rounded-lg
+              p-3
+              mb-4
+              h-36
+              outline-none
+              focus:border-blue-500
+              "
 
+            />
 
 
 
-<button
 
-onClick={submitContact}
 
-className="
-w-full
-bg-orange-500
-hover:bg-orange-600
-text-white
-font-bold
-py-3
-rounded-lg
-"
+            <button
 
->
+              onClick={submitContact}
 
-{
+              className="
+              w-full
+              bg-blue-600
+              hover:bg-blue-700
+              text-white
+              font-bold
+              py-3
+              rounded-lg
+              transition
+              "
 
-loading
+            >
 
-?
+              {
+                loading
+                ?
+                "Sending..."
+                :
+                "Send Message"
+              }
 
-"Sending..."
+            </button>
 
-:
 
-"Send Message"
+          </div>
 
-}
 
+        </div>
 
-</button>
 
+      </div>
 
 
+    </main>
 
-</div>
-
-
-</main>
-
-);
-
+  );
 
 }

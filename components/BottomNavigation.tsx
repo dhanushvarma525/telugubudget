@@ -14,41 +14,39 @@ import {
 
 export default function BottomNavigation() {
 
-
   const pathname = usePathname();
-
 
 
   const menu = [
 
     {
-      name:"Home",
-      icon:Home,
-      href:"/",
+      name: "Home",
+      icon: Home,
+      href: "/",
     },
 
     {
-      name:"Categories",
-      icon:Folder,
-      href:"/categories",
+      name: "Categories",
+      icon: Folder,
+      href: "/categories",
     },
 
     {
-      name:"Deals",
-      icon:Flame,
-      href:"/categories/todays-deals",
+      name: "Deals",
+      icon: Flame,
+      href: "/categories/todays-deals",
     },
 
     {
-      name:"Search",
-      icon:Search,
-      href:"/search?q=",
+      name: "Search",
+      icon: Search,
+      href: "/search?q=",
     },
 
     {
-      name:"Contact",
-      icon:MessageCircle,
-      href:"/contact",
+      name: "Contact",
+      icon: MessageCircle,
+      href: "/contact",
     },
 
   ];
@@ -57,81 +55,58 @@ export default function BottomNavigation() {
 
   return (
 
-    <div
-      className="
-      fixed
-      bottom-0
-      left-0
-      right-0
-      bg-white
-      border-t
-      shadow-lg
-      lg:hidden
-      z-50
-      "
-    >
+    <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg lg:hidden z-50">
 
 
       <div className="grid grid-cols-5">
 
 
-      {
-        menu.map((item)=>{
+        {
+          menu.map((item) => {
 
 
-          const Icon = item.icon;
+            const Icon = item.icon;
 
 
-          return (
-
-            <Link
-
-            key={item.name}
-
-            href={item.href}
-
-            className={`
-            flex
-            flex-col
-            items-center
-            justify-center
-            py-3
-            text-xs
-            ${
-              pathname === item.href
-              ?
-              "text-orange-500 font-bold"
-              :
-              "text-gray-600"
-            }
-            `}
-
-            >
+            const active =
+              pathname === item.href;
 
 
-              <Icon
+            return (
 
-              size={26}
+              <Link
 
-              strokeWidth={2.5}
+                key={item.name}
 
-              />
+                href={item.href}
 
+                className={`flex flex-col items-center justify-center py-3 text-xs ${
+                  active
+                    ? "text-orange-500 font-bold"
+                    : "text-gray-600"
+                }`}
 
-              <span className="mt-1">
-
-              {item.name}
-
-              </span>
-
-
-            </Link>
-
-          )
+              >
 
 
-        })
-      }
+                <Icon
+                  size={26}
+                  strokeWidth={2.5}
+                />
+
+
+                <span className="mt-1">
+                  {item.name}
+                </span>
+
+
+              </Link>
+
+            );
+
+
+          })
+        }
 
 
       </div>

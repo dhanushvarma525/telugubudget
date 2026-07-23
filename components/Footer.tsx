@@ -19,124 +19,83 @@ export default function Footer() {
   }
 
   return (
-    <footer
-      className="
-      bg-gray-900
-      text-gray-300
-      mt-10
-      "
-    >
+    <footer className="bg-slate-950 text-gray-300 mt-14 border-t border-slate-800">
 
-      <div
-        className="
-        max-w-7xl
-        mx-auto
-        px-5
-        py-10
-        grid
-        grid-cols-1
-        md:grid-cols-4
-        gap-8
-        "
-      >
+      <div className="max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
 
-        {/* Brand */}
+        {/* BRAND */}
 
         <div>
 
           <button
             onClick={goHome}
-            className="
-            text-2xl
-            font-bold
-            text-orange-400
-            mb-3
-            cursor-pointer
-            "
+            className="text-3xl font-black tracking-tight cursor-pointer"
           >
-            TeluguBudget
+            <span className="text-blue-500">Ananta</span>
+            <span className="text-orange-500">Go</span>
           </button>
 
-          <p
-            className="
-            text-sm
-            text-gray-300
-            leading-6
-            "
-          >
-            Find the best budget products,
-            trending deals and smart shopping
-            recommendations.
+          <p className="mt-5 leading-7 text-gray-400 text-sm">
+            Discover the best Amazon & Flipkart deals,
+            trending products, honest reviews and
+            smart shopping recommendations—all in one place.
           </p>
+
+          <div className="mt-6">
+
+            <span className="inline-block bg-blue-600 text-white text-xs px-3 py-1 rounded-full">
+              Infinite Deals
+            </span>
+
+            <span className="inline-block ml-2 bg-orange-500 text-white text-xs px-3 py-1 rounded-full">
+              Smarter Shopping
+            </span>
+
+          </div>
 
         </div>
 
-        {/* Quick Links */}
+        {/* QUICK LINKS */}
 
         <div>
 
-          <h3
-            className="
-            text-lg
-            font-bold
-            text-gray-100
-            mb-4
-            "
-          >
+          <h3 className="text-white font-bold text-lg mb-5">
             Quick Links
           </h3>
 
-          <div
-            className="
-            flex
-            flex-col
-            gap-3
-            "
-          >
+          <div className="flex flex-col gap-3">
 
             <button
-  onClick={goHome}
-  type="button"
-  className="
-    flex
-    items-center
-    gap-2
-    w-fit
-    bg-transparent
-    border-0
-    p-0
-    m-0
-    text-sm
-    font-normal
-    text-gray-300
-    hover:text-orange-400
-    transition
-    cursor-pointer
-    appearance-none
-  "
->
-  <span>🏠</span>
-  <span>Home</span>
-</button>
+              onClick={goHome}
+              className="text-left hover:text-blue-400 transition"
+            >
+              🏠 Home
+            </button>
 
             <Link
               href="/categories"
-              className="
-              text-gray-300
-              hover:text-orange-400
-              transition
-              "
+              className="hover:text-blue-400 transition"
             >
               📂 Categories
             </Link>
 
             <Link
+              href="/categories/todays-deals"
+              className="hover:text-blue-400 transition"
+            >
+              🔥 Today's Deals
+            </Link>
+
+            <Link
+              href="/blog"
+              className="hover:text-blue-400 transition"
+            >
+              📝 Blogs
+            </Link>
+
+            <Link
               href="/contact"
-              className="
-              text-gray-300
-              hover:text-orange-400
-              transition
-              "
+              className="hover:text-blue-400 transition"
             >
               📞 Contact
             </Link>
@@ -144,59 +103,47 @@ export default function Footer() {
           </div>
 
         </div>
-
-        {/* Legal */}
+                {/* LEGAL */}
 
         <div>
 
-          <h3
-            className="
-            text-lg
-            font-bold
-            text-gray-100
-            mb-4
-            "
-          >
+          <h3 className="text-white font-bold text-lg mb-5">
             Legal
           </h3>
 
-          <div
-            className="
-            flex
-            flex-col
-            gap-3
-            "
-          >
+          <div className="flex flex-col gap-3">
+
+            <Link
+              href="/about"
+              className="hover:text-blue-400 transition"
+            >
+              👤 About Us
+            </Link>
 
             <Link
               href="/privacy"
-              className="
-              text-gray-300
-              hover:text-orange-400
-              transition
-              "
+              className="hover:text-blue-400 transition"
             >
               🔒 Privacy Policy
             </Link>
 
             <Link
               href="/terms"
-              className="
-              text-gray-300
-              hover:text-orange-400
-              transition
-              "
+              className="hover:text-blue-400 transition"
             >
               📄 Terms & Conditions
             </Link>
 
             <Link
+              href="/disclaimer"
+              className="hover:text-blue-400 transition"
+            >
+              ⚠️ Disclaimer
+            </Link>
+
+            <Link
               href="/affiliate-disclosure"
-              className="
-              text-gray-300
-              hover:text-orange-400
-              transition
-              "
+              className="hover:text-blue-400 transition"
             >
               💰 Affiliate Disclosure
             </Link>
@@ -205,66 +152,88 @@ export default function Footer() {
 
         </div>
 
-        {/* Support */}
+        {/* SUPPORT */}
 
         <div>
 
-          <h3
-            className="
-            text-lg
-            font-bold
-            text-gray-100
-            mb-4
-            "
-          >
-            Support
+          <h3 className="text-white font-bold text-lg mb-5">
+            Need Help?
           </h3>
 
-          <p
-            className="
-            text-sm
-            text-gray-300
-            leading-6
-            "
-          >
-            Need help with products,
-            deals or suggestions?
-            Contact TeluguBudget team.
+          <p className="text-sm text-gray-400 leading-7">
+            Have a question, suggestion, or found a better deal?
+            We'd love to hear from you.
           </p>
 
           <Link
             href="/contact"
             className="
-            inline-block
-            mt-4
-            bg-orange-500
+            inline-flex
+            items-center
+            justify-center
+            mt-6
+            bg-blue-600
+            hover:bg-blue-700
             text-white
-            px-5
-            py-2
-            rounded-full
             font-semibold
-            hover:bg-orange-600
+            px-6
+            py-3
+            rounded-full
             transition
             "
           >
             Contact Us
           </Link>
 
+          <div className="mt-6 text-sm text-gray-400 space-y-2">
+
+            <p>✔ Trusted Product Recommendations</p>
+
+            <p>✔ Updated Deals Every Day</p>
+
+            <p>✔ Honest Reviews</p>
+
+          </div>
+
         </div>
 
       </div>
+            {/* Bottom Footer */}
 
-      <div
-        className="
-        border-t
-        border-gray-700
-        text-center
-        py-5
-        text-sm
-        text-gray-400
-        "
-      >
-        © {new Date().getFullYear()} TeluguBudget. All rights reserved.
+      <div className="border-t border-slate-800">
+
+        <div
+          className="
+          max-w-7xl
+          mx-auto
+          px-6
+          py-6
+          flex
+          flex-col
+          md:flex-row
+          items-center
+          justify-between
+          gap-4
+          "
+        >
+
+          <p className="text-sm text-gray-400 text-center md:text-left">
+            © {new Date().getFullYear()}{" "}
+            <span className="font-semibold text-white">
+              Ananta<span className="text-orange-500">Go</span>
+            </span>
+            . All Rights Reserved.
+          </p>
+
+          <p className="text-xs text-gray-500 text-center md:text-right max-w-2xl">
+            Some links on this website are affiliate links. If you purchase
+            through these links, we may earn a small commission at no extra
+            cost to you. This helps us keep AnantaGo free and continue bringing
+            you the best deals.
+          </p>
+
+        </div>
+
       </div>
 
     </footer>

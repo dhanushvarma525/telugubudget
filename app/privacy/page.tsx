@@ -1,211 +1,198 @@
 export default function PrivacyPage() {
-
   return (
+    <main className="min-h-screen bg-slate-50 py-10 px-4">
 
-    <main className="
-    min-h-screen
-    bg-gray-100
-    p-5
-    ">
+      <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-lg overflow-hidden">
 
-      <div className="
-      max-w-4xl
-      mx-auto
-      bg-white
-      rounded-xl
-      shadow
-      p-6
-      md:p-10
-      ">
+        {/* Header */}
 
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-8 py-10">
 
-        <h1 className="
-        text-3xl
-        md:text-4xl
-        font-bold
-        mb-6
-        ">
-          Privacy Policy
-        </h1>
+          <h1 className="text-4xl font-extrabold">
+            Privacy Policy
+          </h1>
 
+          <p className="mt-3 text-blue-100 max-w-3xl">
+            Your privacy matters to us. This Privacy Policy explains how
+            AnantaGo collects, uses, and protects your information when
+            you visit our website.
+          </p>
 
+        </div>
 
-        <p className="mb-4 text-gray-700">
-          Welcome to TeluguBudget. Your privacy is important to us.
-          This Privacy Policy explains how we collect, use, and protect
-          your information when you visit our website.
-        </p>
+        {/* Content */}
 
+        <div className="p-8 md:p-10">
 
+          <p className="text-gray-700 leading-8">
+            Welcome to <strong>AnantaGo</strong>. We are committed to
+            protecting your personal information and maintaining your
+            trust. By using our website, you agree to the practices
+            described in this Privacy Policy.
+          </p>
 
-        <h2 className="
-        text-xl
-        font-bold
-        mt-6
-        mb-3
-        ">
-          Information We Collect
-        </h2>
+          {/* Information We Collect */}
 
+          <section className="mt-10">
 
-        <p className="text-gray-700">
-          We may collect information such as your name, email address,
-          and messages when you contact us through our website.
-        </p>
+            <h2 className="text-2xl font-bold mb-4">
+              Information We Collect
+            </h2>
 
+            <p className="text-gray-700 leading-8">
+              We may collect information that you voluntarily provide,
+              including:
+            </p>
 
+            <ul className="list-disc ml-6 mt-4 space-y-2 text-gray-700">
 
-        <h2 className="
-        text-xl
-        font-bold
-        mt-6
-        mb-3
-        ">
-          How We Use Your Information
-        </h2>
+              <li>Name</li>
 
+              <li>Email address</li>
 
-        <p className="text-gray-700">
+              <li>Messages sent through our Contact page</li>
 
-          We use collected information to:
-          
-        </p>
+              <li>Anonymous analytics data such as browser type and pages visited</li>
 
+            </ul>
 
-        <ul className="
-        list-disc
-        ml-6
-        mt-2
-        text-gray-700
-        ">
+          </section>
 
-          <li>Respond to customer inquiries</li>
+          {/* How We Use Your Information */}
 
-          <li>Improve our website experience</li>
+          <section className="mt-10">
 
-          <li>Provide better product recommendations</li>
+            <h2 className="text-2xl font-bold mb-4">
+              How We Use Your Information
+            </h2>
 
-        </ul>
+            <p className="text-gray-700 leading-8">
+              We use your information to:
+            </p>
 
+            <ul className="list-disc ml-6 mt-4 space-y-2 text-gray-700">
 
+              <li>Respond to inquiries and support requests</li>
 
+              <li>Improve website performance and user experience</li>
 
-        <h2 className="
-        text-xl
-        font-bold
-        mt-6
-        mb-3
-        ">
-          Affiliate Disclosure
-        </h2>
+              <li>Recommend products that may interest you</li>
 
+              <li>Analyze website traffic and usage trends</li>
 
-        <p className="text-gray-700">
+              <li>Maintain website security and prevent abuse</li>
 
-          TeluguBudget participates in affiliate programs including
-          Amazon and other partner programs. When you purchase products
-          through our links, we may earn a small commission at no extra
-          cost to you.
+            </ul>
 
-        </p>
+          </section>
+                    {/* Affiliate Disclosure */}
 
+          <section className="mt-10">
 
+            <h2 className="text-2xl font-bold mb-4">
+              Affiliate Disclosure
+            </h2>
 
+            <p className="text-gray-700 leading-8">
+              AnantaGo participates in affiliate programs including
+              Amazon, Flipkart, and other trusted partners. When you
+              purchase a product through our affiliate links, we may
+              earn a small commission at no additional cost to you.
+            </p>
 
-        <h2 className="
-        text-xl
-        font-bold
-        mt-6
-        mb-3
-        ">
-          Cookies
-        </h2>
+            <p className="text-gray-700 leading-8 mt-3">
+              These commissions help us maintain the website and
+              continue providing useful product recommendations,
+              deals, and shopping guides.
+            </p>
 
+          </section>
 
-        <p className="text-gray-700">
 
-          Our website may use cookies and similar technologies to improve
-          user experience, analyze traffic, and display relevant content.
+          {/* Cookies */}
 
-        </p>
+          <section className="mt-10">
 
+            <h2 className="text-2xl font-bold mb-4">
+              Cookies
+            </h2>
 
+            <p className="text-gray-700 leading-8">
+              AnantaGo may use cookies and similar technologies to
+              improve your browsing experience, analyze website
+              traffic, remember preferences, and provide relevant
+              content.
+            </p>
 
+          </section>
 
-        <h2 className="
-        text-xl
-        font-bold
-        mt-6
-        mb-3
-        ">
-          Third Party Links
-        </h2>
 
+          {/* Third Party Links */}
 
-        <p className="text-gray-700">
+          <section className="mt-10">
 
-          Our website contains links to third-party websites such as
-          Amazon and Flipkart. We are not responsible for the privacy
-          practices or content of external websites.
+            <h2 className="text-2xl font-bold mb-4">
+              Third-Party Links
+            </h2>
 
-        </p>
+            <p className="text-gray-700 leading-8">
+              Our website may contain links to third-party websites
+              such as Amazon, Flipkart, and other partner platforms.
+              We are not responsible for the privacy practices,
+              security, or content of external websites.
+            </p>
 
+          </section>
 
 
+          {/* Data Security */}
 
-        <h2 className="
-        text-xl
-        font-bold
-        mt-6
-        mb-3
-        ">
-          Data Security
-        </h2>
+          <section className="mt-10">
 
+            <h2 className="text-2xl font-bold mb-4">
+              Data Security
+            </h2>
 
-        <p className="text-gray-700">
+            <p className="text-gray-700 leading-8">
+              We take reasonable measures to protect your information.
+              However, no method of internet transmission or electronic
+              storage is completely secure, and we cannot guarantee
+              absolute security.
+            </p>
 
-          We take reasonable steps to protect your information.
-          However, no method of internet transmission is completely secure.
+          </section>
 
-        </p>
 
+          {/* Contact */}
 
+          <section className="mt-10">
 
+            <h2 className="text-2xl font-bold mb-4">
+              Contact Us
+            </h2>
 
-        <h2 className="
-        text-xl
-        font-bold
-        mt-6
-        mb-3
-        ">
-          Contact Us
-        </h2>
+            <p className="text-gray-700 leading-8">
+              If you have any questions, concerns, or suggestions
+              regarding this Privacy Policy, please contact us through
+              our Contact page.
+            </p>
 
+          </section>
 
-        <p className="text-gray-700">
 
-          If you have questions about this Privacy Policy, please contact
-          us through our Contact page.
+          <div className="mt-10 pt-6 border-t">
 
-        </p>
+            <p className="text-sm text-gray-500">
+              Last updated: July 2026
+            </p>
 
+          </div>
 
 
-        <p className="
-        mt-8
-        text-sm
-        text-gray-500
-        ">
-          Last updated: July 2026
-        </p>
-
+        </div>
 
       </div>
 
-
     </main>
-
   );
-
 }

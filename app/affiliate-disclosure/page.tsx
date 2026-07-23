@@ -1,75 +1,143 @@
 export default function AffiliateDisclosurePage() {
   return (
-    <main className="min-h-screen bg-gray-100 py-10 px-5">
-      <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-lg p-6 md:p-10">
+    <main className="min-h-screen bg-slate-50 py-10 px-4">
 
-        <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
-          Affiliate Disclosure
-        </h1>
+      <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-lg overflow-hidden">
 
-        <p className="text-gray-700 leading-8 mb-5">
-          TeluguBudget is a participant in affiliate marketing programs,
-          including Amazon Associates and other trusted affiliate networks.
-          Some of the links on this website are affiliate links.
-        </p>
+        {/* Header */}
 
-        <p className="text-gray-700 leading-8 mb-5">
-          This means that if you click on an affiliate link and make a purchase,
-          we may receive a small commission from the retailer. This commission
-          comes at no additional cost to you.
-        </p>
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-8 py-10">
 
-        <h2 className="text-2xl font-semibold mt-8 mb-3 text-orange-500">
-          Why We Use Affiliate Links
-        </h2>
+          <h1 className="text-4xl font-extrabold">
+            Affiliate Disclosure
+          </h1>
 
-        <p className="text-gray-700 leading-8 mb-5">
-          Affiliate commissions help us maintain TeluguBudget, publish new
-          product recommendations, improve our website, and continue bringing
-          you the best budget-friendly shopping deals.
-        </p>
+          <p className="mt-3 text-blue-100 max-w-3xl">
+            Transparency is important to us. Learn how AnantaGo uses
+            affiliate links to support our website.
+          </p>
 
-        <h2 className="text-2xl font-semibold mt-8 mb-3 text-orange-500">
-          Honest Recommendations
-        </h2>
+        </div>
 
-        <p className="text-gray-700 leading-8 mb-5">
-          Our reviews and recommendations are based on product quality, value
-          for money, popularity, customer feedback, and our own research.
-          Affiliate partnerships never influence our opinions.
-        </p>
 
-        <h2 className="text-2xl font-semibold mt-8 mb-3 text-orange-500">
-          Product Prices & Availability
-        </h2>
+        {/* Content */}
 
-        <p className="text-gray-700 leading-8 mb-5">
-          Prices, discounts, offers, and product availability may change
-          without notice. The final price shown on Amazon, Flipkart, or the
-          retailer's website will always be the most accurate.
-        </p>
+        <div className="p-8 md:p-10">
 
-        <h2 className="text-2xl font-semibold mt-8 mb-3 text-orange-500">
-          External Websites
-        </h2>
 
-        <p className="text-gray-700 leading-8 mb-5">
-          TeluguBudget links to third-party websites. We are not responsible
-          for their products, services, shipping, return policies, or privacy
-          practices. Please review their policies before making any purchase.
-        </p>
+          <p className="text-gray-700 leading-8 mb-5">
+            <strong>AnantaGo</strong> participates in affiliate marketing
+            programs, including Amazon Associates, Flipkart affiliate
+            programs, and other trusted partner networks.
+          </p>
 
-        <h2 className="text-2xl font-semibold mt-8 mb-3 text-orange-500">
-          Our Commitment
-        </h2>
 
-        <p className="text-gray-700 leading-8">
-          We are committed to transparency and always aim to recommend products
-          that provide genuine value to our visitors. Thank you for supporting
-          TeluguBudget through your purchases.
-        </p>
+          <p className="text-gray-700 leading-8 mb-5">
+            Some links on our website are affiliate links. If you click
+            on these links and make a purchase, we may receive a small
+            commission from the retailer at no additional cost to you.
+          </p>
+
+
+
+          <section className="mt-10">
+
+            <h2 className="text-2xl font-bold mb-4 text-blue-600">
+              Why We Use Affiliate Links
+            </h2>
+
+            <p className="text-gray-700 leading-8">
+              Affiliate commissions help us maintain AnantaGo, create
+              useful product guides, publish deal updates, improve our
+              website, and continue providing free shopping recommendations
+              to our visitors.
+            </p>
+
+          </section>
+
+
+
+          <section className="mt-10">
+
+            <h2 className="text-2xl font-bold mb-4 text-blue-600">
+              Honest Recommendations
+            </h2>
+
+            <p className="text-gray-700 leading-8">
+              Our recommendations are based on product features, value
+              for money, customer feedback, popularity, and our research.
+              Affiliate partnerships do not influence our opinions or
+              product selections.
+            </p>
+
+          </section>
+
+
+
+          <section className="mt-10">
+
+            <h2 className="text-2xl font-bold mb-4 text-blue-600">
+              Product Prices & Availability
+            </h2>
+
+            <p className="text-gray-700 leading-8">
+              Product prices, discounts, offers, and availability may
+              change frequently. The final price and availability will
+              always be displayed on the retailer's official website,
+              such as Amazon or Flipkart.
+            </p>
+
+          </section>
+
+
+
+          <section className="mt-10">
+
+            <h2 className="text-2xl font-bold mb-4 text-blue-600">
+              External Websites
+            </h2>
+
+            <p className="text-gray-700 leading-8">
+              AnantaGo provides links to third-party websites for your
+              convenience. We are not responsible for their products,
+              services, delivery, returns, privacy policies, or terms.
+              Please review their policies before making purchases.
+            </p>
+
+          </section>
+
+
+
+          <section className="mt-10">
+
+            <h2 className="text-2xl font-bold mb-4 text-blue-600">
+              Our Commitment
+            </h2>
+
+            <p className="text-gray-700 leading-8">
+              We believe in transparency and aim to provide genuine,
+              useful, and unbiased product recommendations. Your support
+              through affiliate purchases helps AnantaGo continue growing
+              and bringing better deals to you.
+            </p>
+
+          </section>
+
+
+
+          <div className="mt-10 pt-6 border-t">
+
+            <p className="text-sm text-gray-500">
+              Last updated: July 2026
+            </p>
+
+          </div>
+
+
+        </div>
 
       </div>
+
     </main>
   );
 }
