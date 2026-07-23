@@ -55,6 +55,20 @@ return (
 >
 
 
+{/* PRODUCT IMAGE */}
+
+<div
+  className="
+  w-full
+  aspect-square
+  bg-white
+  flex
+  items-center
+  justify-center
+  overflow-hidden
+  "
+>
+
 
 {
 image ? (
@@ -67,9 +81,9 @@ alt={name}
 
 className="
 w-full
-h-32
-sm:h-48
-object-cover
+h-full
+object-contain
+p-3
 "
 
 />
@@ -80,8 +94,7 @@ object-cover
 
 className="
 w-full
-h-32
-sm:h-48
+h-full
 bg-gray-200
 flex
 items-center
@@ -100,7 +113,13 @@ No Image
 }
 
 
+</div>
 
+
+
+
+
+{/* PRODUCT INFO */}
 
 <div
 className="
@@ -137,6 +156,7 @@ text-base
 sm:text-lg
 font-semibold
 mt-2
+text-orange-600
 "
 
 >
@@ -156,6 +176,8 @@ mt-2
 
 
 
+{/* BUY BUTTON */}
+
 <a
 
 href={affiliate_link}
@@ -172,6 +194,7 @@ sm:mx-5
 sm:mb-5
 text-center
 bg-orange-500
+hover:bg-orange-600
 text-white
 py-2
 sm:py-3
