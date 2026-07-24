@@ -18,7 +18,7 @@ export default function BottomNavigation() {
     {
       name: "Deals",
       icon: "🔥",
-      href: "/category/todays-deals",
+      href: "/categories/todays-deals",
     },
     {
       name: "Blogs",
@@ -36,9 +36,28 @@ export default function BottomNavigation() {
 
   return (
 
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t shadow-md md:hidden">
+    <nav
+      className="
+      fixed
+      bottom-0
+      left-0
+      right-0
+      z-50
+      bg-white
+      border-t
+      shadow-md
+      md:hidden
+      "
+    >
 
-      <div className="flex justify-around items-center h-16">
+      <div
+        className="
+        flex
+        justify-around
+        items-center
+        h-16
+        "
+      >
 
         {
           items.map((item) => (
@@ -49,17 +68,26 @@ export default function BottomNavigation() {
 
               href={item.href}
 
-              className={`flex flex-col items-center justify-center text-xs ${
-                pathname === item.href
-                ? "text-blue-600 font-bold"
-                : "text-gray-600"
-              }`}
+              className={`
+                flex
+                flex-col
+                items-center
+                justify-center
+                text-xs
+                transition
+                ${
+                  pathname === item.href
+                    ? "text-blue-600 font-bold"
+                    : "text-gray-600"
+                }
+              `}
 
             >
 
               <span className="text-xl">
                 {item.icon}
               </span>
+
 
               <span>
                 {item.name}
@@ -70,6 +98,7 @@ export default function BottomNavigation() {
 
           ))
         }
+
 
       </div>
 
