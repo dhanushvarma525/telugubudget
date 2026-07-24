@@ -16,9 +16,13 @@ export async function GET(
 
 
     const { data, error } = await supabase
+
       .from("blogs")
+
       .select("*")
+
       .eq("slug", slug)
+
       .maybeSingle();
 
 
@@ -60,18 +64,23 @@ export async function GET(
 
 
 
-  } catch (error: any) {
+  } catch (error:any) {
 
 
     return Response.json(
 
       {
-        success: false,
-        message: error.message,
+
+        success:false,
+
+        message:error.message,
+
       },
 
       {
-        status: 500,
+
+        status:500,
+
       }
 
     );
@@ -84,16 +93,19 @@ export async function GET(
 
 
 
-
-
 // ==========================
 // UPDATE BLOG
 // ==========================
 
+
 export async function PUT(
+
   req: Request,
-  { params }: { params: Promise<{ slug: string }> }
+
+  { params }: { params: Promise<{ slug:string }> }
+
 ) {
+
 
   try {
 
@@ -105,42 +117,78 @@ export async function PUT(
 
 
 
+
+    const updateData = {
+
+
+      title: body.title || "",
+
+
+      slug: body.slug || slug,
+
+
+      excerpt: body.excerpt || "",
+
+
+      content: body.content || "",
+
+
+      cover_image: body.cover_image || "",
+
+
+      category: body.category || "",
+
+
+      author: body.author || "AnantaGo",
+
+
+      tags: body.tags || [],
+
+
+      published: body.published ?? true,
+
+
+      featured: body.featured ?? false,
+
+
+
+      // Related products IDs
+
+      related_products:
+
+      body.related_products || [],
+
+
+
+      updated_at:
+
+      new Date().toISOString(),
+
+
+    };
+
+
+
+
+
+
     const { error } = await supabase
+
 
       .from("blogs")
 
-      .update({
 
-        title: body.title,
+      .update(updateData)
 
-        slug: body.slug,
-
-        excerpt: body.excerpt,
-
-        content: body.content,
-
-        cover_image: body.cover_image,
-
-        category: body.category,
-
-        author: body.author,
-
-        tags: body.tags,
-
-        published: body.published,
-
-        featured: body.featured,
-
-        updated_at: new Date().toISOString(),
-
-      })
 
       .eq("slug", slug);
 
 
 
 
-    if (error) {
+
+
+    if(error){
 
       throw error;
 
@@ -149,28 +197,39 @@ export async function PUT(
 
 
 
+
+
     return Response.json({
 
-      success: true,
+      success:true,
 
-      message: "Blog updated successfully",
+      message:"Blog updated successfully",
 
     });
 
 
 
-  } catch (error: any) {
+
+
+  }
+
+  catch(error:any){
 
 
     return Response.json(
 
       {
+
         success:false,
+
         message:error.message,
+
       },
 
       {
+
         status:500,
+
       }
 
     );
@@ -178,8 +237,8 @@ export async function PUT(
 
   }
 
-}
 
+}
 
 
 
@@ -190,35 +249,48 @@ export async function PUT(
 // DELETE BLOG
 // ==========================
 
+
 export async function DELETE(
-  req: Request,
-  { params }: { params: Promise<{ slug: string }> }
-) {
+
+  req:Request,
+
+  { params }: { params:Promise<{slug:string}> }
+
+){
 
 
-  try {
+  try{
 
 
     const { slug } = await params;
 
 
 
+
+
     const { error } = await supabase
+
 
       .from("blogs")
 
+
       .delete()
 
-      .eq("slug", slug);
+
+      .eq("slug",slug);
 
 
 
 
-    if (error) {
+
+
+    if(error){
 
       throw error;
 
     }
+
+
 
 
 
@@ -233,23 +305,33 @@ export async function DELETE(
 
 
 
-  } catch(error:any) {
+
+
+  }
+
+  catch(error:any){
 
 
     return Response.json(
 
       {
+
         success:false,
+
         message:error.message,
+
       },
 
       {
+
         status:500,
+
       }
 
     );
 
 
   }
+
 
 }
