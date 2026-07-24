@@ -7,7 +7,9 @@ type ProductCardProps = {
 
   name:string;
 
-  price:string;
+  price:string | number;
+
+  old_price?:string | number;
 
   image:string;
 
@@ -25,6 +27,8 @@ export default function ProductCard({
 
   price,
 
+  old_price,
+
   image,
 
   affiliate_link
@@ -32,41 +36,70 @@ export default function ProductCard({
 }:ProductCardProps){
 
 
+
+const discount =
+old_price &&
+Number(old_price) > Number(price)
+?
+Math.round(
+(
+(Number(old_price) - Number(price))
+/
+Number(old_price)
+) * 100
+)
+:
+null;
+console.log(
+  "PRODUCT CARD DATA:",
+  name,
+  price,
+  old_price,
+  discount
+);
+
+
+
+
 return (
 
 <div
-  className="
-  bg-white
-  rounded-xl
-  shadow-md
-  overflow-hidden
-  hover:shadow-xl
-  transition
-  flex
-  flex-col
-  h-full
-  "
+className="
+bg-white
+rounded-xl
+shadow-md
+overflow-hidden
+hover:shadow-xl
+transition
+flex
+flex-col
+h-full
+"
 >
 
 
 <Link
-  href={`/products/${id}`}
-  className="flex-1"
+
+href={`/products/${id}`}
+
+className="flex-1"
+
 >
+
 
 
 {/* PRODUCT IMAGE */}
 
 <div
-  className="
-  w-full
-  aspect-square
-  bg-white
-  flex
-  items-center
-  justify-center
-  overflow-hidden
-  "
+className="
+w-full
+aspect-square
+bg-white
+flex
+items-center
+justify-center
+overflow-hidden
+"
 >
 
 
@@ -88,7 +121,11 @@ p-3
 
 />
 
-) : (
+)
+
+:
+
+(
 
 <div
 
@@ -113,7 +150,10 @@ No Image
 }
 
 
+
 </div>
+
+
 
 
 
@@ -121,12 +161,14 @@ No Image
 
 {/* PRODUCT INFO */}
 
+
 <div
 className="
 p-3
 sm:p-5
 "
 >
+
 
 
 <h2
@@ -149,13 +191,22 @@ sm:min-h-[56px]
 
 
 
-<p
+
+
+
+{/* PRICE + DISCOUNT */}
+
+
+<div className="flex items-center gap-2 flex-wrap mt-2">
+
+
+
+<span
 
 className="
 text-base
 sm:text-lg
-font-semibold
-mt-2
+font-bold
 text-orange-600
 "
 
@@ -163,7 +214,69 @@ text-orange-600
 
 ₹{price}
 
-</p>
+</span>
+
+
+
+
+
+{
+old_price &&
+Number(old_price) > Number(price) && (
+
+<span
+
+className="
+text-sm
+text-gray-400
+line-through
+"
+
+>
+
+₹{old_price}
+
+</span>
+
+)
+
+}
+
+
+
+
+
+
+
+{
+discount && (
+
+<span
+
+className="
+text-xs
+font-bold
+text-green-700
+bg-green-100
+px-2
+py-1
+rounded-full
+"
+
+>
+
+{discount}% OFF
+
+</span>
+
+)
+
+}
+
+
+
+</div>
+
 
 
 </div>
@@ -176,7 +289,10 @@ text-orange-600
 
 
 
+
+
 {/* BUY BUTTON */}
+
 
 <a
 
@@ -213,9 +329,9 @@ sm:text-base
 
 
 
+
 </div>
 
 );
-
 
 }

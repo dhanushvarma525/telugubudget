@@ -114,24 +114,15 @@ setLoading(false);
 
 return (
 
-<div className="
-bg-white
-rounded-xl
-shadow
-p-8
-mt-8
-">
+<div className="bg-white rounded-xl shadow p-8 mt-8">
 
 
-<h2 className="
-text-3xl
-font-bold
-mb-5
-">
+<h2 className="text-3xl font-bold mb-5">
 
 Customer Reviews
 
 </h2>
+
 
 
 
@@ -149,19 +140,16 @@ onChange={
 e=>setName(e.target.value)
 }
 
-className="
-border
-p-3
-w-full
-rounded
-mb-3
-"
+className="border p-3 w-full rounded mb-3"
 
 />
 
 
 
+
+
 <div className="mb-3">
+
 
 {
 [1,2,3,4,5].map((star)=>(
@@ -173,9 +161,7 @@ key={star}
 
 onClick={()=>setRating(star)}
 
-className="
-text-3xl
-"
+className="text-3xl"
 
 >
 
@@ -188,7 +174,10 @@ text-3xl
 
 }
 
+
 </div>
+
+
 
 
 
@@ -204,15 +193,11 @@ onChange={
 e=>setComment(e.target.value)
 }
 
-className="
-border
-p-3
-w-full
-rounded
-h-32
-"
+className="border p-3 w-full rounded h-32"
 
 />
+
+
 
 
 
@@ -222,14 +207,7 @@ h-32
 
 onClick={submitReview}
 
-className="
-mt-4
-bg-orange-500
-text-white
-px-6
-py-3
-rounded-lg
-"
+className="mt-4 bg-orange-500 text-white px-6 py-3 rounded-lg"
 
 >
 
@@ -261,11 +239,7 @@ reviews.map((review)=>(
 
 key={review.id}
 
-className="
-border-t
-py-5
-"
-
+className="border-t py-5"
 
 >
 
@@ -277,11 +251,13 @@ py-5
 </h3>
 
 
+
 <p className="text-yellow-500">
 
 {"★".repeat(review.rating)}
 
 </p>
+
 
 
 <p>

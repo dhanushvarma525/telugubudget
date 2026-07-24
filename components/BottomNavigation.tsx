@@ -33,72 +33,35 @@ export default function BottomNavigation() {
   ];
 
 
-
   return (
 
-    <nav
-      className="
-      fixed
-      bottom-0
-      left-0
-      right-0
-      z-50
-      bg-white
-      border-t
-      shadow-md
-      md:hidden
-      "
-    >
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t shadow-md md:hidden">
 
-      <div
-        className="
-        flex
-        justify-around
-        items-center
-        h-16
-        "
-      >
+      <div className="flex justify-around items-center h-16">
 
-        {
-          items.map((item) => (
+        {items.map((item) => (
 
-            <Link
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`flex flex-col items-center justify-center text-xs transition ${
+              pathname === item.href
+                ? "text-blue-600 font-bold"
+                : "text-gray-600"
+            }`}
+          >
 
-              key={item.href}
+            <span className="text-xl">
+              {item.icon}
+            </span>
 
-              href={item.href}
+            <span>
+              {item.name}
+            </span>
 
-              className={`
-                flex
-                flex-col
-                items-center
-                justify-center
-                text-xs
-                transition
-                ${
-                  pathname === item.href
-                    ? "text-blue-600 font-bold"
-                    : "text-gray-600"
-                }
-              `}
+          </Link>
 
-            >
-
-              <span className="text-xl">
-                {item.icon}
-              </span>
-
-
-              <span>
-                {item.name}
-              </span>
-
-
-            </Link>
-
-          ))
-        }
-
+        ))}
 
       </div>
 

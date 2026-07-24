@@ -63,6 +63,7 @@ async function getSimilarProducts(
 
 
 
+
 export default async function ProductPage({
 
   params,
@@ -105,6 +106,20 @@ export default async function ProductPage({
 
 
 
+  const discount =
+    product.old_price &&
+    Number(product.old_price) > Number(product.price)
+      ? Math.round(
+          (
+            (Number(product.old_price) - Number(product.price))
+            /
+            Number(product.old_price)
+          ) * 100
+        )
+      : null;
+
+
+
   return (
 
     <main
@@ -116,9 +131,6 @@ export default async function ProductPage({
       "
     >
 
-
-
-      {/* PRODUCT CARD */}
 
       <div
         className="
@@ -132,8 +144,6 @@ export default async function ProductPage({
       >
 
 
-
-        {/* IMAGE */}
 
         <ProductImageSlider
 
@@ -149,7 +159,6 @@ export default async function ProductPage({
 
 
 
-        {/* NAME */}
 
         <h1
           className="
@@ -167,7 +176,6 @@ export default async function ProductPage({
 
 
 
-        {/* BRAND */}
 
         {
           product.brand &&
@@ -183,26 +191,81 @@ export default async function ProductPage({
 
 
 
-        {/* PRICE */}
 
-        <p
-          className="
-          text-3xl
-          font-bold
-          text-orange-600
-          mt-4
-          "
-        >
+        {/* PRICE WITH DISCOUNT */}
 
-          ₹{product.price}
-
-        </p>
+        <div className="flex items-center gap-3 flex-wrap mt-4">
 
 
+          <span
+            className="
+            text-3xl
+            font-bold
+            text-orange-600
+            "
+          >
+
+            ₹{product.price}
+
+          </span>
 
 
 
-        {/* COUPON */}
+
+          {
+            product.old_price &&
+            Number(product.old_price) > Number(product.price) && (
+
+              <span
+                className="
+                text-xl
+                text-gray-400
+                line-through
+                "
+              >
+
+                ₹{product.old_price}
+
+              </span>
+
+            )
+          }
+
+
+
+
+
+          {
+            discount && (
+
+              <span
+                className="
+                bg-green-100
+                text-green-700
+                px-3
+                py-1
+                rounded-full
+                text-sm
+                font-bold
+                "
+              >
+
+                {discount}% OFF
+
+              </span>
+
+            )
+          }
+
+
+
+        </div>
+
+
+
+
+
+
 
         {
           product.coupon &&
@@ -219,7 +282,6 @@ export default async function ProductPage({
             🎟️ Coupon:
             <b> {product.coupon}</b>
 
-
           </div>
 
         }
@@ -228,7 +290,6 @@ export default async function ProductPage({
 
 
 
-        {/* DESCRIPTION */}
 
         <p
           className="
@@ -246,7 +307,7 @@ export default async function ProductPage({
 
 
 
-        {/* ACTION BUTTONS */}
+
 
         <div
           className="
@@ -256,14 +317,14 @@ export default async function ProductPage({
           "
         >
 
-         <WishlistButton
-  product={product}
-/>
+          <WishlistButton
+            product={product}
+          />
 
 
-           <ShareButton
-    name={product.name}
-  />
+          <ShareButton
+            name={product.name}
+          />
 
         </div>
 
@@ -272,7 +333,6 @@ export default async function ProductPage({
 
 
 
-        {/* BUY BUTTON */}
 
         <a
 
@@ -303,13 +363,13 @@ export default async function ProductPage({
 
 
 
-        {/* PROS */}
+
+
 
         {
           product.pros &&
 
           <div className="mt-8">
-
 
             <h2 className="text-xl font-bold">
 
@@ -330,7 +390,6 @@ export default async function ProductPage({
 
             </p>
 
-
           </div>
 
         }
@@ -340,14 +399,10 @@ export default async function ProductPage({
 
 
 
-
-        {/* CONS */}
-
         {
           product.cons &&
 
           <div className="mt-6">
-
 
             <h2 className="text-xl font-bold">
 
@@ -368,7 +423,6 @@ export default async function ProductPage({
 
             </p>
 
-
           </div>
 
         }
@@ -381,7 +435,7 @@ export default async function ProductPage({
 
 
 
-      {/* REVIEWS */}
+
 
       <div
         className="
@@ -407,7 +461,6 @@ export default async function ProductPage({
 
 
 
-      {/* SIMILAR PRODUCTS */}
 
       {
         similarProducts.length > 0 &&
@@ -433,6 +486,7 @@ export default async function ProductPage({
           </h2>
 
 
+
           <div
             className="
             grid
@@ -446,18 +500,14 @@ export default async function ProductPage({
               similarProducts.map((item:any)=>(
 
                 <a
-
                   key={item.id}
-
                   href={`/products/${item.id}`}
-
                   className="
                   bg-white
                   rounded-xl
                   shadow
                   p-3
                   "
-
                 >
 
                   <img
@@ -476,13 +526,7 @@ export default async function ProductPage({
                   />
 
 
-                  <p
-                    className="
-                    font-semibold
-                    mt-2
-                    text-sm
-                    "
-                  >
+                  <p className="font-semibold mt-2 text-sm">
 
                     {item.name}
 
@@ -491,18 +535,14 @@ export default async function ProductPage({
 
                 </a>
 
-
               ))
             }
 
-
           </div>
-
 
         </div>
 
       }
-
 
 
 

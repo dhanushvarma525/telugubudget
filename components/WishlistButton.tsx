@@ -2,64 +2,96 @@
 
 import { useEffect, useState } from "react";
 
+type Product = {
+  id: string | number;
+  [key: string]: any;
+};
+
 type Props = {
-  product: any;
+  product: Product;
 };
 
 export default function WishlistButton({ product }: Props) {
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const wishlist = JSON.parse(
-      localStorage.getItem("wishlist") || "[]"
-    );
+    try {
+      const wishlist: Product[] = JSON.parse(
+        localStorage.getItem("wishlist") || "[]"
+      );
 
-    const exists = wishlist.find(
-      (item: any) => item.id === product.id
-    );
-
-    setSaved(!!exists);
+      setSaved(wishlist.some((item) => item.id === product.id));
+    } catch {
+      localStorage.setItem("wishlist", "[]");
+    }
   }, [product.id]);
 
-  function toggleWishlist() {
-    let wishlist = JSON.parse(
-      localStorage.getItem("wishlist") || "[]"
-    );
+  const toggleWishlist = () => {
+    setLoading(true);
 
-    const exists = wishlist.find(
-      (item: any) => item.id === product.id
-    );
-
-    if (exists) {
-      wishlist = wishlist.filter(
-        (item: any) => item.id !== product.id
+    try {
+      const wishlist: Product[] = JSON.parse(
+        localStorage.getItem("wishlist") || "[]"
       );
-      setSaved(false);
-    } else {
-      wishlist.unshift(product);
-      setSaved(true);
-    }
 
-    localStorage.setItem(
-      "wishlist",
-      JSON.stringify(wishlist)
-    );
-  }
+      const exists = wishlist.some(
+        (item) => item.id === product.id
+      );
+
+      let updatedWishlist: Product[];
+
+      if (exists) {
+        updatedWishlist = wishlist.filter(
+          (item) => item.id !== product.id
+        );
+        setSaved(false);
+      } else {
+        updatedWishlist = [product, ...wishlist];
+        setSaved(true);
+      }
+
+      localStorage.setItem(
+        "wishlist",
+        JSON.stringify(updatedWishlist)
+      );
+
+      // Notify other pages/components
+      window.dispatchEvent(new Event("wishlistUpdated"));
+    } catch (error) {
+      console.error("Wishlist Error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <button
       onClick={toggleWishlist}
-      className="
-      mt-4
-      w-full
-      border-2
-      rounded-lg
-      py-3
-      font-bold
-      transition
-      "
+      disabled={loading}
+      className={`
+        mt-4
+        w-full
+        rounded-xl
+        py-3
+        font-semibold
+        transition-all
+        duration-200
+        border-2
+        shadow-sm
+        ${
+          saved
+            ? "bg-red-500 text-white border-red-500 hover:bg-red-600"
+            : "bg-white text-gray-800 border-gray-300 hover:bg-gray-100"
+        }
+        ${loading ? "opacity-70 cursor-not-allowed" : ""}
+      `}
     >
-      {saved ? "❤️ Remove from Wishlist" : "🤍 Add to Wishlist"}
+      {loading
+        ? "Updating..."
+        : saved
+        ? "❤️ Remove from Wishlist"
+        : "🤍 Add to Wishlist"}
     </button>
   );
 }

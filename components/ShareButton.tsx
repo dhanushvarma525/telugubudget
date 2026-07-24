@@ -53,17 +53,7 @@ export default function ShareButton({ name }: Props) {
 
       onClick={handleShare}
 
-      className="
-      mt-4
-      w-full
-      bg-blue-600
-      hover:bg-blue-700
-      text-white
-      py-3
-      rounded-xl
-      font-bold
-      transition
-      "
+      className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold transition"
 
     >
 

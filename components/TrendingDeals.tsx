@@ -67,6 +67,7 @@ export default async function TrendingDeals(){
 
 
 
+
       {
         products.length === 0 ? (
 
@@ -96,29 +97,43 @@ export default async function TrendingDeals(){
 
 
                 <div
+
                   key={product.id}
+
                   className="
                   min-w-[30%]
                   sm:min-w-[220px]
                   "
+
                 >
+
 
 
                   <ProductCard
 
+
                     id={product.id}
+
 
                     name={product.name}
 
+
                     price={product.price}
 
+
+                    old_price={product.old_price}
+
+
                     image={product.image}
+
 
                     affiliate_link={
                       product.affiliate_link
                     }
 
+
                   />
+
 
 
                 </div>
