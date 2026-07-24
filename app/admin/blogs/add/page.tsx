@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -19,14 +19,20 @@ export default function AddBlogPage() {
 
 
 
-  const [products, setProducts] = useState<Product[]>([]);
+  const [search, setSearch] = useState("");
 
+  const [products, setProducts] = useState<Product[]>([]);
 
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
 
 
 
   const [uploading, setUploading] = useState(false);
+
+
+
+  const [searching, setSearching] = useState(false);
+
 
 
 
@@ -60,39 +66,80 @@ export default function AddBlogPage() {
 
 
 
-  useEffect(() => {
 
-    loadProducts();
-
-  }, []);
+  async function searchProducts(value:string){
 
 
+    setSearch(value);
 
 
 
+    if(!value.trim()){
 
+      setProducts([]);
 
-  async function loadProducts() {
+      return;
 
-
-    const { data, error } = await supabase
-
-      .from("products")
-
-      .select("id,name")
-
-      .order(
-        "created_at",
-        {
-          ascending:false
-        }
-      );
+    }
 
 
 
-    if(!error && data){
 
-      setProducts(data);
+
+    try{
+
+
+      setSearching(true);
+
+
+
+
+      const { data, error } = await supabase
+
+        .from("products")
+
+        .select("id,name")
+
+        .ilike(
+          "name",
+          `%${value}%`
+        )
+
+        .order(
+          "created_at",
+          {
+            ascending:false
+          }
+        )
+
+        .limit(10);
+
+
+
+
+
+
+      if(!error && data){
+
+        setProducts(data);
+
+      }
+
+
+
+    }
+
+    catch(error){
+
+      console.log(error);
+
+    }
+
+    finally{
+
+
+      setSearching(false);
+
 
     }
 
@@ -105,7 +152,33 @@ export default function AddBlogPage() {
 
 
 
-  async function handleImageUpload(
+  function toggleProduct(id:string){
+
+
+    setSelectedProducts((prev)=>
+
+
+      prev.includes(id)
+
+      ?
+
+      prev.filter(
+        (item)=>item!==id
+      )
+
+      :
+
+      [
+        ...prev,
+        id
+      ]
+
+
+    );
+
+
+  }
+    async function handleImageUpload(
 
     e:React.ChangeEvent<HTMLInputElement>
 
@@ -113,7 +186,6 @@ export default function AddBlogPage() {
 
 
     const file = e.target.files?.[0];
-
 
 
     if(!file) return;
@@ -161,11 +233,14 @@ export default function AddBlogPage() {
 
 
 
+
+
       const { data } = supabase.storage
 
         .from("blog-images")
 
         .getPublicUrl(fileName);
+
 
 
 
@@ -178,6 +253,7 @@ export default function AddBlogPage() {
         cover_image:data.publicUrl
 
       }));
+
 
 
 
@@ -203,26 +279,39 @@ export default function AddBlogPage() {
 
 
   }
-    function handleChange(
 
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement
+
+
+
+
+
+
+  function handleChange(
+
+    e:React.ChangeEvent<
+
+      HTMLInputElement |
+
+      HTMLTextAreaElement
+
     >
 
-  ) {
-
-
-    const { name, value } = e.target;
+  ){
 
 
 
-    setForm((prev) => ({
+    const {name,value}=e.target;
+
+
+
+    setForm((prev)=>({
 
       ...prev,
 
-      [name]: value,
+      [name]:value
 
     }));
+
 
 
   }
@@ -233,7 +322,8 @@ export default function AddBlogPage() {
 
 
 
-  function generateSlug(title: string) {
+
+  function generateSlug(title:string){
 
 
     return title
@@ -243,13 +333,19 @@ export default function AddBlogPage() {
       .trim()
 
       .replace(
+
         /[^a-z0-9\s-]/g,
+
         ""
+
       )
 
       .replace(
+
         /\s+/g,
+
         "-"
+
       );
 
 
@@ -261,39 +357,9 @@ export default function AddBlogPage() {
 
 
 
-  function toggleProduct(id: string) {
 
+  async function submitBlog(){
 
-    setSelectedProducts((prev) =>
-
-
-      prev.includes(id)
-
-        ?
-
-        prev.filter(
-          (item) => item !== id
-        )
-
-        :
-
-        [
-          ...prev,
-          id
-        ]
-
-    );
-
-
-  }
-
-
-
-
-
-
-
-  async function submitBlog() {
 
 
     const response = await fetch(
@@ -302,20 +368,30 @@ export default function AddBlogPage() {
 
       {
 
+
         method:"POST",
+
 
 
         headers:{
 
-          "Content-Type":"application/json"
+
+          "Content-Type":
+
+          "application/json"
+
 
         },
+
 
 
         body:JSON.stringify({
 
 
+
           ...form,
+
+
 
 
 
@@ -337,6 +413,7 @@ export default function AddBlogPage() {
 
 
 
+
           tags:
 
           form.tags
@@ -352,6 +429,8 @@ export default function AddBlogPage() {
 
 
 
+
+
           related_products:
 
           selectedProducts
@@ -361,7 +440,9 @@ export default function AddBlogPage() {
         })
 
 
+
       }
+
 
     );
 
@@ -369,7 +450,9 @@ export default function AddBlogPage() {
 
 
 
+
     const data = await response.json();
+
 
 
 
@@ -383,13 +466,13 @@ export default function AddBlogPage() {
       );
 
 
+
       router.push(
         "/admin/blogs"
       );
 
 
     }
-
 
     else{
 
@@ -402,15 +485,9 @@ export default function AddBlogPage() {
     }
 
 
+
   }
-
-
-
-
-
-
-
-  return (
+    return (
 
     <div className="p-6 max-w-4xl">
 
@@ -423,9 +500,15 @@ export default function AddBlogPage() {
 
 
 
+
       <div className="space-y-4">
 
-            <input
+
+
+
+
+
+        <input
 
           name="title"
 
@@ -438,6 +521,8 @@ export default function AddBlogPage() {
           className="border p-3 w-full rounded"
 
         />
+
+
 
 
 
@@ -462,10 +547,9 @@ export default function AddBlogPage() {
 
 
 
-        {/* =========================
-            COVER IMAGE UPLOAD
-        ========================== */}
 
+
+        {/* COVER IMAGE */}
 
 
         <div className="border rounded-lg p-4">
@@ -495,7 +579,6 @@ export default function AddBlogPage() {
 
 
 
-
           {
             uploading && (
 
@@ -516,6 +599,7 @@ export default function AddBlogPage() {
           {
             form.cover_image && (
 
+
               <img
 
                 src={form.cover_image}
@@ -532,14 +616,15 @@ export default function AddBlogPage() {
 
               />
 
+
             )
           }
 
 
 
 
-
         </div>
+
 
 
 
@@ -567,6 +652,8 @@ export default function AddBlogPage() {
 
 
 
+
+
         <input
 
           name="tags"
@@ -580,6 +667,8 @@ export default function AddBlogPage() {
           className="border p-3 w-full rounded"
 
         />
+
+
 
 
 
@@ -606,6 +695,8 @@ export default function AddBlogPage() {
           "
 
         />
+
+
 
 
 
@@ -640,13 +731,16 @@ export default function AddBlogPage() {
 
 
 
+
+
         {/* =========================
-            RELATED PRODUCTS
+            SEARCHABLE RELATED PRODUCTS
         ========================== */}
 
 
 
         <div className="border rounded-lg p-4">
+
 
 
           <h2 className="text-lg font-semibold mb-3">
@@ -658,9 +752,9 @@ export default function AddBlogPage() {
 
 
 
-          <p className="text-sm text-gray-500 mb-4">
+          <p className="text-sm text-gray-500 mb-3">
 
-            Select products to display at the end of this blog.
+            Search and select products to show inside blog.
 
           </p>
 
@@ -668,116 +762,213 @@ export default function AddBlogPage() {
 
 
 
-          <div className="
-            max-h-72
-            overflow-y-auto
-            border
-            rounded
-            p-3
-            space-y-2
-          ">
+
+          <input
+
+
+            value={search}
+
+
+            onChange={(e)=>
+
+              searchProducts(
+                e.target.value
+              )
+
+            }
+
+
+            placeholder="🔍 Search products..."
+
+
+            className="
+              border
+              p-3
+              w-full
+              rounded
+            "
+
+
+          />
 
 
 
-            {
-              products.length === 0 && (
 
-                <p className="text-gray-500 text-sm">
 
-                  No products found.
+          {
+            searching && (
+
+              <p className="text-sm text-gray-500 mt-2">
+
+                Searching...
+
+              </p>
+
+            )
+          }
+
+
+
+
+
+
+          {
+            products.length > 0 && (
+
+
+              <div className="
+                mt-3
+                border
+                rounded
+                max-h-60
+                overflow-y-auto
+              ">
+
+
+                {
+                  products.map((product)=>(
+
+
+                    <label
+
+                      key={product.id}
+
+                      className="
+                        flex
+                        items-center
+                        gap-3
+                        p-3
+                        cursor-pointer
+                        hover:bg-gray-50
+                      "
+
+                    >
+
+
+                      <input
+
+
+                        type="checkbox"
+
+
+                        checked={
+
+                          selectedProducts.includes(
+
+                            product.id
+
+                          )
+
+                        }
+
+
+                        onChange={()=>
+
+
+                          toggleProduct(
+
+                            product.id
+
+                          )
+
+
+                        }
+
+
+                      />
+
+
+
+
+                      <span>
+
+                        {product.name}
+
+                      </span>
+
+
+
+                    </label>
+
+
+                  ))
+
+                }
+
+
+              </div>
+
+
+            )
+          }
+
+
+
+
+
+
+
+          {
+            selectedProducts.length > 0 && (
+
+
+              <div className="mt-4">
+
+
+                <p className="font-semibold mb-2">
+
+                  Selected Products:
 
                 </p>
 
-              )
-            }
+
+
+
+                <p className="text-sm text-gray-600">
+
+                  {selectedProducts.length} products selected
+
+                </p>
+
+
+
+              </div>
+
+
+            )
+          }
 
 
 
 
-
-            {
-              products.map((product)=>(
+        </div>        {/* FEATURED BLOG */}
 
 
-                <label
-
-                  key={product.id}
-
-                  className="
-                    flex
-                    items-center
-                    gap-3
-                    cursor-pointer
-                    hover:bg-gray-50
-                    rounded
-                    p-2
-                  "
-
-                >
-
-
-                  <input
-
-                    type="checkbox"
-
-                    checked={
-                      selectedProducts.includes(
-                        product.id
-                      )
-                    }
-
-                    onChange={()=>
-                      toggleProduct(
-                        product.id
-                      )
-                    }
-
-                  />
-
-
-
-                  <span>
-
-                    {product.name}
-
-                  </span>
-
-
-
-                </label>
-
-
-              ))
-            }
-
-
-
-
-          </div>
-
-
-
-        </div>
-                <label className="flex gap-2">
+        <label className="flex gap-2 items-center">
 
 
           <input
 
             type="checkbox"
 
+
             checked={form.featured}
 
+
             onChange={(e)=>
+
 
               setForm({
 
                 ...form,
 
-                featured:e.target.checked,
+                featured:e.target.checked
 
               })
 
+
             }
+
 
           />
 
@@ -795,26 +986,37 @@ export default function AddBlogPage() {
 
 
 
-        <label className="flex gap-2">
+
+
+        {/* PUBLISHED BLOG */}
+
+
+        <label className="flex gap-2 items-center">
 
 
           <input
 
+
             type="checkbox"
+
 
             checked={form.published}
 
+
             onChange={(e)=>
+
 
               setForm({
 
                 ...form,
 
-                published:e.target.checked,
+                published:e.target.checked
 
               })
 
+
             }
+
 
           />
 
@@ -832,11 +1034,23 @@ export default function AddBlogPage() {
 
 
 
+
+
+
+
+
+        {/* SAVE BUTTON */}
+
+
+
         <button
+
 
           onClick={submitBlog}
 
+
           disabled={uploading}
+
 
           className="
             bg-black
@@ -849,9 +1063,23 @@ export default function AddBlogPage() {
             disabled:opacity-50
           "
 
+
         >
 
-          {uploading ? "Uploading..." : "Save Blog"}
+
+
+          {uploading
+
+            ?
+
+            "Uploading..."
+
+            :
+
+            "Save Blog"
+
+          }
+
 
 
         </button>
@@ -861,14 +1089,7 @@ export default function AddBlogPage() {
 
 
       </div>
-
-
-
-
-
-
-
-      {/* =========================
+            {/* =========================
           BLOG PREVIEW
       ========================== */}
 
@@ -883,6 +1104,7 @@ export default function AddBlogPage() {
       ">
 
 
+
         <h2 className="text-xl font-bold mb-4">
 
           Blog Preview
@@ -894,9 +1116,12 @@ export default function AddBlogPage() {
 
 
 
+
         <h3 className="text-2xl font-semibold">
 
+
           {form.title || "Blog Title"}
+
 
         </h3>
 
@@ -905,11 +1130,15 @@ export default function AddBlogPage() {
 
 
 
+
         <p className="text-sm text-gray-500 mt-2">
+
 
           {form.category || "Category"} • {form.author}
 
+
         </p>
+
 
 
 
@@ -920,11 +1149,15 @@ export default function AddBlogPage() {
         {
           form.cover_image && (
 
+
             <img
+
 
               src={form.cover_image}
 
+
               alt="Preview"
+
 
               className="
                 w-full
@@ -932,7 +1165,9 @@ export default function AddBlogPage() {
                 mt-4
               "
 
+
             />
+
 
           )
         }
@@ -943,15 +1178,25 @@ export default function AddBlogPage() {
 
 
 
+
+
         <p className="mt-6 whitespace-pre-line">
 
+
           {
+
+
             form.excerpt ||
 
             "Blog excerpt will appear here..."
+
+
           }
 
+
         </p>
+
+
 
 
 
@@ -963,12 +1208,16 @@ export default function AddBlogPage() {
           selectedProducts.length > 0 && (
 
 
+
             <div className="mt-8">
+
 
 
               <h3 className="font-semibold text-lg mb-3">
 
+
                 Related Products
+
 
               </h3>
 
@@ -976,54 +1225,21 @@ export default function AddBlogPage() {
 
 
 
-              <div className="space-y-2">
+
+              <p className="text-sm text-gray-500">
 
 
-
-                {
-                  products
-
-                  .filter((p)=>
-
-                    selectedProducts.includes(
-                      p.id
-                    )
-
-                  )
-
-                  .map((p)=>(
+                {selectedProducts.length} products linked
 
 
-                    <div
-
-                      key={p.id}
-
-                      className="
-                        border
-                        rounded
-                        p-3
-                        bg-white
-                      "
-
-                    >
-
-                      {p.name}
+              </p>
 
 
-                    </div>
-
-
-                  ))
-
-                }
-
-
-
-              </div>
 
 
 
             </div>
+
 
 
           )
@@ -1032,7 +1248,11 @@ export default function AddBlogPage() {
 
 
 
+
+
       </div>
+
+
 
 
 
