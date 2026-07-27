@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 
 type PaginationProps = {
   currentPage: number;
@@ -11,7 +12,24 @@ export default function Pagination({
   currentPage,
   totalPages,
 }: PaginationProps) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   if (totalPages <= 1) return null;
+
+  const createPageLink = (page: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (page <= 1) {
+      params.delete("page");
+    } else {
+      params.set("page", page.toString());
+    }
+
+    const query = params.toString();
+
+    return query ? `${pathname}?${query}` : pathname;
+  };
 
   const pages = [];
 
@@ -31,82 +49,55 @@ export default function Pagination({
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-2">
-
-      {/* Previous */}
-
+    <div className="flex flex-wrap items-center justify-center gap-2 mt-8">
       <Link
-        href={`/?page=${Math.max(1, currentPage - 1)}`}
-        className={`
-          px-4
-          py-2
-          rounded-lg
-          border
-          transition
-          ${
-            currentPage === 1
-              ? "pointer-events-none opacity-50"
-              : "hover:bg-gray-100"
-          }
-        `}
+        href={createPageLink(Math.max(1, currentPage - 1))}
+        className={`px-4 py-2 rounded-lg border transition ${
+          currentPage === 1
+            ? "pointer-events-none opacity-50"
+            : "hover:bg-gray-100"
+        }`}
       >
         ← Previous
       </Link>
 
-      {/* First Page */}
-
       {startPage > 1 && (
         <>
           <Link
-            href="/?page=1"
+            href={createPageLink(1)}
             className="px-4 py-2 rounded-lg border hover:bg-gray-100 transition"
           >
             1
           </Link>
 
           {startPage > 2 && (
-            <span className="px-2 text-gray-500">
-              ...
-            </span>
+            <span className="px-2 text-gray-500">...</span>
           )}
         </>
       )}
 
-      {/* Page Numbers */}
-
       {pages.map((page) => (
         <Link
           key={page}
-          href={`/?page=${page}`}
-          className={`
-            px-4
-            py-2
-            rounded-lg
-            border
-            transition
-            ${
-              page === currentPage
-                ? "bg-blue-600 text-white border-blue-600"
-                : "hover:bg-gray-100"
-            }
-          `}
+          href={createPageLink(page)}
+          className={`px-4 py-2 rounded-lg border transition ${
+            page === currentPage
+              ? "bg-blue-600 text-white border-blue-600"
+              : "hover:bg-gray-100"
+          }`}
         >
           {page}
         </Link>
       ))}
 
-      {/* Last Page */}
-
       {endPage < totalPages && (
         <>
           {endPage < totalPages - 1 && (
-            <span className="px-2 text-gray-500">
-              ...
-            </span>
+            <span className="px-2 text-gray-500">...</span>
           )}
 
           <Link
-            href={`/?page=${totalPages}`}
+            href={createPageLink(totalPages)}
             className="px-4 py-2 rounded-lg border hover:bg-gray-100 transition"
           >
             {totalPages}
@@ -114,22 +105,13 @@ export default function Pagination({
         </>
       )}
 
-      {/* Next */}
-
       <Link
-        href={`/?page=${Math.min(totalPages, currentPage + 1)}`}
-        className={`
-          px-4
-          py-2
-          rounded-lg
-          border
-          transition
-          ${
-            currentPage === totalPages
-              ? "pointer-events-none opacity-50"
-              : "hover:bg-gray-100"
-          }
-        `}
+        href={createPageLink(Math.min(totalPages, currentPage + 1))}
+        className={`px-4 py-2 rounded-lg border transition ${
+          currentPage === totalPages
+            ? "pointer-events-none opacity-50"
+            : "hover:bg-gray-100"
+        }`}
       >
         Next →
       </Link>

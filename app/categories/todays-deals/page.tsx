@@ -2,13 +2,13 @@ import CategoryProductCard from "@/components/CategoryProductCard";
 import Pagination from "@/components/Pagination";
 import { getBaseUrl } from "@/lib/getBaseUrl";
 
-const PRODUCTS_PER_PAGE = 30;
+const PRODUCTS_PER_PAGE = 10;
 
 
 async function getProducts(page: number) {
 
   const res = await fetch(
-    `${getBaseUrl()}/api/products?page=${page}&limit=${PRODUCTS_PER_PAGE}`,
+    `${getBaseUrl()}/api/products?page=${page}&limit=100`,
     {
       cache: "no-store",
     }
@@ -16,15 +16,14 @@ async function getProducts(page: number) {
 
 
   if (!res.ok) {
-
     throw new Error("Failed to fetch products");
-
   }
 
 
   return res.json();
 
 }
+
 
 
 
@@ -50,29 +49,42 @@ export default async function TodaysDealsPage({
 
 
   const {
-    products,
-    totalPages
+    products
 
   } = await getProducts(currentPage);
 
 
 
 
-
-  // Today's Deals
-  // Only discounted products will appear here
+  // Only discounted products
 
   const dealsProducts = products.filter(
 
     (product:any) =>
 
       product.old_price &&
-
       Number(product.old_price) >
       Number(product.price)
 
   );
 
+
+
+  const totalPages = Math.ceil(
+    dealsProducts.length / PRODUCTS_PER_PAGE
+  );
+
+
+
+  const start =
+    (currentPage - 1) * PRODUCTS_PER_PAGE;
+
+
+  const paginatedProducts =
+    dealsProducts.slice(
+      start,
+      start + PRODUCTS_PER_PAGE
+    );
 
 
 
@@ -82,64 +94,54 @@ export default async function TodaysDealsPage({
 
     <main
       className="
-      min-h-screen
-      bg-gray-100
-      p-4
-      sm:p-8
+        min-h-screen
+        bg-gray-100
+        p-4
+        sm:p-8
       "
     >
 
 
-
       <h1
         className="
-        text-2xl
-        sm:text-4xl
-        font-bold
-        mb-3
+          text-2xl
+          sm:text-4xl
+          font-bold
+          mb-3
         "
       >
-
         🔥 Today's Deals
-
       </h1>
-
-
 
 
 
       <p
         className="
-        mb-6
-        sm:mb-8
-        text-gray-600
+          mb-6
+          sm:mb-8
+          text-gray-600
         "
       >
-
         Best offers and discounted products available today.
-
       </p>
-
-
 
 
 
 
       <div
         className="
-        grid
-        grid-cols-2
-        sm:grid-cols-3
-        lg:grid-cols-4
-        gap-3
-        sm:gap-6
+          grid
+          grid-cols-2
+          sm:grid-cols-3
+          lg:grid-cols-4
+          gap-3
+          sm:gap-6
         "
       >
 
 
-
         {
-          dealsProducts.length === 0 ? (
+          paginatedProducts.length === 0 ? (
 
             <p className="text-lg text-gray-500">
 
@@ -151,7 +153,7 @@ export default async function TodaysDealsPage({
           ) : (
 
 
-            dealsProducts.map((product:any)=>(
+            paginatedProducts.map((product:any)=>(
 
 
               <CategoryProductCard
@@ -175,7 +177,6 @@ export default async function TodaysDealsPage({
 
             ))
 
-
           )
         }
 
@@ -186,16 +187,14 @@ export default async function TodaysDealsPage({
 
 
 
-
       <div
         className="
-        mt-10
-        sm:mt-12
-        flex
-        justify-center
+          mt-10
+          sm:mt-12
+          flex
+          justify-center
         "
       >
-
 
         <Pagination
 
@@ -204,7 +203,6 @@ export default async function TodaysDealsPage({
           totalPages={totalPages}
 
         />
-
 
       </div>
 

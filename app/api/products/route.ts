@@ -4,7 +4,7 @@ console.log("🔥 PRODUCTS API ROUTE RUNNING");
 
 
 // ===========================
-// GET ALL PRODUCTS
+// GET PRODUCTS
 // ===========================
 
 export async function GET(req: Request) {
@@ -26,6 +26,12 @@ export async function GET(req: Request) {
 
     const hotPick = searchParams.get("hotPick");
 
+    const category = searchParams.get("category");
+
+
+    console.log("CATEGORY RECEIVED:", category);
+
+
 
     const from = (page - 1) * limit;
 
@@ -42,7 +48,9 @@ export async function GET(req: Request) {
 
 
 
-    // 🔥 HOT PICKS FILTER
+    // ===========================
+    // 🔥 TODAY'S HOT PICKS
+    // ===========================
 
     if (hotPick === "true") {
 
@@ -55,10 +63,27 @@ export async function GET(req: Request) {
 
 
 
+    // ===========================
+    // 📂 CATEGORY FILTER
+    // ===========================
+
+   if(category){
+
+  console.log("FILTER CATEGORY:", category);
+
+  query = query.contains(
+    "categories",
+    [category.trim()]
+  );
+
+}
+
+
+
     const {
       data,
       error,
-      count
+      count,
 
     } = await query.range(
       from,
@@ -72,6 +97,13 @@ export async function GET(req: Request) {
       throw error;
 
     }
+
+
+
+    console.log(
+      "PRODUCTS FOUND:",
+      data?.length
+    );
 
 
 
@@ -95,9 +127,7 @@ export async function GET(req: Request) {
 
 
 
-  }
-
-  catch(error:any) {
+  } catch (error: any) {
 
 
     console.log(
@@ -109,17 +139,12 @@ export async function GET(req: Request) {
     return Response.json(
 
       {
-
-        success:false,
-
-        message:error.message,
-
+        success: false,
+        message: error.message,
       },
 
       {
-
-        status:500,
-
+        status: 500,
       }
 
     );
@@ -133,13 +158,12 @@ export async function GET(req: Request) {
 
 
 
+
 // ===========================
 // ADD PRODUCT
 // ===========================
 
-export async function POST(
-  req: Request
-) {
+export async function POST(req: Request) {
 
 
   try {
@@ -149,57 +173,64 @@ export async function POST(
 
 
 
-   const {
+    const {
 
-  name,
+      name,
 
-  category,
+      category,
 
-  categories,
+      categories,
 
-  price,
+      price,
 
-  old_price,
+      old_price,
 
-  image,
+      image,
 
-  image2,
+      image2,
 
-  image3,
+      image3,
 
-  image4,
+      image4,
 
-  image5,
+      image5,
 
-  image6,
+      image6,
 
-  affiliate_link,
+      affiliate_link,
 
-  description,
+      description,
 
-  features,
+      features,
 
-  rating,
+      rating,
 
-  stock,
+      stock,
 
-  brand,
+      brand,
 
-  coupon,
+      coupon,
 
-  coupon_available,
+      coupon_available,
 
-  delivery,
+      delivery,
 
-  hot_pick,
-
-} = body;
+      hot_pick,
 
 
+    } = body;
 
 
 
-    const { data, error } = await supabase
+
+
+    const {
+
+      data,
+
+      error,
+
+    } = await supabase
 
       .from("products")
 
@@ -213,9 +244,11 @@ export async function POST(
 
           categories,
 
+
           price,
 
           old_price,
+
 
           image,
 
@@ -229,29 +262,41 @@ export async function POST(
 
           image6,
 
+
           affiliate_link,
+
 
           description,
 
+
           features,
+
 
           rating,
 
-stock,
 
-brand,
+          stock,
 
-coupon,
 
-coupon_available,
+          brand,
 
-delivery,
 
-views: 0,
+          coupon,
 
-clicks: 0,
 
-hot_pick: hot_pick || false,
+          coupon_available,
+
+
+          delivery,
+
+
+          views: 0,
+
+          clicks: 0,
+
+
+          hot_pick:
+            hot_pick || false,
 
 
         }
@@ -283,24 +328,19 @@ hot_pick: hot_pick || false,
 
       product:data,
 
-
     });
 
 
 
 
 
-  }
-
-
-  catch(error:any){
+  } catch(error:any){
 
 
     console.log(
       "ADD PRODUCT ERROR:",
       error
     );
-
 
 
     return Response.json(

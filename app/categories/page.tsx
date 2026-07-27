@@ -1,8 +1,8 @@
 import Categories from "@/components/Categories";
 
 
-export default async function CategoriesPage(){
-await new Promise((resolve) => setTimeout(resolve, 2000));
+export default function CategoriesPage() {
+
   return (
 
     <main
@@ -10,12 +10,14 @@ await new Promise((resolve) => setTimeout(resolve, 2000));
       min-h-screen
       bg-gray-100
       p-4
+      sm:p-8
       "
     >
 
       <h1
         className="
         text-3xl
+        sm:text-4xl
         font-bold
         mb-6
         "

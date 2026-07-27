@@ -2,13 +2,13 @@ import CategoryProductCard from "@/components/CategoryProductCard";
 import Pagination from "@/components/Pagination";
 import { getBaseUrl } from "@/lib/getBaseUrl";
 
-const PRODUCTS_PER_PAGE = 30;
+const PRODUCTS_PER_PAGE = 10;
 
 
 async function getProducts(page:number){
 
   const res = await fetch(
-    `${getBaseUrl()}/api/products?page=${page}&limit=${PRODUCTS_PER_PAGE}`,
+    `${getBaseUrl()}/api/products?page=${page}&limit=100`,
     {
       cache:"no-store",
     }
@@ -16,9 +16,7 @@ async function getProducts(page:number){
 
 
   if(!res.ok){
-
     throw new Error("Failed to fetch products");
-
   }
 
 
@@ -37,7 +35,7 @@ export default async function Under150Page({
 
   searchParams: Promise<{page?:string}>;
 
-}){
+}) {
 
 
   const params = await searchParams;
@@ -49,26 +47,49 @@ export default async function Under150Page({
 
 
 
-  const {
-    products,
-    totalPages
-
-  } = await getProducts(currentPage);
+  const data = await getProducts(currentPage);
 
 
 
+  // Filter Under ₹150 products
+  const under150Products =
+    data.products.filter(
+      (product:any)=>
+        product.categories?.includes(
+          "Under ₹150"
+        )
+    );
 
 
-  const under150Products = products.filter(
 
-    (product:any) =>
-
-      product.categories?.includes("Under ₹150") ||
-
-      product.category === "Under ₹150"
-
+  console.log(
+    "UNDER 150 PRODUCTS:",
+    under150Products.map((p:any)=>({
+      id:p.id,
+      name:p.name,
+      categories:p.categories
+    }))
   );
 
+
+
+
+  const totalPages = Math.ceil(
+    under150Products.length / PRODUCTS_PER_PAGE
+  );
+
+
+
+  const start =
+    (currentPage - 1) * PRODUCTS_PER_PAGE;
+
+
+
+  const products =
+    under150Products.slice(
+      start,
+      start + PRODUCTS_PER_PAGE
+    );
 
 
 
@@ -77,41 +98,35 @@ export default async function Under150Page({
 
     <main
       className="
-      min-h-screen
-      bg-gray-100
-      p-4
-      sm:p-8
+        min-h-screen
+        bg-gray-100
+        p-4
+        sm:p-8
       "
     >
 
 
-
       <h1
         className="
-        text-2xl
-        sm:text-4xl
-        font-bold
-        mb-3
+          text-2xl
+          sm:text-4xl
+          font-bold
+          mb-3
         "
       >
-
         💰 Products Under ₹150
-
       </h1>
-
 
 
 
       <p
         className="
-        mb-6
-        sm:mb-8
-        text-gray-600
+          mb-6
+          sm:mb-8
+          text-gray-600
         "
       >
-
         Budget-friendly products available under ₹150.
-
       </p>
 
 
@@ -120,30 +135,28 @@ export default async function Under150Page({
 
       <div
         className="
-        grid
-        grid-cols-2
-        sm:grid-cols-3
-        lg:grid-cols-4
-        gap-3
-        sm:gap-6
+          grid
+          grid-cols-2
+          sm:grid-cols-3
+          lg:grid-cols-4
+          gap-3
+          sm:gap-6
         "
       >
 
 
         {
-          under150Products.length === 0 ? (
+          products.length === 0 ? (
 
             <p className="text-lg text-gray-500">
-
               No products found.
-
             </p>
 
 
           ) : (
 
 
-            under150Products.map((product:any)=>(
+            products.map((product:any)=>(
 
 
               <CategoryProductCard
@@ -160,13 +173,14 @@ export default async function Under150Page({
 
                 coupon={product.coupon}
 
-                coupon_available={product.coupon_available}
+                coupon_available={
+                  product.coupon_available
+                }
 
               />
 
 
             ))
-
 
           )
         }
@@ -180,10 +194,10 @@ export default async function Under150Page({
 
       <div
         className="
-        mt-10
-        sm:mt-12
-        flex
-        justify-center
+          mt-10
+          sm:mt-12
+          flex
+          justify-center
         "
       >
 
@@ -198,7 +212,6 @@ export default async function Under150Page({
 
 
       </div>
-
 
 
 
