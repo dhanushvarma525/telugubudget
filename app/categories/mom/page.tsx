@@ -4,93 +4,39 @@ import { getBaseUrl } from "@/lib/getBaseUrl";
 
 const PRODUCTS_PER_PAGE = 10;
 
+async function getProducts(page: number) {
+  const res = await fetch(
+    `${getBaseUrl()}/api/products?category=${encodeURIComponent(
+      "Mom's Favorites"
+    )}&page=${page}&limit=${PRODUCTS_PER_PAGE}`,
+    {
+      cache: "no-store",
+    }
+  );
 
-async function getProducts(page:number) {
-
-  const url =
-    `${getBaseUrl()}/api/products?page=${page}&limit=100`;
-
-
-  const res = await fetch(url, {
-    cache:"no-store",
-  });
-
-
-  if(!res.ok){
+  if (!res.ok) {
     throw new Error("Failed to fetch products");
   }
 
-
   return res.json();
-
 }
 
-
-
 export default async function MomsFavoritesPage({
-
   searchParams,
-
-}:{
-
-  searchParams: Promise<{page?:string}>;
-
+}: {
+  searchParams: Promise<{ page?: string }>;
 }) {
-
-
   const params = await searchParams;
 
-
-  const currentPage = Number(
-    params.page || "1"
-  );
-
+  const currentPage = Number(params.page || "1");
 
   const data = await getProducts(currentPage);
 
+  const products = data.products || [];
 
-
-  // Get only Mom's Favorites products
-  const momProducts = data.products.filter(
-    (product:any)=>
-      product.categories?.includes(
-        "Mom's Favorites"
-      )
-  );
-
-
-
-  console.log(
-    "FINAL MOM PRODUCTS:",
-    momProducts.map((p:any)=>({
-      id:p.id,
-      name:p.name,
-      categories:p.categories
-    }))
-  );
-
-
-
-  const totalPages = Math.ceil(
-    momProducts.length / PRODUCTS_PER_PAGE
-  );
-
-
-  const start =
-    (currentPage - 1) * PRODUCTS_PER_PAGE;
-
-
-  const products =
-    momProducts.slice(
-      start,
-      start + PRODUCTS_PER_PAGE
-    );
-
-
-
+  const totalPages = data.totalPages || 1;
 
   return (
-
     <main
       className="
       min-h-screen
@@ -99,8 +45,6 @@ export default async function MomsFavoritesPage({
       sm:p-8
       "
     >
-
-
       <h1
         className="
         text-2xl
@@ -112,8 +56,6 @@ export default async function MomsFavoritesPage({
         👩 Mom's Favorites
       </h1>
 
-
-
       <p
         className="
         mb-6
@@ -123,10 +65,6 @@ export default async function MomsFavoritesPage({
       >
         Useful and loved products specially selected for moms.
       </p>
-
-
-
-
 
       <div
         className="
@@ -138,53 +76,24 @@ export default async function MomsFavoritesPage({
         sm:gap-6
         "
       >
-
-
-        {
-          products.length === 0 ? (
-
-            <p className="text-gray-500 text-lg">
-              No products found.
-            </p>
-
-          ) : (
-
-            products.map((product:any)=>(
-
-
-              <CategoryProductCard
-
-                key={product.id}
-
-                id={product.id}
-
-                name={product.name}
-
-                price={product.price}
-
-                image={product.image}
-
-                coupon={product.coupon}
-
-                coupon_available={
-                  product.coupon_available
-                }
-
-              />
-
-
-            ))
-
-          )
-        }
-
-
+        {products.length === 0 ? (
+          <p className="text-gray-500 text-lg">
+            No products found.
+          </p>
+        ) : (
+          products.map((product: any) => (
+            <CategoryProductCard
+              key={product.id}
+              id={product.id}
+              name={product.name}
+              price={product.price}
+              image={product.image}
+              coupon={product.coupon}
+              coupon_available={product.coupon_available}
+            />
+          ))
+        )}
       </div>
-
-
-
-
-
 
       <div
         className="
@@ -194,22 +103,11 @@ export default async function MomsFavoritesPage({
         justify-center
         "
       >
-
         <Pagination
-
           currentPage={currentPage}
-
           totalPages={totalPages}
-
         />
-
       </div>
-
-
-
-
     </main>
-
   );
-
 }

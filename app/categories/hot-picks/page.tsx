@@ -4,16 +4,16 @@ import { getBaseUrl } from "@/lib/getBaseUrl";
 
 const PRODUCTS_PER_PAGE = 10;
 
-async function getProducts() {
+async function getProducts(page: number) {
   const res = await fetch(
-    `${getBaseUrl()}/api/products?page=1&limit=1000`,
+    `${getBaseUrl()}/api/products?hotPick=true&page=${page}&limit=${PRODUCTS_PER_PAGE}`,
     {
       cache: "no-store",
     }
   );
 
   if (!res.ok) {
-    throw new Error("Failed to fetch products");
+    throw new Error("Failed to fetch hot picks");
   }
 
   return res.json();
@@ -28,28 +28,11 @@ export default async function HotPicksPage({
 
   const currentPage = Number(params.page || "1");
 
-  const { products } = await getProducts();
+  const data = await getProducts(currentPage);
 
-  // Filter only Today's Hot Picks
-  const hotPickProducts = products.filter(
-    (product: any) =>
-      product.hot_pick === true ||
-      product.category === "Today's Hot Picks" ||
-      product.categories?.includes("Today's Hot Picks")
-  );
+  const products = data.products || [];
 
-  // Pagination
-  const startIndex = (currentPage - 1) * PRODUCTS_PER_PAGE;
-  const endIndex = startIndex + PRODUCTS_PER_PAGE;
-
-  const paginatedProducts = hotPickProducts.slice(
-    startIndex,
-    endIndex
-  );
-
-  const totalPages = Math.ceil(
-    hotPickProducts.length / PRODUCTS_PER_PAGE
-  );
+  const totalPages = data.totalPages || 1;
 
   return (
     <main className="min-h-screen bg-gray-100 p-4 sm:p-8">
@@ -62,12 +45,12 @@ export default async function HotPicksPage({
       </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
-        {paginatedProducts.length === 0 ? (
-          <p className="text-gray-500 text-lg">
+        {products.length === 0 ? (
+          <p className="text-lg text-gray-500">
             No hot picks available.
           </p>
         ) : (
-          paginatedProducts.map((product: any) => (
+          products.map((product: any) => (
             <CategoryProductCard
               key={product.id}
               id={product.id}

@@ -4,9 +4,11 @@ import { getBaseUrl } from "@/lib/getBaseUrl";
 
 const PRODUCTS_PER_PAGE = 10;
 
-async function getProducts() {
+async function getProducts(page: number) {
   const res = await fetch(
-    `${getBaseUrl()}/api/products?page=1&limit=1000`,
+    `${getBaseUrl()}/api/products?category=${encodeURIComponent(
+      "Electronics"
+    )}&page=${page}&limit=${PRODUCTS_PER_PAGE}`,
     {
       cache: "no-store",
     }
@@ -28,27 +30,11 @@ export default async function ElectronicsPage({
 
   const currentPage = Number(params.page || "1");
 
-  const { products } = await getProducts();
+  const data = await getProducts(currentPage);
 
-  // Filter only Electronics products
-  const electronicsProducts = products.filter(
-    (product: any) =>
-      product.category === "Electronics" ||
-      product.categories?.includes("Electronics")
-  );
+  const products = data.products || [];
 
-  // Pagination
-  const startIndex = (currentPage - 1) * PRODUCTS_PER_PAGE;
-  const endIndex = startIndex + PRODUCTS_PER_PAGE;
-
-  const paginatedProducts = electronicsProducts.slice(
-    startIndex,
-    endIndex
-  );
-
-  const totalPages = Math.ceil(
-    electronicsProducts.length / PRODUCTS_PER_PAGE
-  );
+  const totalPages = data.totalPages || 1;
 
   return (
     <main className="min-h-screen bg-gray-100 p-4 sm:p-8">
@@ -61,12 +47,12 @@ export default async function ElectronicsPage({
       </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
-        {paginatedProducts.length === 0 ? (
-          <p className="text-gray-500 text-lg">
+        {products.length === 0 ? (
+          <p className="text-lg text-gray-500">
             No products found.
           </p>
         ) : (
-          paginatedProducts.map((product: any) => (
+          products.map((product: any) => (
             <CategoryProductCard
               key={product.id}
               id={product.id}
