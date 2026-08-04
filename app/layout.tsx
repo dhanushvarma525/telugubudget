@@ -74,14 +74,24 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    "https://anantago.com";
+    process.env.NEXT_PUBLIC_SITE_URL || "https://anantago.com";
 
   return (
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        {/* Google AdSense */}
+        <Script
+          id="google-adsense"
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8610426437911765"
+          crossOrigin="anonymous"
+          strategy="beforeInteractive"
+        />
+      </head>
+
       <body
         className="
           min-h-full
