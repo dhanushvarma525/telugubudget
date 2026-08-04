@@ -82,6 +82,12 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>
+        {/* Google AdSense verification */}
+        <meta
+          name="google-adsense-account"
+          content="ca-pub-8610426437911765"
+        />
+
         {/* Google AdSense */}
         <Script
           id="google-adsense"
