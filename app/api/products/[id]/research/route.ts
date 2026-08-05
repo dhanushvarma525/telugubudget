@@ -1,22 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
 import { supabase } from "@/lib/supabase";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+/* =========================================================
+   TYPES
+========================================================= */
+
+type RouteContext = {
+  params: Promise<{
+    id: string;
+  }>;
+};
 
 type SearchResult = {
   title?: string;
   url?: string;
   content?: string;
+  score?: number;
 };
 
-async function searchWeb(query: string) {
+type TavilyResponse = {
+  answer?: string;
+  results?: SearchResult[];
+};
+
+/* =========================================================
+   TAVILY SEARCH
+========================================================= */
+
+async function searchWeb(
+  query: string
+): Promise<TavilyResponse> {
   const apiKey = process.env.TAVILY_API_KEY;
 
   if (!apiKey) {
-    throw new Error("TAVILY_API_KEY is missing");
+    throw new Error(
+      "TAVILY_API_KEY is missing"
+    );
   }
 
   const response = await fetch(
@@ -30,13 +49,23 @@ async function searchWeb(query: string) {
 
       body: JSON.stringify({
         api_key: apiKey,
+
         query,
+
         search_depth: "advanced",
+
         topic: "general",
+
         max_results: 6,
-        include_answer: false,
+
+        include_answer: true,
+
         include_raw_content: false,
+
+        include_images: false,
       }),
+
+      cache: "no-store",
     }
   );
 
@@ -48,64 +77,55 @@ async function searchWeb(query: string) {
     );
   }
 
-  return await response.json();
+  return (await response.json()) as TavilyResponse;
 }
+
+/* =========================================================
+   POST
+   /api/products/[id]/research
+========================================================= */
 
 export async function POST(
   request: NextRequest,
-  {
-    params,
-  }: {
-    params: Promise<{ id: string }>;
-  }
+  context: RouteContext
 ) {
   try {
-    const { id } = await params;
+    /* =====================================================
+       PRODUCT ID
+    ===================================================== */
+
+    const { id } = await context.params;
 
     if (!id) {
       return NextResponse.json(
         {
           success: false,
-          message: "Product ID is required",
+          message:
+            "Product ID is required",
         },
         { status: 400 }
       );
     }
 
-    // ==========================================
-    // 1. GET PRODUCT
-    // ==========================================
+    const productId = Number(id);
 
-    const { data: product, error } = await supabase
-      .from("products")
-      .select("*")
-      .eq("id", id)
-      .single();
-
-    if (error || !product) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Product not found",
-        },
-        { status: 404 }
-      );
-    }
-
-    // ==========================================
-    // 2. CHECK API KEYS
-    // ==========================================
-
-    if (!process.env.OPENAI_API_KEY) {
+    if (
+      !Number.isInteger(productId) ||
+      productId <= 0
+    ) {
       return NextResponse.json(
         {
           success: false,
           message:
-            "OPENAI_API_KEY is not configured.",
+            "Invalid product ID",
         },
-        { status: 500 }
+        { status: 400 }
       );
     }
+
+    /* =====================================================
+       CHECK TAVILY KEY
+    ===================================================== */
 
     if (!process.env.TAVILY_API_KEY) {
       return NextResponse.json(
@@ -118,20 +138,61 @@ export async function POST(
       );
     }
 
-    // ==========================================
-    // 3. MARK AS RESEARCHING
-    // ==========================================
+    /* =====================================================
+       GET PRODUCT
+    ===================================================== */
+
+    const {
+      data: product,
+      error: productError,
+    } = await supabase
+      .from("products")
+      .select("*")
+      .eq("id", productId)
+      .maybeSingle();
+
+    if (productError) {
+      console.error(
+        "Product fetch error:",
+        productError
+      );
+
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            productError.message,
+        },
+        { status: 500 }
+      );
+    }
+
+    if (!product) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Product not found",
+        },
+        { status: 404 }
+      );
+    }
+
+    /* =====================================================
+       MARK RESEARCHING
+    ===================================================== */
 
     await supabase
       .from("products")
       .update({
-        anantago_analysis_status: "researching",
+        anantago_analysis_status:
+          "researching",
       })
-      .eq("id", id);
+      .eq("id", productId);
 
-    // ==========================================
-    // 4. BUILD PRODUCT IDENTITY
-    // ==========================================
+    /* =====================================================
+       PRODUCT INFORMATION
+    ===================================================== */
 
     const productName =
       product.name || "";
@@ -151,6 +212,10 @@ export async function POST(
     const price =
       product.price || "";
 
+    /* =====================================================
+       PRODUCT IDENTITY
+    ===================================================== */
+
     const productIdentity = [
       brand,
       productName,
@@ -160,365 +225,293 @@ export async function POST(
       .filter(Boolean)
       .join(" ");
 
-    // ==========================================
-    // 5. SEARCH THE WEB
-    // ==========================================
+    /* =====================================================
+       SEARCH QUERIES
+    ===================================================== */
 
     const queries = [
       `"${brand} ${productName}" official specifications`,
+
       `"${brand} ${productName}" review`,
-      `"${brand} ${productName}" problems cons`,
+
+      `"${brand} ${productName}" pros cons`,
+
       `"${brand} ${productName}" warranty`,
     ];
 
+    /* =====================================================
+       SEARCH
+    ===================================================== */
+
     const searchResults: SearchResult[] = [];
+
+    const tavilyAnswers: string[] = [];
 
     for (const query of queries) {
       try {
-        const result = await searchWeb(query);
+        const result =
+          await searchWeb(query);
 
-        if (Array.isArray(result.results)) {
+        /* Save Tavily answer */
+
+        if (
+          result.answer &&
+          result.answer.trim()
+        ) {
+          tavilyAnswers.push(
+            result.answer.trim()
+          );
+        }
+
+        /* Save search results */
+
+        if (
+          Array.isArray(
+            result.results
+          )
+        ) {
           searchResults.push(
             ...result.results
           );
         }
-      } catch (searchError) {
+      } catch (error) {
         console.error(
-          "Search failed:",
-          searchError
+          `Search failed for query: ${query}`,
+          error
         );
       }
     }
 
-    // ==========================================
-    // 6. REMOVE DUPLICATE SOURCES
-    // ==========================================
+    /* =====================================================
+       REMOVE DUPLICATE SOURCES
+    ===================================================== */
 
-    const uniqueSources = Array.from(
-      new Map(
-        searchResults
-          .filter((item) => item.url)
-          .map((item) => [
-            item.url,
-            item,
-          ])
-      ).values()
-    ).slice(0, 15);
+    const uniqueSources =
+      Array.from(
+        new Map(
+          searchResults
+            .filter(
+              (item) =>
+                item.url
+            )
+            .map(
+              (item) => [
+                item.url,
+                item,
+              ]
+            )
+        ).values()
+      ).slice(0, 20);
 
-    // ==========================================
-    // 7. MAKE RESEARCH PACK
-    // ==========================================
+    /* =====================================================
+       NO SOURCES
+    ===================================================== */
 
-    const researchPack =
-      uniqueSources
-        .map(
-          (source, index) => `
-SOURCE ${index + 1}
-
-Title:
-${source.title || "Unknown"}
-
-URL:
-${source.url || "Unknown"}
-
-Information:
-${source.content || "No content available"}
-`
-        )
-        .join("\n");
-
-    // ==========================================
-    // 8. REQUIRE REAL SOURCES
-    // ==========================================
-
-    if (uniqueSources.length === 0) {
+    if (
+      uniqueSources.length === 0
+    ) {
       await supabase
         .from("products")
         .update({
           anantago_analysis_status:
             "research_failed",
         })
-        .eq("id", id);
+        .eq("id", productId);
 
       return NextResponse.json(
         {
           success: false,
           message:
-            "No reliable web research results were found. Analysis was not generated.",
+            "No reliable web research results were found.",
         },
         { status: 422 }
       );
     }
 
-    // ==========================================
-    // 9. ASK AI TO ANALYZE THE RESEARCH
-    // ==========================================
+    /* =====================================================
+       BUILD RESEARCH TEXT
+    ===================================================== */
 
-    const prompt = `
-You are the product research analyst for AnantaGo.
+    const researchText =
+      uniqueSources
+        .map(
+          (source, index) => {
+            return [
+              `SOURCE ${index + 1}`,
+              "",
+              `Title: ${
+                source.title ||
+                "Unknown"
+              }`,
+              "",
+              `URL: ${
+                source.url ||
+                "Unknown"
+              }`,
+              "",
+              `Information: ${
+                source.content ||
+                "No information available"
+              }`,
+            ].join("\n");
+          }
+        )
+        .join("\n\n-------------------------\n\n");
 
-Your job is NOT to invent product information.
+    /* =====================================================
+       TAVILY SUMMARY
+    ===================================================== */
 
-You have been given:
-1. Product information from our database.
-2. Search results from the live web.
+    const tavilySummary =
+      Array.from(
+        new Set(tavilyAnswers)
+      ).join("\n\n");
 
-Create an honest, useful, product-specific AnantaGo analysis.
+    /* =====================================================
+       FULL RESEARCH REPORT
+    ===================================================== */
 
-IMPORTANT RULES:
+    const finalResearch = [
+      `Product: ${productName}`,
 
-- Do not claim AnantaGo physically tested the product.
-- Do not invent specifications.
-- Do not invent battery life, durability, performance, quality, warranty,
-  features, or customer complaints.
-- Do not treat marketplace marketing claims as independently verified facts.
-- If something cannot be verified, say so.
-- Use the provided research sources as evidence.
-- Prefer official manufacturer information for specifications.
-- Use independent reviews for real-world observations.
-- Do not copy large portions of source text.
-- Do not create generic Pros and Cons.
-- Pros and Cons must be specific to this exact product.
-- The score must be based on the available evidence.
-- A product does NOT need comparison with another product.
-- Do not manufacture a competitor comparison.
-- Be especially careful with price because prices change.
-- Never say "we tested" or "we used" the product.
+      brand
+        ? `Brand: ${brand}`
+        : "",
 
-PRODUCT DATABASE INFORMATION:
+      category
+        ? `Category: ${category}`
+        : "",
 
-Product:
-${productName}
+      price
+        ? `Current Price: ${price}`
+        : "",
 
-Brand:
-${brand}
+      "",
 
-Category:
-${category}
+      "Product Identity:",
 
-Price:
-${price}
+      productIdentity,
 
-Description:
-${description}
+      "",
 
-Features:
-${features}
+      "Tavily Research Summary:",
 
-SEARCHED PRODUCT IDENTITY:
-${productIdentity}
+      tavilySummary ||
+        "No summary was returned.",
 
-WEB RESEARCH:
+      "",
 
-${researchPack}
+      "Web Sources:",
 
-Return ONLY valid JSON.
+      researchText,
+    ]
+      .filter(
+        (item) =>
+          item !== ""
+      )
+      .join("\n");
 
-Use exactly this structure:
-
-{
-  "score": 0,
-  "pros": [
-    "specific product-related advantage"
-  ],
-  "cons": [
-    "specific product-related limitation"
-  ],
-  "best_for": "specific type of buyer",
-  "not_ideal_for": "specific type of buyer",
-  "value": "Excellent / Good / Fair / Poor",
-  "verdict": "A concise evidence-based AnantaGo verdict.",
-  "research": "Short explanation of what was verified and what remains uncertain."
-}
-
-SCORING:
-
-Give a score from 1.0 to 10.0.
-
-Consider:
-- Features
-- Specifications
-- Price/value
-- Warranty when verified
-- Product suitability
-- Evidence from reputable sources
-- Known limitations
-
-Do not automatically give high scores.
-
-If evidence is weak, make the analysis more cautious.
-`;
-
-    const completion =
-      await openai.chat.completions.create({
-        model: "gpt-5-mini",
-
-        response_format: {
-          type: "json_object",
-        },
-
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a careful product research analyst. Never invent facts.",
-          },
-
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-      });
-
-    const content =
-      completion.choices[0]?.message?.content;
-
-    if (!content) {
-      throw new Error(
-        "AI returned no analysis"
-      );
-    }
-
-    const analysis =
-      JSON.parse(content);
-
-    // ==========================================
-    // 10. VALIDATE BASIC OUTPUT
-    // ==========================================
-
-    const score =
-      Number(analysis.score);
-
-    if (
-      Number.isNaN(score) ||
-      score < 1 ||
-      score > 10
-    ) {
-      throw new Error(
-        "AI returned an invalid score"
-      );
-    }
-
-    // ==========================================
-    // 11. SAVE ANALYSIS
-    // ==========================================
+    /* =====================================================
+       SOURCE TEXT
+    ===================================================== */
 
     const sourceText =
       uniqueSources
         .map(
           (source) =>
-            `${source.title || "Source"}\n${source.url}`
+            `${source.title || "Source"}\n${
+              source.url || ""
+            }`
         )
         .join("\n\n");
 
-    const { error: updateError } =
+    /* =====================================================
+       SAVE TO SUPABASE
+    ===================================================== */
+
+    const {
+      error: updateError,
+    } = await supabase
+      .from("products")
+      .update({
+        anantago_research:
+          finalResearch,
+
+        anantago_sources:
+          sourceText,
+
+        anantago_analysis_status:
+          "generated",
+
+        anantago_researched_at:
+          new Date().toISOString(),
+      })
+      .eq("id", productId);
+
+    if (updateError) {
+      console.error(
+        "Research save error:",
+        updateError
+      );
+
       await supabase
         .from("products")
         .update({
-          anantago_score: score,
-
-          anantago_pros:
-            Array.isArray(analysis.pros)
-              ? analysis.pros.join("\n")
-              : "",
-
-          anantago_cons:
-            Array.isArray(analysis.cons)
-              ? analysis.cons.join("\n")
-              : "",
-
-          anantago_best_for:
-            analysis.best_for || "",
-
-          anantago_not_ideal_for:
-            analysis.not_ideal_for || "",
-
-          anantago_value:
-            analysis.value || "",
-
-          anantago_verdict:
-            analysis.verdict || "",
-
-          anantago_research:
-            analysis.research || "",
-
-          anantago_sources:
-            sourceText,
-
           anantago_analysis_status:
-            "generated",
-
-          anantago_researched_at:
-            new Date().toISOString(),
+            "research_failed",
         })
-        .eq("id", id);
+        .eq("id", productId);
 
-    if (updateError) {
       throw new Error(
         updateError.message
       );
     }
 
-    // ==========================================
-    // 12. RETURN RESULT
-    // ==========================================
+    /* =====================================================
+       RETURN RESULT
+    ===================================================== */
 
-    return NextResponse.json({
-      success: true,
+    return NextResponse.json(
+      {
+        success: true,
 
-      message:
-        "AnantaGo research completed successfully.",
+        message:
+          "AnantaGo web research completed successfully.",
 
-      analysis: {
-        score,
+        analysis: {
+          research:
+            finalResearch,
 
-        pros:
-          analysis.pros || [],
-
-        cons:
-          analysis.cons || [],
-
-        best_for:
-          analysis.best_for || "",
-
-        not_ideal_for:
-          analysis.not_ideal_for || "",
-
-        value:
-          analysis.value || "",
-
-        verdict:
-          analysis.verdict || "",
-
-        research:
-          analysis.research || "",
-
-        sources:
-          uniqueSources.map(
-            (source) => ({
-              title:
-                source.title || "",
-              url:
-                source.url || "",
-            })
-          ),
+          sources:
+            uniqueSources.map(
+              (source) => ({
+                title:
+                  source.title ||
+                  "",
+                url:
+                  source.url ||
+                  "",
+              })
+            ),
+        },
       },
-    });
-  } catch (error) {
+      { status: 200 }
+    );
+  } catch (error: unknown) {
     console.error(
       "AnantaGo research error:",
       error
     );
 
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Research failed";
+
     return NextResponse.json(
       {
         success: false,
-
-        message:
-          error instanceof Error
-            ? error.message
-            : "Research failed",
+        message,
       },
       { status: 500 }
     );
