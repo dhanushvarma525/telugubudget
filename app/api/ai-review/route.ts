@@ -1,16 +1,25 @@
-
 import { NextRequest, NextResponse } from "next/server";
 import { generateAnantaGoReview } from "@/lib/generateAnantaGoReview";
 
+type TavilyResult = {
+  title?: string;
+  url?: string;
+  content?: string;
+  score?: number;
+};
+
 export async function POST(req: NextRequest) {
   try {
-    // =========================
-    // GET REQUEST DATA
-    // =========================
+    // =====================================================
+    // 1. GET REQUEST DATA
+    // =====================================================
 
     const body = await req.json();
 
-    const productName = body.productName?.trim();
+    const productName =
+      typeof body.productName === "string"
+        ? body.productName.trim()
+        : "";
 
     if (!productName) {
       return NextResponse.json(
@@ -18,18 +27,15 @@ export async function POST(req: NextRequest) {
           success: false,
           message: "Product name is required",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
-    // =========================
-    // TAVILY API KEY
-    // =========================
+    // =====================================================
+    // 2. TAVILY API KEY
+    // =====================================================
 
-    const tavilyKey =
-      process.env.TAVILY_API_KEY;
+    const tavilyKey = process.env.TAVILY_API_KEY;
 
     if (!tavilyKey) {
       return NextResponse.json(
@@ -38,33 +44,88 @@ export async function POST(req: NextRequest) {
           message:
             "TAVILY_API_KEY is missing from environment variables",
         },
-        {
-          status: 500,
-        }
+        { status: 500 }
       );
     }
 
-    // =========================
-    // SEARCH QUERY
-    // =========================
+    // =====================================================
+    // 3. PRODUCT INFORMATION
+    // =====================================================
+
+    const brand =
+      typeof body.brand === "string"
+        ? body.brand.trim()
+        : "";
+
+    const category =
+      typeof body.category === "string"
+        ? body.category.trim()
+        : "";
+
+    const description =
+      typeof body.description === "string"
+        ? body.description.trim()
+        : "";
+
+    const features =
+      typeof body.features === "string"
+        ? body.features.trim()
+        : "";
+
+    const price =
+      body.price !== undefined &&
+      body.price !== null
+        ? String(body.price)
+        : "";
+
+    // =====================================================
+    // 4. CREATE PRODUCT CONTEXT
+    // =====================================================
+
+    const productContext = `
+Product Name:
+${productName}
+
+Brand:
+${brand || "Not provided"}
+
+Category:
+${category || "Not provided"}
+
+Price:
+${price || "Not provided"}
+
+Description:
+${description || "Not provided"}
+
+Features:
+${features || "Not provided"}
+`.trim();
+
+    // =====================================================
+    // 5. CREATE SEARCH QUERY
+    // =====================================================
 
     const query = `
-      ${productName}
-      review
-      specifications
-      performance
-      pros and cons
-      expert testing
-      buyer experience
-    `;
+${productName}
+${brand}
+${category}
+official specifications
+product review
+performance
+pros and cons
+buyer experience
+limitations
+warranty
+`.trim();
 
     console.log(
       `🔎 Researching product: ${productName}`
     );
 
-    // =========================
-    // TAVILY SEARCH
-    // =========================
+    // =====================================================
+    // 6. TAVILY SEARCH
+    // =====================================================
 
     const tavilyResponse = await fetch(
       "https://api.tavily.com/search",
@@ -73,17 +134,22 @@ export async function POST(req: NextRequest) {
 
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${tavilyKey}`,
         },
 
         body: JSON.stringify({
+          api_key: tavilyKey,
+
           query,
 
           search_depth: "advanced",
 
-          include_answer: "advanced",
+          topic: "general",
 
-          max_results: 5,
+          max_results: 8,
+
+          include_answer: true,
+
+          include_raw_content: false,
         }),
       }
     );
@@ -91,9 +157,9 @@ export async function POST(req: NextRequest) {
     const tavilyData =
       await tavilyResponse.json();
 
-    // =========================
-    // TAVILY ERROR
-    // =========================
+    // =====================================================
+    // 7. TAVILY ERROR
+    // =====================================================
 
     if (!tavilyResponse.ok) {
       console.error(
@@ -104,54 +170,53 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-
-          message:
-            "Tavily search failed",
-
+          message: "Tavily search failed",
           error: tavilyData,
         },
         {
-          status:
-            tavilyResponse.status,
+          status: tavilyResponse.status,
         }
       );
     }
 
-    // =========================
-    // FORMAT SOURCES
-    // =========================
+    // =====================================================
+    // 8. FORMAT SOURCES
+    // =====================================================
 
-    const sources = (
-      tavilyData.results || []
-    ).map((result: any) => ({
-      title:
-        result.title || "Untitled Source",
+    const sources: TavilyResult[] =
+      Array.isArray(tavilyData.results)
+        ? tavilyData.results.map(
+            (result: TavilyResult) => ({
+              title:
+                result.title ||
+                "Untitled Source",
 
-      url:
-        result.url || "",
+              url:
+                result.url || "",
 
-      content:
-        result.content || "",
+              content:
+                result.content || "",
 
-      score:
-        result.score || 0,
-    }));
+              score:
+                typeof result.score === "number"
+                  ? result.score
+                  : 0,
+            })
+          )
+        : [];
 
     console.log(
       `✅ Found ${sources.length} research sources`
     );
 
-    // =========================
-    // GENERATE ANANTAGO ANALYSIS
-    // =========================
+    // =====================================================
+    // 9. GENERATE ANANTAGO REVIEW
+    // =====================================================
 
     const review =
       generateAnantaGoReview(
-        productName,
-
-        tavilyData.answer ||
-          null,
-
+        productContext,
+        tavilyData.answer || null,
         sources
       );
 
@@ -159,35 +224,28 @@ export async function POST(req: NextRequest) {
       "✅ AnantaGo analysis generated"
     );
 
-    // =========================
-    // FINAL RESPONSE
-    // =========================
+    // =====================================================
+    // 10. FINAL RESPONSE
+    // =====================================================
 
     return NextResponse.json({
       success: true,
 
       productName,
 
-      // Tavily's research summary
-      answer:
-        tavilyData.answer ||
-        null,
+      productContext,
 
-      // Our AnantaGo analysis
+      answer:
+        tavilyData.answer || null,
+
       review,
 
-      // Number of sources
       sourceCount:
         sources.length,
 
-      // Raw research sources
       sources,
     });
-  } catch (error: any) {
-    // =========================
-    // GENERAL ERROR
-    // =========================
-
+  } catch (error: unknown) {
     console.error(
       "❌ AI Review API error:",
       error
@@ -198,11 +256,9 @@ export async function POST(req: NextRequest) {
         success: false,
 
         message:
-          "Failed to research product",
-
-        error:
-          error?.message ||
-          "Unknown server error",
+          error instanceof Error
+            ? error.message
+            : "Failed to research product",
       },
       {
         status: 500,
@@ -210,4 +266,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-
