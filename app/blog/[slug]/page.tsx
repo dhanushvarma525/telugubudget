@@ -1,3 +1,4 @@
+
 import { getBaseUrl } from "@/lib/getBaseUrl";
 import { notFound } from "next/navigation";
 import RelatedBlogs from "@/components/RelatedBlogs";
@@ -14,113 +15,128 @@ async function getBlog(slug: string) {
     }
   );
 
-
   if (!res.ok) {
     return null;
   }
 
-
   const data = await res.json();
 
-
   return data.blog || null;
-
 }
 
 
 
+async function getRelatedProducts(ids: number[]) {
 
-
-async function getRelatedProducts(ids:number[]) {
-
-
-  if(!ids || ids.length === 0){
-
+  if (!ids || ids.length === 0) {
     return [];
-
   }
-
-
 
   const { data, error } = await supabase
-
     .from("products")
-
     .select("*")
+    .in("id", ids);
 
-    .in(
-      "id",
-      ids
-    );
-
-
-
-  if(error){
-
-    console.log(error);
-
+  if (error) {
+    console.log("RELATED PRODUCTS ERROR:", error);
     return [];
-
   }
 
-
-
   return data || [];
-
 }
 
 
 
+function getAdditionalImages(blog: any): string[] {
+
+  if (!blog.additional_images) {
+    return [];
+  }
+
+  // Database array
+  if (Array.isArray(blog.additional_images)) {
+
+    return blog.additional_images.filter(
+      (image: any) =>
+        typeof image === "string" &&
+        image.trim() !== ""
+    );
+
+  }
+
+  // JSON string or comma-separated URLs
+  if (typeof blog.additional_images === "string") {
+
+    try {
+
+      const parsed =
+        JSON.parse(blog.additional_images);
+
+      if (Array.isArray(parsed)) {
+
+        return parsed.filter(
+          (image: any) =>
+            typeof image === "string" &&
+            image.trim() !== ""
+        );
+
+      }
+
+    } catch {
+      // Not JSON, continue
+    }
+
+    return blog.additional_images
+      .split(",")
+      .map((image: string) => image.trim())
+      .filter(Boolean);
+
+  }
+
+  return [];
+}
 
 
 
-
-export async function generateMetadata(
-{
+export async function generateMetadata({
   params
-}:{
-  params: Promise<{slug:string}>
+}: {
+  params: Promise<{ slug: string }>
 }) {
-
 
   const { slug } = await params;
 
-
   const blog = await getBlog(slug);
-
-
 
   if (!blog) {
 
     return {
-      title: "Blog Not Found",
+      title: "Blog Not Found | AnantaGo",
     };
 
   }
 
-
+  const description =
+    blog.excerpt ||
+    blog.content?.slice(0, 150) ||
+    "";
 
   return {
 
     title: `${blog.title} | AnantaGo`,
 
-    description:
-      blog.excerpt ||
-      blog.content?.slice(0,150),
-
+    description,
 
     openGraph: {
 
       title: blog.title,
 
-      description: blog.excerpt,
+      description,
 
       images:
         blog.cover_image
-        ?
-        [blog.cover_image]
-        :
-        [],
+          ? [blog.cover_image]
+          : [],
 
     },
 
@@ -130,353 +146,379 @@ export async function generateMetadata(
 
 
 
-
-
-
-
-
-
-export default async function BlogArticlePage(
-{
+export default async function BlogArticlePage({
   params
-}:{
-  params: Promise<{slug:string}>
+}: {
+  params: Promise<{ slug: string }>
 }) {
-
 
   const { slug } = await params;
 
-
   const blog = await getBlog(slug);
 
-
-
   if (!blog) {
-
     notFound();
-
   }
 
 
 
-
-
-  await fetch(
-    `${getBaseUrl()}/api/blogs/${slug}/view`,
-    {
-      method:"POST",
-      cache:"no-store",
-    }
-  );
+  const relatedProducts =
+    await getRelatedProducts(
+      blog.related_products || []
+    );
 
 
 
-
-
-
-
-  const relatedProducts = await getRelatedProducts(
-    blog.related_products || []
-  );
-
-
-
-
-
+  const additionalImages =
+    getAdditionalImages(blog);
 
 
 
   return (
 
-    <article className="max-w-4xl mx-auto p-6">
+    <article
+      className="
+      max-w-4xl
+      mx-auto
+      px-4
+      py-8
+      sm:px-6
+      "
+    >
+
+
+      {/* BLOG HEADER */}
+
+      <div className="mb-6">
+
+        {blog.category && (
+
+          <div
+            className="
+            text-sm
+            font-semibold
+            text-orange-500
+            mb-3
+            "
+          >
+
+            {blog.category}
+
+          </div>
+
+        )}
 
 
 
+        <h1
+          className="
+          text-3xl
+          sm:text-4xl
+          lg:text-5xl
+          font-bold
+          leading-tight
+          mb-4
+          "
+        >
+
+          {blog.title}
+
+        </h1>
 
 
-      <h1 className="
-      text-4xl
-      font-bold
-      mb-4
-      ">
 
-        {blog.title}
+        <div
+          className="
+          text-sm
+          text-gray-500
+          "
+        >
 
-      </h1>
+          {blog.author || "AnantaGo"}
 
+          {" • "}
 
+          {blog.created_at
+            ? new Date(blog.created_at)
+                .toISOString()
+                .slice(0, 10)
+            : ""}
 
-
-
-
-      <div className="
-      text-sm
-      text-gray-500
-      mb-6
-      ">
-
-
-        {blog.category}
-
-        {" • "}
-
-        {blog.author || "AnantaGo"}
-
-        {" • "}
-
-        👁️ {blog.views || 0} views
-
+        </div>
 
       </div>
 
 
 
+      {/* COVER IMAGE */}
+
+      {blog.cover_image && (
+
+        <img
+          src={blog.cover_image}
+          alt={blog.title}
+          className="
+          w-full
+          max-h-[500px]
+          object-cover
+          rounded-2xl
+          mb-8
+          "
+        />
+
+      )}
 
 
 
+      {/* ADDITIONAL BLOG IMAGES */}
 
-      {
-        blog.cover_image && (
+      {additionalImages.length > 0 && (
+
+        <div
+          className="
+          space-y-8
+          mb-10
+          "
+        >
+
+          {additionalImages.map(
+            (
+              image: string,
+              index: number
+            ) => (
+
+              <figure key={index}>
+
+                <img
+                  src={image}
+                  alt={`${blog.title} - Image ${index + 1}`}
+                  loading="lazy"
+                  className="
+                  w-full
+                  rounded-2xl
+                  object-cover
+                  shadow-sm
+                  "
+                />
+
+              </figure>
+
+            )
+          )}
+
+        </div>
+
+      )}
 
 
-          <img
 
-            src={blog.cover_image}
+      {/* BLOG CONTENT */}
 
-            alt={blog.title}
-
-            className="
-            w-full
-            rounded-xl
-            mb-8
-            "
-
-          />
-
-
-        )
-      }
-
-
-
-
-
-
-
-
-
-      <div className="
-      whitespace-pre-line
-      text-lg
-      leading-8
-      ">
-
+      <div
+        className="
+        whitespace-pre-line
+        text-base
+        sm:text-lg
+        leading-8
+        text-gray-800
+        "
+      >
 
         {blog.content}
 
-
       </div>
 
 
 
+      {/* RECOMMENDED PRODUCTS */}
 
+      {relatedProducts.length > 0 && (
 
+        <section
+          className="
+          mt-12
+          border-t
+          pt-8
+          "
+        >
 
-
-
-
-      {
-        relatedProducts.length > 0 && (
-
-
-          <section className="mt-12">
-
-
-            <h2 className="
+          <h2
+            className="
             text-2xl
             font-bold
             mb-5
-            ">
+            "
+          >
 
-              🛒 Recommended Products
+            🛒 Recommended Products
 
-
-            </h2>
-
-
+          </h2>
 
 
 
-            <div className="
+          <div
+            className="
             grid
+            grid-cols-2
             md:grid-cols-3
-            gap-5
-            ">
+            gap-4
+            md:gap-5
+            "
+          >
+
+            {relatedProducts.map(
+              (product: any) => (
+
+                <div
+                  key={product.id}
+                  className="
+                  border
+                  rounded-xl
+                  p-3
+                  sm:p-4
+                  bg-white
+                  shadow-sm
+                  "
+                >
+
+                  {product.image && (
+
+                    <img
+                      src={product.image}
+                      alt={product.name}
+                      loading="lazy"
+                      className="
+                      w-full
+                      h-32
+                      sm:h-40
+                      object-contain
+                      rounded-lg
+                      "
+                    />
+
+                  )}
 
 
-              {
-                relatedProducts.map((product:any)=>(
 
-
-                  <div
-
-                    key={product.id}
-
+                  <h3
                     className="
-                    border
-                    rounded-xl
-                    p-4
-                    bg-white
-                    shadow-sm
+                    font-semibold
+                    text-sm
+                    sm:text-base
+                    mt-3
+                    line-clamp-2
                     "
-
-
                   >
 
+                    {product.name}
+
+                  </h3>
 
 
 
+                  <div className="mt-2">
 
-                    {
-                      product.image && (
-
-
-                        <img
-
-                          src={product.image}
-
-                          alt={product.name}
-
-                          className="
-                          w-full
-                          h-40
-                          object-cover
-                          rounded-lg
-                          "
-
-                        />
-
-
-                      )
-                    }
-
-
-
-
-
-
-                    <h3 className="
-                    font-semibold
-                    mt-3
-                    ">
-
-                      {product.name}
-
-
-                    </h3>
-
-
-
-
-
-
-                    <div className="mt-2">
-
-
-                      <span className="
+                    <span
+                      className="
                       font-bold
                       text-lg
-                      ">
+                      "
+                    >
 
-                        ₹{product.price}
+                      ₹{product.price}
 
-
-                      </span>
-
-
-                    </div>
-
-
-
-
-
-
-
-                    {
-                      product.affiliate_link && (
-
-
-                        <a
-
-                          href={product.affiliate_link}
-
-                          target="_blank"
-
-                          rel="nofollow sponsored"
-
-                          className="
-                          block
-                          text-center
-                          mt-4
-                          bg-black
-                          text-white
-                          py-2
-                          rounded-lg
-                          "
-
-                        >
-
-                          View Deal
-
-
-                        </a>
-
-
-                      )
-                    }
-
-
-
+                    </span>
 
                   </div>
 
 
-                ))
 
-              }
+                  {product.affiliate_link && (
+
+                    <a
+                      href={product.affiliate_link}
+                      target="_blank"
+                      rel="nofollow sponsored noopener noreferrer"
+                      className="
+                      block
+                      text-center
+                      mt-4
+                      bg-orange-500
+                      hover:bg-orange-600
+                      text-white
+                      py-2
+                      rounded-lg
+                      font-semibold
+                      text-sm
+                      "
+                    >
+
+                      View Deal
+
+                    </a>
+
+                  )}
+
+                </div>
+
+              )
+            )}
+
+          </div>
+
+        </section>
+
+      )}
 
 
-            </div>
+
+      {/* RELATED BLOGS */}
+
+      <section
+        className="
+        mt-12
+        border-t
+        pt-8
+        "
+      >
+
+        <RelatedBlogs
+          category={blog.category}
+          slug={blog.slug}
+        />
+
+      </section>
 
 
 
-          </section>
+      {/* MORE ARTICLES */}
 
+      <div
+        className="
+        mt-10
+        text-center
+        "
+      >
 
-        )
+        <a
+          href="/blog"
+          className="
+          inline-block
+          bg-black
+          text-white
+          px-6
+          py-3
+          rounded-xl
+          font-semibold
+          hover:bg-gray-800
+          "
+        >
 
-      }
+          ← More Articles
 
+        </a>
 
-
-
-
-
-
-
-
-      <RelatedBlogs
-
-        category={blog.category}
-
-        slug={blog.slug}
-
-      />
-
-
-
-
-
+      </div>
 
 
     </article>
@@ -484,3 +526,4 @@ export default async function BlogArticlePage(
   );
 
 }
+

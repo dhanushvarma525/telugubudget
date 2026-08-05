@@ -1,79 +1,138 @@
 import { supabase } from "@/lib/supabase";
+import { NextRequest, NextResponse } from "next/server";
 
-console.log("🔥 PRODUCTS API ROUTE RUNNING");
+/* =====================================================
+   GET PRODUCTS
+   Supports:
+   /api/products
+   /api/products?page=1&limit=20
+   /api/products?page=1&limit=1000
+   /api/products?hotPick=true
+===================================================== */
 
-// ===========================
-// GET PRODUCTS
-// ===========================
-
-export async function GET(req: Request) {
+export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(request.url);
 
-    const page = Number(searchParams.get("page") || "1");
+    const pageParam = searchParams.get("page");
+    const limitParam = searchParams.get("limit");
+    const hotPickParam = searchParams.get("hotPick");
 
-    const limit = Number(searchParams.get("limit") || "30");
+    const page = Math.max(
+      Number(pageParam || "1"),
+      1
+    );
 
-    const hotPick = searchParams.get("hotPick");
-
-    const category = searchParams.get("category");
-
-    console.log("CATEGORY RECEIVED:", category);
+    const limit = Math.min(
+      Math.max(
+        Number(limitParam || "20"),
+        1
+      ),
+      1000
+    );
 
     const from = (page - 1) * limit;
     const to = from + limit - 1;
 
+    /* =================================================
+       QUERY
+    ================================================= */
+
     let query = supabase
       .from("products")
-      .select("*", { count: "exact" })
-      .order("id", { ascending: false });
+      .select("*", {
+        count: "exact",
+      })
+      .order("created_at", {
+        ascending: false,
+      })
+      .range(from, to);
 
-    // ===========================
-    // 🔥 TODAY'S HOT PICKS
-    // ===========================
+    /* =================================================
+       HOT PICKS FILTER
+    ================================================= */
 
-    if (hotPick === "true") {
-      query = query.eq("hot_pick", true);
-    }
-
-    // ===========================
-    // 📂 CATEGORY FILTER
-    // Works with BOTH:
-    // category = "Electronics"
-    // categories = ["Electronics","Mom's Favorites"]
-    // ===========================
-
-    if (category) {
-      console.log("FILTER CATEGORY:", category);
-
-      query = query.or(
-        `category.eq.${category},categories.cs.{"${category}"}`
+    if (hotPickParam === "true") {
+      query = query.eq(
+        "hot_pick",
+        true
       );
     }
 
-    const { data, error, count } = await query.range(from, to);
+    const {
+      data,
+      error,
+      count,
+    } = await query;
+
+    /* =================================================
+       ERROR
+    ================================================= */
 
     if (error) {
-      throw error;
+      console.error(
+        "❌ GET PRODUCTS SUPABASE ERROR:",
+        error
+      );
+
+      return NextResponse.json(
+        {
+          success: false,
+          message: error.message,
+          products: [],
+        },
+        {
+          status: 500,
+        }
+      );
     }
 
-    console.log("PRODUCTS FOUND:", data?.length);
+    /* =================================================
+       RESPONSE
+    ================================================= */
 
-    return Response.json({
-      success: true,
-      products: data || [],
-      total: count || 0,
-      page,
-      limit,
-      totalPages: Math.ceil((count || 0) / limit),
-    });
+    const products = data || [];
+
+    const total = count || 0;
+
+    const totalPages =
+      Math.ceil(total / limit);
+
+    return NextResponse.json(
+      {
+        success: true,
+
+        products,
+
+        total,
+
+        page,
+
+        limit,
+
+        totalPages,
+      },
+      {
+        status: 200,
+      }
+    );
+
   } catch (error: any) {
-    console.log("PRODUCT API ERROR:", error);
 
-    return Response.json(
+    console.error(
+      "❌ GET PRODUCTS ERROR:",
+      error
+    );
+
+    return NextResponse.json(
       {
         success: false,
-        message: error.message,
+
+        message:
+          error?.message ||
+          "Failed to load products",
+
+        products: [],
       },
       {
         status: 500,
@@ -82,85 +141,338 @@ export async function GET(req: Request) {
   }
 }
 
-// ===========================
-// ADD PRODUCT
-// ===========================
 
-export async function POST(req: Request) {
+/* =====================================================
+   POST PRODUCT
+===================================================== */
+
+export async function POST(
+  request: NextRequest
+) {
   try {
-    const body = await req.json();
 
-    const {
-      name,
-      category,
-      categories,
-      price,
-      old_price,
-      image,
-      image2,
-      image3,
-      image4,
-      image5,
-      image6,
-      affiliate_link,
-      description,
-      features,
-      rating,
-      stock,
-      brand,
-      coupon,
-      coupon_available,
-      delivery,
-      hot_pick,
-    } = body;
+    const body =
+      await request.json();
 
-    const { data, error } = await supabase
-      .from("products")
-      .insert([
+    /* =================================================
+       REQUIRED FIELDS
+    ================================================= */
+
+    if (
+      !body.name ||
+      !String(body.name).trim()
+    ) {
+      return NextResponse.json(
         {
-          name,
-          category,
-          categories,
-          price,
-          old_price,
-          image,
-          image2,
-          image3,
-          image4,
-          image5,
-          image6,
-          affiliate_link,
-          description,
-          features,
-          rating,
-          stock,
-          brand,
-          coupon,
-          coupon_available,
-          delivery,
-          views: 0,
-          clicks: 0,
-          hot_pick: hot_pick || false,
+          success: false,
+          message:
+            "Product name is required",
         },
-      ])
-      .select();
-
-    if (error) {
-      throw error;
+        {
+          status: 400,
+        }
+      );
     }
 
-    return Response.json({
-      success: true,
-      message: "Product added successfully",
-      product: data,
-    });
-  } catch (error: any) {
-    console.log("ADD PRODUCT ERROR:", error);
+    if (
+      body.price === undefined ||
+      body.price === null ||
+      body.price === ""
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Product price is required",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
 
-    return Response.json(
+    /* =================================================
+       CATEGORIES
+    ================================================= */
+
+    const categories =
+      Array.isArray(body.categories)
+        ? body.categories
+        : body.category
+        ? [body.category]
+        : [];
+
+    const category =
+      categories.length > 0
+        ? categories[0]
+        : body.category || null;
+
+    /* =================================================
+       INSERT
+    ================================================= */
+
+    const productData = {
+
+      /* BASIC */
+
+      name:
+        String(body.name).trim(),
+
+      category,
+
+      categories,
+
+      brand:
+        body.brand || null,
+
+      price:
+        body.price,
+
+      old_price:
+        body.old_price ||
+        null,
+
+      /* IMAGES */
+
+      image:
+        body.image || null,
+
+      image2:
+        body.image2 || null,
+
+      image3:
+        body.image3 || null,
+
+      image4:
+        body.image4 || null,
+
+      image5:
+        body.image5 || null,
+
+      image6:
+        body.image6 || null,
+
+      /* PRODUCT CONTENT */
+
+      description:
+        body.description || null,
+
+      features:
+        body.features || null,
+
+      /* MARKETPLACE */
+
+      rating:
+        body.rating || null,
+
+      stock:
+        body.stock || "In Stock",
+
+      delivery:
+        body.delivery ||
+        "Free Delivery",
+
+      /* COUPON */
+
+      coupon:
+        body.coupon || null,
+
+      coupon_available:
+        Boolean(
+          body.coupon_available
+        ),
+
+      /* AFFILIATE */
+
+      affiliate_link:
+        body.affiliate_link || null,
+
+      /* HOT PICK */
+
+      hot_pick:
+        Boolean(body.hot_pick),
+
+      /* =================================================
+         ANANTAGO REVIEW
+      ================================================= */
+
+      anantago_score:
+        body.anantago_score !==
+          undefined &&
+        body.anantago_score !== null &&
+        body.anantago_score !== ""
+          ? body.anantago_score
+          : null,
+
+      quality_score:
+        body.quality_score !==
+          undefined &&
+        body.quality_score !== null &&
+        body.quality_score !== ""
+          ? body.quality_score
+          : null,
+
+      performance_score:
+        body.performance_score !==
+          undefined &&
+        body.performance_score !== null &&
+        body.performance_score !== ""
+          ? body.performance_score
+          : null,
+
+      value_score:
+        body.value_score !==
+          undefined &&
+        body.value_score !== null &&
+        body.value_score !== ""
+          ? body.value_score
+          : null,
+
+      features_score:
+        body.features_score !==
+          undefined &&
+        body.features_score !== null &&
+        body.features_score !== ""
+          ? body.features_score
+          : null,
+
+      design_score:
+        body.design_score !==
+          undefined &&
+        body.design_score !== null &&
+        body.design_score !== ""
+          ? body.design_score
+          : null,
+
+      /* REVIEW CONTENT */
+
+      verdict:
+        body.verdict || null,
+
+      best_for:
+        body.best_for || null,
+
+      not_ideal_for:
+        body.not_ideal_for || null,
+
+      pros:
+        Array.isArray(body.pros)
+          ? body.pros.filter(
+              (item: unknown) =>
+                String(item).trim() !== ""
+            )
+          : [],
+
+      cons:
+        Array.isArray(body.cons)
+          ? body.cons.filter(
+              (item: unknown) =>
+                String(item).trim() !== ""
+            )
+          : [],
+
+      review_type:
+        body.review_type ||
+        "AnantaGo Analysis",
+
+      /* COMPARISON */
+
+      comparison_group:
+        body.comparison_group ||
+        null,
+
+      /* PRICE HISTORY */
+
+      lowest_price:
+        body.lowest_price ||
+        null,
+
+      highest_price:
+        body.highest_price ||
+        null,
+    };
+
+
+    /* =================================================
+       SUPABASE INSERT
+    ================================================= */
+
+    const {
+      data,
+      error,
+    } = await supabase
+      .from("products")
+      .insert(productData)
+      .select("*")
+      .single();
+
+
+    /* =================================================
+       INSERT ERROR
+    ================================================= */
+
+    if (error) {
+
+      console.error(
+        "❌ CREATE PRODUCT SUPABASE ERROR:",
+        error
+      );
+
+      return NextResponse.json(
+        {
+          success: false,
+
+          message:
+            error.message,
+
+          details:
+            error.details || null,
+
+          hint:
+            error.hint || null,
+
+          code:
+            error.code || null,
+        },
+        {
+          status: 500,
+        }
+      );
+    }
+
+
+    /* =================================================
+       SUCCESS
+    ================================================= */
+
+    return NextResponse.json(
+      {
+        success: true,
+
+        message:
+          "Product created successfully",
+
+        product: data,
+      },
+      {
+        status: 201,
+      }
+    );
+
+  } catch (error: any) {
+
+    console.error(
+      "❌ CREATE PRODUCT ERROR:",
+      error
+    );
+
+    return NextResponse.json(
       {
         success: false,
-        message: error.message,
+
+        message:
+          error?.message ||
+          "Failed to create product",
       },
       {
         status: 500,
