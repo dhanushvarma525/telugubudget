@@ -11,10 +11,17 @@ type Product = {
   price?: number;
 };
 
+type HeadingType =
+  | "paragraph"
+  | "h1"
+  | "h2"
+  | "h3";
+
 type ContentBlock =
   | {
       type: "text";
       content: string;
+      headingType: HeadingType;
     }
   | {
       type: "image";
@@ -32,13 +39,18 @@ export default function AddBlogPage() {
   // =====================================================
 
   const [products, setProducts] = useState<Product[]>([]);
-  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [selectedProducts, setSelectedProducts] =
+    useState<string[]>([]);
 
-  const [productPage, setProductPage] = useState(1);
-  const [totalProducts, setTotalProducts] = useState(0);
+  const [productPage, setProductPage] =
+    useState(1);
+
+  const [totalProducts, setTotalProducts] =
+    useState(0);
 
   const [search, setSearch] = useState("");
-  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [loadingProducts, setLoadingProducts] =
+    useState(true);
 
   const totalProductPages = Math.ceil(
     totalProducts / PRODUCTS_PER_PAGE
@@ -64,15 +76,20 @@ export default function AddBlogPage() {
   // CONTENT BLOCKS
   // =====================================================
 
-  const [contentBlocks, setContentBlocks] = useState<ContentBlock[]>([
-    {
-      type: "text",
-      content: "",
-    },
-  ]);
+  const [contentBlocks, setContentBlocks] =
+    useState<ContentBlock[]>([
+      {
+        type: "text",
+        content: "",
+        headingType: "paragraph",
+      },
+    ]);
 
-  const [uploading, setUploading] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] =
+    useState(false);
+
+  const [saving, setSaving] =
+    useState(false);
 
   // =====================================================
   // LOAD PRODUCTS
@@ -180,33 +197,34 @@ export default function AddBlogPage() {
 
       const safeName = file.name
         .replace(/\s+/g, "-")
-        .replace(/[^a-zA-Z0-9.-]/g, "");
+        .replace(
+          /[^a-zA-Z0-9.-]/g,
+          ""
+        );
 
       const fileName =
         `${Date.now()}-${Math.random()
           .toString(36)
           .slice(2)}-${safeName}`;
 
-      const {
-        error,
-      } = await supabase.storage
-        .from("blog-images")
-        .upload(
-          fileName,
-          file
-        );
+      const { error } =
+        await supabase.storage
+          .from("blog-images")
+          .upload(
+            fileName,
+            file
+          );
 
       if (error) {
         throw error;
       }
 
-      const {
-        data,
-      } = supabase.storage
-        .from("blog-images")
-        .getPublicUrl(
-          fileName
-        );
+      const { data } =
+        supabase.storage
+          .from("blog-images")
+          .getPublicUrl(
+            fileName
+          );
 
       return data.publicUrl;
     } catch (error: any) {
@@ -288,7 +306,7 @@ export default function AddBlogPage() {
   function handleChange(
     e: React.ChangeEvent<
       HTMLInputElement |
-      HTMLTextAreaElement
+        HTMLTextAreaElement
     >
   ) {
     const {
@@ -332,6 +350,7 @@ export default function AddBlogPage() {
     const newBlock: ContentBlock = {
       type: "text",
       content: "",
+      headingType: "paragraph",
     };
 
     setContentBlocks((prev) => {
@@ -387,6 +406,10 @@ export default function AddBlogPage() {
     });
   }
 
+  // =====================================================
+  // UPDATE TEXT
+  // =====================================================
+
   function updateTextBlock(
     index: number,
     value: string
@@ -410,6 +433,38 @@ export default function AddBlogPage() {
       return updated;
     });
   }
+
+  // =====================================================
+  // UPDATE HEADING TYPE
+  // =====================================================
+
+  function updateHeadingType(
+    index: number,
+    value: HeadingType
+  ) {
+    setContentBlocks((prev) => {
+      const updated = [...prev];
+
+      const block =
+        updated[index];
+
+      if (
+        block &&
+        block.type === "text"
+      ) {
+        updated[index] = {
+          ...block,
+          headingType: value,
+        };
+      }
+
+      return updated;
+    });
+  }
+
+  // =====================================================
+  // UPDATE IMAGE ALT
+  // =====================================================
 
   function updateImageAlt(
     index: number,
@@ -435,6 +490,10 @@ export default function AddBlogPage() {
     });
   }
 
+  // =====================================================
+  // DELETE BLOCK
+  // =====================================================
+
   function deleteBlock(
     index: number
   ) {
@@ -444,6 +503,10 @@ export default function AddBlogPage() {
       )
     );
   }
+
+  // =====================================================
+  // MOVE BLOCK UP
+  // =====================================================
 
   function moveBlockUp(
     index: number
@@ -464,6 +527,10 @@ export default function AddBlogPage() {
       return updated;
     });
   }
+
+  // =====================================================
+  // MOVE BLOCK DOWN
+  // =====================================================
 
   function moveBlockDown(
     index: number
@@ -519,7 +586,10 @@ export default function AddBlogPage() {
     try {
       setSaving(true);
 
-      // Convert blocks into clean data
+      // =================================================
+      // CLEAN BLOCKS
+      // =================================================
+
       const cleanBlocks =
         contentBlocks.filter(
           (block) => {
@@ -539,8 +609,10 @@ export default function AddBlogPage() {
           }
         );
 
-      // Keep compatibility with your
-      // existing content column.
+      // =================================================
+      // PLAIN TEXT COMPATIBILITY
+      // =================================================
+
       const plainText =
         cleanBlocks
           .filter(
@@ -554,7 +626,10 @@ export default function AddBlogPage() {
           )
           .join("\n\n");
 
-      // Collect article images
+      // =================================================
+      // ARTICLE IMAGES
+      // =================================================
+
       const additionalImages =
         cleanBlocks
           .filter(
@@ -563,9 +638,13 @@ export default function AddBlogPage() {
               "image"
           )
           .map(
-            (block: any) =>
+            (block) =>
               block.url
           );
+
+      // =================================================
+      // SAVE
+      // =================================================
 
       const response =
         await fetch(
@@ -599,6 +678,8 @@ export default function AddBlogPage() {
               additional_images:
                 additionalImages,
 
+              // IMPORTANT:
+              // headingType is saved here
               content_blocks:
                 cleanBlocks,
 
@@ -685,23 +766,124 @@ export default function AddBlogPage() {
   }
 
   // =====================================================
+  // PREVIEW TEXT BLOCK
+  // =====================================================
+
+  function renderPreviewText(
+    block: Extract<
+      ContentBlock,
+      { type: "text" }
+    >,
+    index: number
+  ) {
+    const content =
+      block.content ||
+      "Your article text will appear here...";
+
+    if (
+      block.headingType === "h1"
+    ) {
+      return (
+        <h1
+          key={index}
+          className="
+            text-3xl
+            sm:text-4xl
+            font-bold
+            leading-tight
+            mt-8
+            mb-4
+            text-gray-900
+          "
+        >
+          {content}
+        </h1>
+      );
+    }
+
+    if (
+      block.headingType === "h2"
+    ) {
+      return (
+        <h2
+          key={index}
+          className="
+            text-2xl
+            sm:text-3xl
+            font-bold
+            leading-tight
+            mt-8
+            mb-4
+            text-gray-900
+          "
+        >
+          {content}
+        </h2>
+      );
+    }
+
+    if (
+      block.headingType === "h3"
+    ) {
+      return (
+        <h3
+          key={index}
+          className="
+            text-xl
+            sm:text-2xl
+            font-bold
+            leading-tight
+            mt-7
+            mb-3
+            text-gray-900
+          "
+        >
+          {content}
+        </h3>
+      );
+    }
+
+    return (
+      <p
+        key={index}
+        className="
+          whitespace-pre-line
+          text-gray-800
+          leading-8
+          mb-5
+        "
+      >
+        {content}
+      </p>
+    );
+  }
+
+  // =====================================================
   // UI
   // =====================================================
 
   return (
     <main className="max-w-5xl mx-auto p-6">
 
-      <h1 className="
-        text-3xl
-        font-bold
-        mb-8
-      ">
+      {/* =================================================
+          PAGE TITLE
+      ================================================= */}
+
+      <h1
+        className="
+          text-3xl
+          font-bold
+          mb-8
+        "
+      >
         📝 Add New Blog
       </h1>
 
       <div className="space-y-6">
 
-        {/* TITLE */}
+        {/* =================================================
+            TITLE
+        ================================================= */}
 
         <input
           name="title"
@@ -716,7 +898,9 @@ export default function AddBlogPage() {
           "
         />
 
-        {/* SLUG */}
+        {/* =================================================
+            SLUG
+        ================================================= */}
 
         <input
           name="slug"
@@ -731,20 +915,25 @@ export default function AddBlogPage() {
           "
         />
 
-        {/* COVER IMAGE */}
+        {/* =================================================
+            COVER IMAGE
+        ================================================= */}
 
-        <div className="
-          border
-          rounded-xl
-          p-5
-          bg-white
-        ">
-
-          <h2 className="
-            text-lg
-            font-bold
-            mb-3
-          ">
+        <div
+          className="
+            border
+            rounded-xl
+            p-5
+            bg-white
+          "
+        >
+          <h2
+            className="
+              text-lg
+              font-bold
+              mb-3
+            "
+          >
             🖼️ Blog Cover Image
           </h2>
 
@@ -777,10 +966,11 @@ export default function AddBlogPage() {
               "
             />
           )}
-
         </div>
 
-        {/* CATEGORY */}
+        {/* =================================================
+            CATEGORY
+        ================================================= */}
 
         <input
           name="category"
@@ -795,7 +985,9 @@ export default function AddBlogPage() {
           "
         />
 
-        {/* TAGS */}
+        {/* =================================================
+            TAGS
+        ================================================= */}
 
         <input
           name="tags"
@@ -810,7 +1002,9 @@ export default function AddBlogPage() {
           "
         />
 
-        {/* EXCERPT */}
+        {/* =================================================
+            EXCERPT
+        ================================================= */}
 
         <textarea
           name="excerpt"
@@ -830,43 +1024,66 @@ export default function AddBlogPage() {
             ARTICLE CONTENT BUILDER
         ================================================= */}
 
-        <section className="
-          border
-          rounded-xl
-          p-5
-          bg-white
-        ">
+        <section
+          className="
+            border
+            rounded-xl
+            p-5
+            bg-white
+          "
+        >
 
-          <div className="
-            flex
-            justify-between
-            items-center
-            flex-wrap
-            gap-3
-            mb-5
-          ">
+          {/* CONTENT HEADER */}
 
+          <div
+            className="
+              flex
+              justify-between
+              items-center
+              flex-wrap
+              gap-3
+              mb-5
+            "
+          >
             <div>
-
-              <h2 className="
-                text-xl
-                font-bold
-              ">
+              <h2
+                className="
+                  text-xl
+                  font-bold
+                "
+              >
                 ✍️ Article Content
               </h2>
 
-              <p className="
-                text-sm
-                text-gray-500
-                mt-1
-              ">
+              <p
+                className="
+                  text-sm
+                  text-gray-500
+                  mt-1
+                "
+              >
                 Add text and images in
                 exactly the order you want.
               </p>
 
+              <p
+                className="
+                  text-sm
+                  text-blue-600
+                  mt-2
+                  font-medium
+                "
+              >
+                💡 For headings, choose
+                H1, H2 or H3 from each
+                text block.
+              </p>
             </div>
-
           </div>
+
+          {/* =================================================
+              BLOCKS
+          ================================================= */}
 
           <div className="space-y-5">
 
@@ -883,21 +1100,27 @@ export default function AddBlogPage() {
                   "
                 >
 
-                  {/* BLOCK HEADER */}
+                  {/* =================================================
+                      BLOCK HEADER
+                  ================================================= */}
 
-                  <div className="
-                    flex
-                    justify-between
-                    items-center
-                    gap-3
-                    mb-3
-                  ">
+                  <div
+                    className="
+                      flex
+                      justify-between
+                      items-center
+                      gap-3
+                      mb-3
+                    "
+                  >
 
-                    <span className="
-                      text-sm
-                      font-bold
-                      text-gray-600
-                    ">
+                    <span
+                      className="
+                        text-sm
+                        font-bold
+                        text-gray-600
+                      "
+                    >
                       {block.type ===
                       "text"
                         ? `📝 Text Block ${
@@ -908,11 +1131,15 @@ export default function AddBlogPage() {
                           }`}
                     </span>
 
-                    <div className="
-                      flex
-                      gap-2
-                      flex-wrap
-                    ">
+                    <div
+                      className="
+                        flex
+                        gap-2
+                        flex-wrap
+                      "
+                    >
+
+                      {/* MOVE UP */}
 
                       <button
                         type="button"
@@ -935,6 +1162,8 @@ export default function AddBlogPage() {
                       >
                         ↑
                       </button>
+
+                      {/* MOVE DOWN */}
 
                       <button
                         type="button"
@@ -960,6 +1189,8 @@ export default function AddBlogPage() {
                         ↓
                       </button>
 
+                      {/* DELETE */}
+
                       <button
                         type="button"
                         onClick={() =>
@@ -980,44 +1211,106 @@ export default function AddBlogPage() {
                       </button>
 
                     </div>
-
                   </div>
 
-                  {/* TEXT */}
+                  {/* =================================================
+                      TEXT BLOCK
+                  ================================================= */}
 
                   {block.type ===
                     "text" && (
 
-                    <textarea
-                      value={
-                        block.content
-                      }
-                      onChange={(e) =>
-                        updateTextBlock(
-                          index,
-                          e.target.value
-                        )
-                      }
-                      placeholder="
-Write your paragraph here...
+                    <div>
 
-Example:
-A power bank is one of the most useful gadgets for travel...
-                      "
-                      className="
-                        border
-                        p-4
-                        w-full
-                        rounded-lg
-                        min-h-48
-                        bg-white
-                        leading-7
-                      "
-                    />
+                      {/* HEADING TYPE */}
 
+                      <label
+                        className="
+                          block
+                          text-sm
+                          font-semibold
+                          text-gray-700
+                          mb-2
+                        "
+                      >
+                        Text Type
+                      </label>
+
+                      <select
+                        value={
+                          block.headingType ||
+                          "paragraph"
+                        }
+                        onChange={(e) =>
+                          updateHeadingType(
+                            index,
+                            e.target
+                              .value as HeadingType
+                          )
+                        }
+                        className="
+                          border
+                          p-3
+                          w-full
+                          rounded-lg
+                          bg-white
+                          mb-4
+                        "
+                      >
+                        <option value="paragraph">
+                          Paragraph
+                        </option>
+
+                        <option value="h1">
+                          H1 — Main Section Heading
+                        </option>
+
+                        <option value="h2">
+                          H2 — Section Heading
+                        </option>
+
+                        <option value="h3">
+                          H3 — Subsection Heading
+                        </option>
+                      </select>
+
+                      {/* TEXT AREA */}
+
+                      <textarea
+                        value={
+                          block.content
+                        }
+                        onChange={(e) =>
+                          updateTextBlock(
+                            index,
+                            e.target.value
+                          )
+                        }
+                        placeholder="
+Write your paragraph or heading here...
+
+Example heading:
+Final Thoughts: Which Car Accessories Are Actually Worth Buying?
+
+Then choose H1, H2 or H3 above.
+                        "
+                        className="
+                          border
+                          p-4
+                          w-full
+                          rounded-lg
+                          min-h-48
+                          bg-white
+                          leading-7
+                        "
+                      />
+
+                    </div>
                   )}
 
-                  {/* IMAGE */}
+                  {/* =================================================
+                      IMAGE BLOCK
+                  ================================================= */}
 
                   {block.type ===
                     "image" && (
@@ -1043,7 +1336,6 @@ A power bank is one of the most useful gadgets for travel...
                       />
 
                       {block.url && (
-
                         <img
                           src={
                             block.url
@@ -1055,13 +1347,16 @@ A power bank is one of the most useful gadgets for travel...
                           className="
                             mt-4
                             w-full
-                            max-h-[500px]
+                            max-w-3xl
+                            mx-auto
+                            max-h-[420px]
                             object-cover
                             rounded-xl
                           "
                         />
-
                       )}
+
+                      {/* ALT TEXT */}
 
                       <input
                         value={
@@ -1085,17 +1380,20 @@ A power bank is one of the most useful gadgets for travel...
                       />
 
                     </div>
-
                   )}
 
-                  {/* ADD BLOCK BUTTONS */}
+                  {/* =================================================
+                      ADD BLOCK BUTTONS
+                  ================================================= */}
 
-                  <div className="
-                    mt-4
-                    flex
-                    gap-2
-                    flex-wrap
-                  ">
+                  <div
+                    className="
+                      mt-4
+                      flex
+                      gap-2
+                      flex-wrap
+                    "
+                  >
 
                     <button
                       type="button"
@@ -1140,20 +1438,23 @@ A power bank is one of the most useful gadgets for travel...
                   </div>
 
                 </div>
-
               )
             )}
 
           </div>
 
-          {/* ADD AT END */}
+          {/* =================================================
+              ADD AT END
+          ================================================= */}
 
-          <div className="
-            mt-5
-            flex
-            gap-3
-            flex-wrap
-          ">
+          <div
+            className="
+              mt-5
+              flex
+              gap-3
+              flex-wrap
+            "
+          >
 
             <button
               type="button"
@@ -1197,51 +1498,62 @@ A power bank is one of the most useful gadgets for travel...
             PRODUCTS
         ================================================= */}
 
-        <section className="
-          border
-          rounded-xl
-          p-5
-          bg-white
-        ">
+        <section
+          className="
+            border
+            rounded-xl
+            p-5
+            bg-white
+          "
+        >
 
-          <div className="
-            flex
-            justify-between
-            items-center
-            flex-wrap
-            gap-4
-            mb-4
-          ">
+          <div
+            className="
+              flex
+              justify-between
+              items-center
+              flex-wrap
+              gap-4
+              mb-4
+            "
+          >
 
             <div>
-
-              <h2 className="
-                text-xl
-                font-bold
-              ">
+              <h2
+                className="
+                  text-xl
+                  font-bold
+                "
+              >
                 🛒 Related Products
               </h2>
 
-              <p className="
-                text-sm
-                text-gray-500
-                mt-1
-              ">
+              <p
+                className="
+                  text-sm
+                  text-gray-500
+                  mt-1
+                "
+              >
                 Latest products appear first.
               </p>
-
             </div>
 
-            <div className="
-              bg-blue-100
-              text-blue-700
-              px-3
-              py-1
-              rounded-full
-              text-sm
-              font-semibold
-            ">
-              {selectedProducts.length} selected
+            <div
+              className="
+                bg-blue-100
+                text-blue-700
+                px-3
+                py-1
+                rounded-full
+                text-sm
+                font-semibold
+              "
+            >
+              {
+                selectedProducts.length
+              }{" "}
+              selected
             </div>
 
           </div>
@@ -1267,11 +1579,13 @@ A power bank is one of the most useful gadgets for travel...
             "
           />
 
-          <p className="
-            text-sm
-            text-gray-500
-            mb-4
-          ">
+          <p
+            className="
+              text-sm
+              text-gray-500
+              mb-4
+            "
+          >
             {search
               ? `Search results — Page ${productPage} of ${
                   totalProductPages || 1
@@ -1285,38 +1599,44 @@ A power bank is one of the most useful gadgets for travel...
 
           {loadingProducts ? (
 
-            <div className="
-              border
-              rounded-lg
-              p-8
-              text-center
-              text-gray-500
-            ">
+            <div
+              className="
+                border
+                rounded-lg
+                p-8
+                text-center
+                text-gray-500
+              "
+            >
               Loading products...
             </div>
 
           ) : products.length ===
             0 ? (
 
-            <div className="
-              border
-              rounded-lg
-              p-8
-              text-center
-              text-gray-500
-            ">
+            <div
+              className="
+                border
+                rounded-lg
+                p-8
+                text-center
+                text-gray-500
+              "
+            >
               No products found.
             </div>
 
           ) : (
 
-            <div className="
-              grid
-              grid-cols-2
-              sm:grid-cols-3
-              lg:grid-cols-4
-              gap-4
-            ">
+            <div
+              className="
+                grid
+                grid-cols-2
+                sm:grid-cols-3
+                lg:grid-cols-4
+                gap-4
+              "
+            >
 
               {products.map(
                 (product) => {
@@ -1327,9 +1647,10 @@ A power bank is one of the most useful gadgets for travel...
                     );
 
                   return (
-
                     <div
-                      key={product.id}
+                      key={
+                        product.id
+                      }
                       onClick={() =>
                         toggleProduct(
                           product.id
@@ -1370,14 +1691,16 @@ A power bank is one of the most useful gadgets for travel...
 
                       ) : (
 
-                        <div className="
-                          h-32
-                          bg-gray-100
-                          flex
-                          items-center
-                          justify-center
-                          text-gray-400
-                        ">
+                        <div
+                          className="
+                            h-32
+                            bg-gray-100
+                            flex
+                            items-center
+                            justify-center
+                            text-gray-400
+                          "
+                        >
                           No Image
                         </div>
 
@@ -1385,11 +1708,13 @@ A power bank is one of the most useful gadgets for travel...
 
                       <div className="p-3">
 
-                        <div className="
-                          flex
-                          gap-2
-                          items-start
-                        ">
+                        <div
+                          className="
+                            flex
+                            gap-2
+                            items-start
+                          "
+                        >
 
                           <input
                             type="checkbox"
@@ -1399,11 +1724,13 @@ A power bank is one of the most useful gadgets for travel...
                             readOnly
                           />
 
-                          <h3 className="
-                            text-sm
-                            font-semibold
-                            line-clamp-2
-                          ">
+                          <h3
+                            className="
+                              text-sm
+                              font-semibold
+                              line-clamp-2
+                            "
+                          >
                             {
                               product.name
                             }
@@ -1414,10 +1741,12 @@ A power bank is one of the most useful gadgets for travel...
                         {product.price !==
                           undefined && (
 
-                          <p className="
-                            font-bold
-                            mt-2
-                          ">
+                          <p
+                            className="
+                              font-bold
+                              mt-2
+                            "
+                          >
                             ₹
                             {
                               product.price
@@ -1428,12 +1757,14 @@ A power bank is one of the most useful gadgets for travel...
 
                         {selected && (
 
-                          <p className="
-                            text-xs
-                            text-green-600
-                            font-semibold
-                            mt-2
-                          ">
+                          <p
+                            className="
+                              text-xs
+                              text-green-600
+                              font-semibold
+                              mt-2
+                            "
+                          >
                             ✓ Selected
                           </p>
 
@@ -1442,13 +1773,11 @@ A power bank is one of the most useful gadgets for travel...
                       </div>
 
                     </div>
-
                   );
                 }
               )}
 
             </div>
-
           )}
 
           {/* PAGINATION */}
@@ -1456,14 +1785,16 @@ A power bank is one of the most useful gadgets for travel...
           {totalProductPages >
             1 && (
 
-            <div className="
-              mt-6
-              flex
-              justify-center
-              items-center
-              gap-3
-              flex-wrap
-            ">
+            <div
+              className="
+                mt-6
+                flex
+                justify-center
+                items-center
+                gap-3
+                flex-wrap
+              "
+            >
 
               <button
                 type="button"
@@ -1488,13 +1819,15 @@ A power bank is one of the most useful gadgets for travel...
                 ← Previous
               </button>
 
-              <span className="
-                px-4
-                py-2
-                bg-gray-100
-                rounded-lg
-                font-semibold
-              ">
+              <span
+                className="
+                  px-4
+                  py-2
+                  bg-gray-100
+                  rounded-lg
+                  font-semibold
+                "
+              >
                 Page {productPage} /{" "}
                 {totalProductPages}
               </span>
@@ -1523,25 +1856,28 @@ A power bank is one of the most useful gadgets for travel...
               </button>
 
             </div>
-
           )}
 
           {selectedProducts.length >
             0 && (
 
-            <div className="
-              mt-5
-              bg-green-50
-              border
-              border-green-200
-              rounded-lg
-              p-4
-            ">
+            <div
+              className="
+                mt-5
+                bg-green-50
+                border
+                border-green-200
+                rounded-lg
+                p-4
+              "
+            >
 
-              <p className="
-                font-semibold
-                text-green-800
-              ">
+              <p
+                className="
+                  font-semibold
+                  text-green-800
+                "
+              >
                 ✅{" "}
                 {
                   selectedProducts.length
@@ -1549,28 +1885,33 @@ A power bank is one of the most useful gadgets for travel...
                 products selected
               </p>
 
-              <p className="
-                text-sm
-                text-green-700
-                mt-1
-              ">
+              <p
+                className="
+                  text-sm
+                  text-green-700
+                  mt-1
+                "
+              >
                 You can move between pages
                 without losing selections.
               </p>
 
             </div>
-
           )}
 
         </section>
 
-        {/* FEATURED */}
+        {/* =================================================
+            FEATURED
+        ================================================= */}
 
-        <label className="
-          flex
-          gap-2
-          items-center
-        ">
+        <label
+          className="
+            flex
+            gap-2
+            items-center
+          "
+        >
 
           <input
             type="checkbox"
@@ -1590,13 +1931,17 @@ A power bank is one of the most useful gadgets for travel...
 
         </label>
 
-        {/* PUBLISHED */}
+        {/* =================================================
+            PUBLISHED
+        ================================================= */}
 
-        <label className="
-          flex
-          gap-2
-          items-center
-        ">
+        <label
+          className="
+            flex
+            gap-2
+            items-center
+          "
+        >
 
           <input
             type="checkbox"
@@ -1616,7 +1961,9 @@ A power bank is one of the most useful gadgets for travel...
 
         </label>
 
-        {/* SAVE */}
+        {/* =================================================
+            SAVE
+        ================================================= */}
 
         <button
           type="button"
@@ -1648,45 +1995,56 @@ A power bank is one of the most useful gadgets for travel...
       </div>
 
       {/* =================================================
-          PREVIEW
+          BLOG PREVIEW
       ================================================= */}
 
-      <section className="
-        mt-10
-        border
-        rounded-xl
-        p-6
-        bg-gray-50
-      ">
+      <section
+        className="
+          mt-10
+          border
+          rounded-xl
+          p-6
+          bg-gray-50
+        "
+      >
 
-        <h2 className="
-          text-xl
-          font-bold
-          mb-5
-        ">
+        <h2
+          className="
+            text-xl
+            font-bold
+            mb-5
+          "
+        >
           👀 Blog Preview
         </h2>
 
-        <h3 className="
-          text-2xl
-          font-bold
-        ">
+        {/* BLOG TITLE */}
+
+        <h3
+          className="
+            text-2xl
+            font-bold
+          "
+        >
           {form.title ||
             "Blog Title"}
         </h3>
 
-        <p className="
-          text-sm
-          text-gray-500
-          mt-2
-        ">
+        <p
+          className="
+            text-sm
+            text-gray-500
+            mt-2
+          "
+        >
           {form.category ||
             "Category"}{" "}
           • {form.author}
         </p>
 
-        {form.cover_image && (
+        {/* COVER */}
 
+        {form.cover_image && (
           <img
             src={
               form.cover_image
@@ -1696,76 +2054,79 @@ A power bank is one of the most useful gadgets for travel...
               w-full
               rounded-xl
               mt-4
-              max-h-[500px]
+              max-h-[420px]
               object-cover
             "
           />
-
         )}
 
-        <p className="
-          mt-5
-          text-gray-600
-        ">
+        {/* EXCERPT */}
+
+        <p
+          className="
+            mt-5
+            text-gray-600
+          "
+        >
           {form.excerpt ||
             "Blog excerpt will appear here..."}
         </p>
 
-        {/* PREVIEW CONTENT */}
+        {/* =================================================
+            PREVIEW CONTENT
+        ================================================= */}
 
-        <div className="
-          mt-8
-          space-y-6
-        ">
+        <div
+          className="
+            mt-8
+          "
+        >
 
           {contentBlocks.map(
             (block, index) => {
+
+              {/* TEXT PREVIEW */}
 
               if (
                 block.type ===
                 "text"
               ) {
-
-                return (
-
-                  <p
-                    key={index}
-                    className="
-                      whitespace-pre-line
-                      text-gray-800
-                      leading-8
-                    "
-                  >
-                    {block.content ||
-                      "Your article text will appear here..."}
-                  </p>
-
+                return renderPreviewText(
+                  block,
+                  index
                 );
               }
+
+              {/* IMAGE PREVIEW */}
 
               if (
                 block.type ===
                   "image" &&
                 block.url
               ) {
-
                 return (
-
-                  <img
+                  <figure
                     key={index}
-                    src={
-                      block.url
-                    }
-                    alt={
-                      block.alt ||
-                      "Article image"
-                    }
-                    className="
-                      w-full
-                      rounded-xl
-                    "
-                  />
-
+                    className="my-8"
+                  >
+                    <img
+                      src={
+                        block.url
+                      }
+                      alt={
+                        block.alt ||
+                        "Article image"
+                      }
+                      className="
+                        w-full
+                        max-w-3xl
+                        mx-auto
+                        rounded-xl
+                        object-cover
+                        shadow-sm
+                      "
+                    />
+                  </figure>
                 );
               }
 
@@ -1775,23 +2136,31 @@ A power bank is one of the most useful gadgets for travel...
 
         </div>
 
+        {/* =================================================
+            SELECTED PRODUCTS
+        ================================================= */}
+
         {selectedProducts.length >
           0 && (
 
           <div className="mt-8">
 
-            <h3 className="
-              font-bold
-              text-lg
-            ">
+            <h3
+              className="
+                font-bold
+                text-lg
+              "
+            >
               🛒 Recommended Products
             </h3>
 
-            <p className="
-              text-sm
-              text-gray-500
-              mt-1
-            ">
+            <p
+              className="
+                text-sm
+                text-gray-500
+                mt-1
+              "
+            >
               {
                 selectedProducts.length
               }{" "}
@@ -1799,7 +2168,6 @@ A power bank is one of the most useful gadgets for travel...
             </p>
 
           </div>
-
         )}
 
       </section>
