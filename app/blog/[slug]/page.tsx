@@ -1,6 +1,8 @@
+
 import { getBaseUrl } from "@/lib/getBaseUrl";
 import { notFound } from "next/navigation";
 import RelatedBlogs from "@/components/RelatedBlogs";
+import BlogViewTracker from "@/components/BlogViewTracker";
 import { supabase } from "@/lib/supabase";
 
 // =====================================================
@@ -402,6 +404,14 @@ export default async function BlogArticlePage({
       "
     >
       {/* =================================================
+          BLOG VIEW TRACKER
+      ================================================= */}
+
+      <BlogViewTracker
+        slug={blog.slug}
+      />
+
+      {/* =================================================
           BLOG HEADER
       ================================================= */}
 
@@ -718,3 +728,4 @@ export default async function BlogArticlePage({
     </article>
   );
 }
+

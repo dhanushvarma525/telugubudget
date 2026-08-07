@@ -1,72 +1,119 @@
-import { supabase } from "@/lib/supabase";
 
+import { supabase } from "@/lib/supabase";
 
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ slug:string }> }
-){
-
-  try{
-
-
+  {
+    params,
+  }: {
+    params: Promise<{ slug: string }>;
+  }
+) {
+  try {
     const { slug } = await params;
 
+    // =====================================================
+    // VALIDATE SLUG
+    // =====================================================
 
+    if (
+      !slug ||
+      typeof slug !== "string"
+    ) {
+      return Response.json(
+        {
+          success: false,
+          message: "Invalid blog slug",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
 
-    const { data:blog, error } = await supabase
-      .from("blogs")
-      .select("views")
-      .eq("slug",slug)
-      .single();
+    console.log(
+      "VIEW BLOG SLUG:",
+      slug
+    );
 
+    // =====================================================
+    // ATOMICALLY INCREMENT BLOG VIEWS
+    // =====================================================
 
-
-    if(error)
-      throw error;
-
-
-
-    const newViews =
-      (blog.views || 0) + 1;
-
-
-
-
-    await supabase
-      .from("blogs")
-      .update({
-        views:newViews
-      })
-      .eq(
-        "slug",
-        slug
+    const { data, error } =
+      await supabase.rpc(
+        "increment_blog_views",
+        {
+          blog_slug: slug,
+        }
       );
 
+    console.log(
+      "BLOG VIEW UPDATE RESULT:",
+      data
+    );
 
+    console.log(
+      "BLOG VIEW UPDATE ERROR:",
+      error
+    );
+
+    // =====================================================
+    // HANDLE ERROR
+    // =====================================================
+
+    if (error) {
+      throw error;
+    }
+
+    // =====================================================
+    // BLOG NOT FOUND
+    // =====================================================
+
+    if (
+      !data ||
+      data.length === 0
+    ) {
+      return Response.json(
+        {
+          success: false,
+          message: "Blog not found",
+        },
+        {
+          status: 404,
+        }
+      );
+    }
+
+    // =====================================================
+    // NEW VIEW COUNT
+    // =====================================================
+
+    const newViews =
+      data[0].views;
 
     return Response.json({
-
-      success:true,
-      views:newViews
-
+      success: true,
+      views: newViews,
     });
 
-
-
-  }
-  catch(error:any){
+  } catch (error: any) {
+    console.error(
+      "BLOG VIEW TRACKING ERROR:",
+      error
+    );
 
     return Response.json(
       {
-        success:false,
-        message:error.message
+        success: false,
+        message:
+          error?.message ||
+          "Failed to update blog views",
       },
       {
-        status:500
+        status: 500,
       }
     );
-
   }
-
-
 }
+

@@ -1,9 +1,11 @@
+
 "use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 const PRODUCTS_PER_PAGE = 20;
+const REFRESH_INTERVAL = 5000;
 
 export default function AdminProducts() {
   const [products, setProducts] = useState<any[]>([]);
@@ -20,9 +22,13 @@ export default function AdminProducts() {
   // LOAD ALL PRODUCTS
   // =========================
 
-  async function loadProducts() {
+  async function loadProducts(
+    showLoading = false
+  ) {
     try {
-      setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+      }
 
       const res = await fetch(
         "/api/products?page=1&limit=1000",
@@ -32,12 +38,12 @@ export default function AdminProducts() {
       );
 
       if (!res.ok) {
-        throw new Error("Failed to load products");
+        throw new Error(
+          "Failed to load products"
+        );
       }
 
       const data = await res.json();
-
-      console.log("API RESPONSE:", data);
 
       const productList =
         Array.isArray(data)
@@ -45,22 +51,39 @@ export default function AdminProducts() {
           : data.products || [];
 
       setProducts(productList);
-
     } catch (error) {
       console.error(
         "Failed to load products:",
         error
       );
 
-      alert("Failed to load products");
-
+      // Only show alert during initial loading.
+      if (showLoading) {
+        alert("Failed to load products");
+      }
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   }
 
+  // =========================
+  // INITIAL LOAD + AUTO REFRESH
+  // =========================
+
   useEffect(() => {
-    loadProducts();
+    // Initial load
+    loadProducts(true);
+
+    // Refresh latest views/clicks every 5 seconds
+    const interval = setInterval(() => {
+      loadProducts(false);
+    }, REFRESH_INTERVAL);
+
+    return () => {
+      clearInterval(interval);
+    };
   }, []);
 
   // =========================
@@ -85,17 +108,17 @@ export default function AdminProducts() {
       const data = await response.json();
 
       if (data.success) {
-        alert("Product deleted successfully");
+        alert(
+          "Product deleted successfully"
+        );
 
-        await loadProducts();
-
+        await loadProducts(false);
       } else {
         alert(
           data.message ||
             "Failed to delete product"
         );
       }
-
     } catch (error) {
       console.error(error);
 
@@ -121,7 +144,6 @@ export default function AdminProducts() {
 
   const filteredProducts = [...products]
     .filter((product) => {
-
       const productName =
         product.name || "";
 
@@ -153,7 +175,6 @@ export default function AdminProducts() {
       );
     })
     .sort((a, b) => {
-
       if (sort === "priceHigh") {
         return (
           Number(b.price || 0) -
@@ -218,8 +239,9 @@ export default function AdminProducts() {
       endIndex
     );
 
-  // Reset pagination when
-  // search/filter/sort changes
+  // =========================
+  // RESET PAGINATION
+  // =========================
 
   useEffect(() => {
     setCurrentPage(1);
@@ -275,76 +297,95 @@ export default function AdminProducts() {
           HEADER
       ========================= */}
 
-      <div className="
-        flex
-        flex-col
-        lg:flex-row
-        lg:items-center
-        lg:justify-between
-        gap-5
-        mb-8
-      ">
-
+      <div
+        className="
+          flex
+          flex-col
+          lg:flex-row
+          lg:items-center
+          lg:justify-between
+          gap-5
+          mb-8
+        "
+      >
         <div>
-
-          <h1 className="
-            text-3xl
-            md:text-4xl
-            font-bold
-            text-gray-800
-          ">
+          <h1
+            className="
+              text-3xl
+              md:text-4xl
+              font-bold
+              text-gray-800
+            "
+          >
             📦 Manage Products
           </h1>
 
-          <p className="
-            text-gray-500
-            mt-2
-          ">
-
+          <p
+            className="
+              text-gray-500
+              mt-2
+            "
+          >
             Manage all products,
             reviews and AnantaGo analysis.
 
-            <span className="
-              ml-3
-              font-semibold
-              text-orange-500
-            ">
+            <span
+              className="
+                ml-3
+                font-semibold
+                text-orange-500
+              "
+            >
               Total: {products.length}
             </span>
 
-            <span className="
-              ml-3
-              font-semibold
-              text-blue-500
-            ">
+            <span
+              className="
+                ml-3
+                font-semibold
+                text-blue-500
+              "
+            >
               Showing:{" "}
               {paginatedProducts.length}
             </span>
-
           </p>
 
-          <p className="
-            text-sm
-            text-gray-500
-            mt-1
-          ">
+          <p
+            className="
+              text-sm
+              text-gray-500
+              mt-1
+            "
+          >
             Page {currentPage} of{" "}
             {safeTotalPages}
           </p>
 
+          <p
+            className="
+              text-xs
+              text-green-600
+              mt-1
+              font-medium
+            "
+          >
+            ● Live updates every 5 seconds
+          </p>
         </div>
 
         {/* =========================
             CONTROLS
         ========================= */}
 
-        <div className="
-          flex
-          flex-col
-          sm:flex-row
-          gap-3
-        ">
-
+        <div
+          className="
+            flex
+            flex-col
+            sm:flex-row
+            gap-3
+          "
+        >
           <input
             type="text"
             placeholder="🔍 Search Products..."
@@ -382,24 +423,20 @@ export default function AdminProducts() {
               focus:ring-orange-400
             "
           >
-
             <option value="All Categories">
               All Categories
             </option>
 
             {allCategories.map(
               (cat) => (
-
                 <option
                   key={cat}
                   value={cat}
                 >
                   {cat}
                 </option>
-
               )
             )}
-
           </select>
 
           <select
@@ -415,7 +452,6 @@ export default function AdminProducts() {
               bg-white
             "
           >
-
             <option value="latest">
               Latest
             </option>
@@ -435,7 +471,6 @@ export default function AdminProducts() {
             <option value="views">
               Most Viewed
             </option>
-
           </select>
 
           <Link
@@ -454,105 +489,115 @@ export default function AdminProducts() {
           >
             + Add Product
           </Link>
-
         </div>
-
       </div>
 
       {/* =========================
           REVIEW SUMMARY
       ========================= */}
 
-      <div className="
-        grid
-        grid-cols-1
-        sm:grid-cols-3
-        gap-4
-        mb-6
-      ">
-
+      <div
+        className="
+          grid
+          grid-cols-1
+          sm:grid-cols-3
+          gap-4
+          mb-6
+        "
+      >
         {/* TOTAL */}
 
-        <div className="
-          bg-white
-          rounded-xl
-          shadow
-          p-5
-        ">
-
-          <p className="
-            text-sm
-            text-gray-500
-          ">
+        <div
+          className="
+            bg-white
+            rounded-xl
+            shadow
+            p-5
+          "
+        >
+          <p
+            className="
+              text-sm
+              text-gray-500
+            "
+          >
             Total Products
           </p>
 
-          <p className="
-            text-3xl
-            font-bold
-            mt-1
-          ">
+          <p
+            className="
+              text-3xl
+              font-bold
+              mt-1
+            "
+          >
             {products.length}
           </p>
-
         </div>
 
         {/* REVIEWED */}
 
-        <div className="
-          bg-green-50
-          border
-          border-green-200
-          rounded-xl
-          p-5
-        ">
-
-          <p className="
-            text-sm
-            text-green-700
-          ">
+        <div
+          className="
+            bg-green-50
+            border
+            border-green-200
+            rounded-xl
+            p-5
+          "
+        >
+          <p
+            className="
+              text-sm
+              text-green-700
+            "
+          >
             AnantaGo Reviews Completed
           </p>
 
-          <p className="
-            text-3xl
-            font-bold
-            text-green-700
-            mt-1
-          ">
+          <p
+            className="
+              text-3xl
+              font-bold
+              text-green-700
+              mt-1
+            "
+          >
             {reviewedCount}
           </p>
-
         </div>
 
         {/* NOT REVIEWED */}
 
-        <div className="
-          bg-yellow-50
-          border
-          border-yellow-200
-          rounded-xl
-          p-5
-        ">
-
-          <p className="
-            text-sm
-            text-yellow-700
-          ">
+        <div
+          className="
+            bg-yellow-50
+            border
+            border-yellow-200
+            rounded-xl
+            p-5
+          "
+        >
+          <p
+            className="
+              text-sm
+              text-yellow-700
+            "
+          >
             Reviews Still Needed
           </p>
 
-          <p className="
-            text-3xl
-            font-bold
-            text-yellow-700
-            mt-1
-          ">
+          <p
+            className="
+              text-3xl
+              font-bold
+              text-yellow-700
+              mt-1
+            "
+          >
             {notReviewedCount}
           </p>
-
         </div>
-
       </div>
 
       {/* =========================
@@ -560,49 +605,50 @@ export default function AdminProducts() {
       ========================= */}
 
       {loading ? (
-
-        <div className="
-          bg-white
-          rounded-xl
-          shadow
-          p-12
-          text-center
-        ">
-
-          <p className="
-            text-lg
-            font-semibold
-            text-gray-600
-          ">
+        <div
+          className="
+            bg-white
+            rounded-xl
+            shadow
+            p-12
+            text-center
+          "
+        >
+          <p
+            className="
+              text-lg
+              font-semibold
+              text-gray-600
+            "
+          >
             Loading products...
           </p>
-
         </div>
-
       ) : (
-
         /* =========================
            TABLE
         ========================= */
 
-        <div className="
-          bg-white
-          rounded-xl
-          shadow
-          overflow-x-auto
-        ">
-
-          <table className="
-            w-full
-            min-w-[1100px]
-          ">
-
-            <thead className="
-              bg-gray-200
-            ">
-
+        <div
+          className="
+            bg-white
+            rounded-xl
+            shadow
+            overflow-x-auto
+          "
+        >
+          <table
+            className="
+              w-full
+              min-w-[1100px]
+            "
+          >
+            <thead
+              className="
+                bg-gray-200
+              "
+            >
               <tr>
-
                 <th className="p-4 text-left">
                   Image
                 </th>
@@ -634,17 +680,12 @@ export default function AdminProducts() {
                 <th className="p-4 text-left">
                   Actions
                 </th>
-
               </tr>
-
             </thead>
 
             <tbody>
-
               {paginatedProducts.length === 0 ? (
-
                 <tr>
-
                   <td
                     colSpan={8}
                     className="
@@ -656,14 +697,10 @@ export default function AdminProducts() {
                   >
                     📦 No products found.
                   </td>
-
                 </tr>
-
               ) : (
-
                 paginatedProducts.map(
                   (product) => (
-
                     <tr
                       key={product.id}
                       className="
@@ -671,13 +708,10 @@ export default function AdminProducts() {
                         hover:bg-gray-50
                       "
                     >
-
                       {/* IMAGE */}
 
                       <td className="p-4">
-
                         {product.image ? (
-
                           <img
                             src={product.image}
                             alt={
@@ -691,57 +725,49 @@ export default function AdminProducts() {
                               rounded-lg
                             "
                           />
-
                         ) : (
-
                           <span>
                             No Image
                           </span>
-
                         )}
-
                       </td>
 
                       {/* NAME */}
 
                       <td className="p-4">
-
-                        <div className="
-                          font-semibold
-                          max-w-xs
-                        ">
-
+                        <div
+                          className="
+                            font-semibold
+                            max-w-xs
+                          "
+                        >
                           {product.name}
-
                         </div>
 
                         {product.brand && (
-
-                          <div className="
-                            text-sm
-                            text-gray-500
-                            mt-1
-                          ">
-
+                          <div
+                            className="
+                              text-sm
+                              text-gray-500
+                              mt-1
+                            "
+                          >
                             {product.brand}
-
                           </div>
-
                         )}
-
                       </td>
 
                       {/* CATEGORY */}
 
                       <td className="p-4">
-
-                        <div className="
-                          flex
-                          flex-wrap
-                          gap-1
-                          max-w-xs
-                        ">
-
+                        <div
+                          className="
+                            flex
+                            flex-wrap
+                            gap-1
+                            max-w-xs
+                          "
+                        >
                           {(Array.isArray(
                             product.categories
                           )
@@ -755,7 +781,6 @@ export default function AdminProducts() {
                               (
                                 cat: string
                               ) => (
-
                                 <span
                                   key={cat}
                                   className="
@@ -768,151 +793,137 @@ export default function AdminProducts() {
                                 >
                                   {cat}
                                 </span>
-
                               )
                             )}
-
                         </div>
-
                       </td>
 
                       {/* PRICE */}
 
                       <td className="p-4">
-
-                        <div className="
-                          font-semibold
-                        ">
-
+                        <div
+                          className="
+                            font-semibold
+                          "
+                        >
                           ₹{product.price}
-
                         </div>
 
                         {product.old_price && (
-
-                          <div className="
-                            text-sm
-                            text-gray-400
-                            line-through
-                          ">
-
+                          <div
+                            className="
+                              text-sm
+                              text-gray-400
+                              line-through
+                            "
+                          >
                             ₹{product.old_price}
-
                           </div>
-
                         )}
-
                       </td>
 
                       {/* ANANTAGO SCORE */}
 
                       <td className="p-4">
-
                         {hasReview(product) ? (
-
                           <div>
-
-                            <div className="
-                              inline-flex
-                              items-center
-                              gap-2
-                              bg-green-100
-                              text-green-700
-                              px-3
-                              py-1
-                              rounded-full
-                              font-bold
-                            ">
-
+                            <div
+                              className="
+                                inline-flex
+                                items-center
+                                gap-2
+                                bg-green-100
+                                text-green-700
+                                px-3
+                                py-1
+                                rounded-full
+                                font-bold
+                              "
+                            >
                               ⭐{" "}
-                              {product.anantago_score}/10
-
+                              {
+                                product.anantago_score
+                              }
+                              /10
                             </div>
 
                             {product.review_type && (
-
-                              <p className="
-                                text-xs
-                                text-gray-500
-                                mt-2
-                              ">
-
-                                {product.review_type}
-
+                              <p
+                                className="
+                                  text-xs
+                                  text-gray-500
+                                  mt-2
+                                "
+                              >
+                                {
+                                  product.review_type
+                                }
                               </p>
-
                             )}
-
                           </div>
-
                         ) : (
-
-                          <span className="
-                            inline-flex
-                            items-center
-                            gap-2
-                            bg-yellow-100
-                            text-yellow-700
-                            px-3
-                            py-1
-                            rounded-full
-                            text-sm
-                            font-semibold
-                          ">
+                          <span
+                            className="
+                              inline-flex
+                              items-center
+                              gap-2
+                              bg-yellow-100
+                              text-yellow-700
+                              px-3
+                              py-1
+                              rounded-full
+                              text-sm
+                              font-semibold
+                            "
+                          >
                             ⚠️ Review Needed
                           </span>
-
                         )}
-
                       </td>
 
                       {/* CLICKS */}
 
                       <td className="p-4">
-
-                        <span className="
-                          bg-green-100
-                          text-green-700
-                          px-3
-                          py-1
-                          rounded-full
-                          text-sm
-                        ">
-
+                        <span
+                          className="
+                            bg-green-100
+                            text-green-700
+                            px-3
+                            py-1
+                            rounded-full
+                            text-sm
+                          "
+                        >
                           {product.clicks || 0}
-
                         </span>
-
                       </td>
 
                       {/* VIEWS */}
 
                       <td className="p-4">
-
-                        <span className="
-                          bg-blue-100
-                          text-blue-700
-                          px-3
-                          py-1
-                          rounded-full
-                          text-sm
-                        ">
-
+                        <span
+                          className="
+                            bg-blue-100
+                            text-blue-700
+                            px-3
+                            py-1
+                            rounded-full
+                            text-sm
+                          "
+                        >
                           {product.views || 0}
-
                         </span>
-
                       </td>
 
                       {/* ACTIONS */}
 
                       <td className="p-4">
-
-                        <div className="
-                          flex
-                          gap-2
-                        ">
-
+                        <div
+                          className="
+                            flex
+                            gap-2
+                          "
+                        >
                           <Link
                             href={`/admin/products/edit/${product.id}`}
                             className="
@@ -944,24 +955,15 @@ export default function AdminProducts() {
                           >
                             Delete
                           </button>
-
                         </div>
-
                       </td>
-
                     </tr>
-
                   )
                 )
-
               )}
-
             </tbody>
-
           </table>
-
         </div>
-
       )}
 
       {/* =========================
@@ -969,16 +971,16 @@ export default function AdminProducts() {
       ========================= */}
 
       {totalPages > 1 && (
-
-        <div className="
-          flex
-          justify-center
-          items-center
-          gap-2
-          mt-8
-          flex-wrap
-        ">
-
+        <div
+          className="
+            flex
+            justify-center
+            items-center
+            gap-2
+            mt-8
+            flex-wrap
+          "
+        >
           {/* PREVIOUS */}
 
           <button
@@ -1017,7 +1019,6 @@ export default function AdminProducts() {
             (_, index) =>
               index + 1
           ).map((page) => (
-
             <button
               key={page}
               onClick={() =>
@@ -1039,7 +1040,6 @@ export default function AdminProducts() {
             >
               {page}
             </button>
-
           ))}
 
           {/* NEXT */}
@@ -1055,7 +1055,8 @@ export default function AdminProducts() {
               )
             }
             disabled={
-              currentPage === totalPages
+              currentPage ===
+              totalPages
             }
             className="
               px-4
@@ -1070,11 +1071,9 @@ export default function AdminProducts() {
           >
             Next →
           </button>
-
         </div>
-
       )}
-
     </main>
   );
 }
+
