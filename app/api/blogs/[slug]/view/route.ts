@@ -1,29 +1,24 @@
-
+import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
 export async function POST(
-  req: Request,
-  {
-    params,
-  }: {
-    params: Promise<{ slug: string }>;
+  req: NextRequest,
+  context: {
+    params: Promise<{
+      slug: string;
+    }>;
   }
 ) {
   try {
-    const { slug } = await params;
+    const { slug } = await context.params;
 
-    // =====================================================
-    // VALIDATE SLUG
-    // =====================================================
+    console.log("VIEW BLOG SLUG:", slug);
 
-    if (
-      !slug ||
-      typeof slug !== "string"
-    ) {
-      return Response.json(
+    if (!slug) {
+      return NextResponse.json(
         {
           success: false,
-          message: "Invalid blog slug",
+          message: "Blog slug is required",
         },
         {
           status: 400,
@@ -31,50 +26,39 @@ export async function POST(
       );
     }
 
-    console.log(
-      "VIEW BLOG SLUG:",
-      slug
-    );
-
     // =====================================================
-    // ATOMICALLY INCREMENT BLOG VIEWS
+    // FIND BLOG
     // =====================================================
 
-    const { data, error } =
-      await supabase.rpc(
-        "increment_blog_views",
-        {
-          blog_slug: slug,
-        }
+    const {
+      data: blog,
+      error: blogError,
+    } = await supabase
+      .from("blogs")
+      .select("id, slug, views")
+      .eq("slug", slug)
+      .single();
+
+    if (blogError) {
+      console.error(
+        "BLOG FIND ERROR:",
+        blogError
       );
 
-    console.log(
-      "BLOG VIEW UPDATE RESULT:",
-      data
-    );
-
-    console.log(
-      "BLOG VIEW UPDATE ERROR:",
-      error
-    );
-
-    // =====================================================
-    // HANDLE ERROR
-    // =====================================================
-
-    if (error) {
-      throw error;
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Failed to find blog",
+          error: blogError.message,
+        },
+        {
+          status: 500,
+        }
+      );
     }
 
-    // =====================================================
-    // BLOG NOT FOUND
-    // =====================================================
-
-    if (
-      !data ||
-      data.length === 0
-    ) {
-      return Response.json(
+    if (!blog) {
+      return NextResponse.json(
         {
           success: false,
           message: "Blog not found",
@@ -86,29 +70,84 @@ export async function POST(
     }
 
     // =====================================================
-    // NEW VIEW COUNT
+    // CURRENT VIEWS
     // =====================================================
 
+    const currentViews =
+      Number(blog.views) || 0;
+
     const newViews =
-      data[0].views;
+      currentViews + 1;
 
-    return Response.json({
+    // =====================================================
+    // UPDATE VIEWS
+    // =====================================================
+
+    const {
+      data: updatedBlog,
+      error: updateError,
+    } = await supabase
+      .from("blogs")
+      .update({
+        views: newViews,
+      })
+      .eq("id", blog.id)
+      .select("id, slug, views")
+      .single();
+
+    console.log(
+      "BLOG VIEW UPDATE RESULT:",
+      updatedBlog
+    );
+
+    console.log(
+      "BLOG VIEW UPDATE ERROR:",
+      updateError
+    );
+
+    if (updateError) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Failed to update blog views",
+          error: updateError.message,
+        },
+        {
+          status: 500,
+        }
+      );
+    }
+
+    if (!updatedBlog) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Blog view update returned no data",
+        },
+        {
+          status: 500,
+        }
+      );
+    }
+
+    // =====================================================
+    // SUCCESS
+    // =====================================================
+
+    return NextResponse.json({
       success: true,
-      views: newViews,
+      views: Number(updatedBlog.views) || newViews,
     });
-
-  } catch (error: any) {
+  } catch (error) {
     console.error(
       "BLOG VIEW TRACKING ERROR:",
       error
     );
 
-    return Response.json(
+    return NextResponse.json(
       {
         success: false,
-        message:
-          error?.message ||
-          "Failed to update blog views",
+        message: "Failed to track blog view",
       },
       {
         status: 500,
@@ -116,4 +155,3 @@ export async function POST(
     );
   }
 }
-

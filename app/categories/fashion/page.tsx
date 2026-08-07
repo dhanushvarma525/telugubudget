@@ -1,77 +1,247 @@
+
 import CategoryProductCard from "@/components/CategoryProductCard";
 import Pagination from "@/components/Pagination";
-import { getBaseUrl } from "@/lib/getBaseUrl";
+import { supabase } from "@/lib/supabase";
 
 const PRODUCTS_PER_PAGE = 10;
+const CATEGORY_NAME = "Fashion";
 
 async function getProducts(page: number) {
-  const res = await fetch(
-    `${getBaseUrl()}/api/products?category=${encodeURIComponent(
-      "Fashion"
-    )}&page=${page}&limit=${PRODUCTS_PER_PAGE}`,
-    {
-      cache: "no-store",
-    }
-  );
+  // ============================================
+  // GET ALL PRODUCTS
+  // ============================================
 
-  if (!res.ok) {
-    throw new Error("Failed to fetch products");
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("products")
+    .select("*")
+    .order("created_at", {
+      ascending: false,
+    });
+
+  if (error) {
+    console.error(
+      "FASHION CATEGORY SUPABASE ERROR:",
+      error
+    );
+
+    throw new Error(
+      "Failed to fetch products"
+    );
   }
 
-  return res.json();
+  // ============================================
+  // FILTER BY categories ARRAY
+  // ============================================
+
+  const filteredProducts =
+    (data || []).filter((product: any) => {
+      if (
+        !Array.isArray(
+          product.categories
+        )
+      ) {
+        return false;
+      }
+
+      return product.categories.some(
+        (category: string) =>
+          category
+            .trim()
+            .toLowerCase() ===
+          CATEGORY_NAME
+            .trim()
+            .toLowerCase()
+      );
+    });
+
+  // ============================================
+  // PAGINATION
+  // ============================================
+
+  const total =
+    filteredProducts.length;
+
+  const totalPages = Math.max(
+    Math.ceil(
+      total / PRODUCTS_PER_PAGE
+    ),
+    1
+  );
+
+  const safePage = Math.min(
+    Math.max(page, 1),
+    totalPages
+  );
+
+  const start =
+    (safePage - 1) *
+    PRODUCTS_PER_PAGE;
+
+  const end =
+    start + PRODUCTS_PER_PAGE;
+
+  const products =
+    filteredProducts.slice(
+      start,
+      end
+    );
+
+  // ============================================
+  // DEBUG
+  // ============================================
+
+  console.log(
+    "===================================="
+  );
+
+  console.log(
+    "CATEGORY:",
+    CATEGORY_NAME
+  );
+
+  console.log(
+    "TOTAL PRODUCTS:",
+    data?.length || 0
+  );
+
+  console.log(
+    "FILTERED PRODUCTS:",
+    filteredProducts.length
+  );
+
+  console.log(
+    "PAGE:",
+    safePage
+  );
+
+  console.log(
+    "PRODUCTS DISPLAYED:",
+    products.length
+  );
+
+  console.log(
+    "DISPLAYED PRODUCT CATEGORIES:",
+    products.map(
+      (product: any) =>
+        product.categories
+    )
+  );
+
+  console.log(
+    "===================================="
+  );
+
+  return {
+    products,
+    totalPages,
+    currentPage: safePage,
+  };
 }
 
 export default async function FashionPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{
+    page?: string;
+  }>;
 }) {
-  const params = await searchParams;
+  const params =
+    await searchParams;
 
-  const currentPage = Number(params.page || "1");
+  const requestedPage =
+    Number(
+      params.page || "1"
+    );
 
-  const data = await getProducts(currentPage);
+  const currentPage =
+    Number.isFinite(
+      requestedPage
+    ) &&
+    requestedPage > 0
+      ? Math.floor(
+          requestedPage
+        )
+      : 1;
 
-  const products = data.products || [];
-
-  const totalPages = data.totalPages || 1;
+  const {
+    products,
+    totalPages,
+  } = await getProducts(
+    currentPage
+  );
 
   return (
-    <main className="min-h-screen bg-gray-100 p-4 sm:p-8">
-      <h1 className="text-2xl sm:text-4xl font-bold mb-3">
+    <main className="min-h-screen">
+      {/* =====================================
+          HEADER
+      ===================================== */}
+
+      <h1 className="text-2xl sm:text-3xl font-bold mb-2">
         👗 Fashion
       </h1>
 
       <p className="mb-6 sm:mb-8 text-gray-600">
-        Trending fashion products for your style.
+        Trending fashion products for
+        your style.
       </p>
+
+      {/* =====================================
+          PRODUCTS
+      ===================================== */}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
         {products.length === 0 ? (
-          <p className="text-lg text-gray-500">
-            No products found.
-          </p>
+          <div className="col-span-full py-10 text-center">
+            <p className="text-gray-500 text-lg">
+              No products found.
+            </p>
+
+            <p className="text-sm text-gray-400 mt-2">
+              Category:{" "}
+              {CATEGORY_NAME}
+            </p>
+          </div>
         ) : (
-          products.map((product: any) => (
-            <CategoryProductCard
-              key={product.id}
-              id={product.id}
-              name={product.name}
-              price={product.price}
-              image={product.image}
-              coupon={product.coupon}
-              coupon_available={product.coupon_available}
-            />
-          ))
+          products.map(
+            (product: any) => (
+              <CategoryProductCard
+                key={product.id}
+                id={product.id}
+                name={product.name}
+                price={product.price}
+                image={product.image}
+                coupon={
+                  product.coupon
+                }
+                coupon_available={
+                  product.coupon_available
+                }
+              />
+            )
+          )
         )}
       </div>
 
-      <div className="mt-10 sm:mt-12 flex justify-center">
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-        />
-      </div>
+      {/* =====================================
+          PAGINATION
+      ===================================== */}
+
+      {totalPages > 1 && (
+        <div className="mt-10 sm:mt-12 flex justify-center">
+          <Pagination
+            currentPage={
+              currentPage
+            }
+            totalPages={
+              totalPages
+            }
+          />
+        </div>
+      )}
     </main>
   );
 }
+
