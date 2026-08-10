@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -76,13 +75,17 @@ export default function EditProductPage() {
   // ANANTAGO REVIEW
   // =========================
 
-  const [anantagoScore, setAnantagoScore] = useState("8");
+  // IMPORTANT:
+  // These are intentionally blank.
+  // We DO NOT default them to 8.
 
-  const [qualityScore, setQualityScore] = useState("8");
-  const [performanceScore, setPerformanceScore] = useState("8");
-  const [valueScore, setValueScore] = useState("8");
-  const [featuresScore, setFeaturesScore] = useState("8");
-  const [designScore, setDesignScore] = useState("8");
+  const [anantagoScore, setAnantagoScore] = useState("");
+
+  const [qualityScore, setQualityScore] = useState("");
+  const [performanceScore, setPerformanceScore] = useState("");
+  const [valueScore, setValueScore] = useState("");
+  const [featuresScore, setFeaturesScore] = useState("");
+  const [designScore, setDesignScore] = useState("");
 
   const [verdict, setVerdict] = useState("");
   const [bestFor, setBestFor] = useState("");
@@ -262,46 +265,56 @@ export default function EditProductPage() {
       // ANANTAGO REVIEW
       // =========================
 
+      // IMPORTANT:
+      // If database has a score, load it.
+      // Otherwise leave blank instead of 8.
+
       setAnantagoScore(
         data.anantago_score !== null &&
-          data.anantago_score !== undefined
+          data.anantago_score !== undefined &&
+          data.anantago_score !== ""
           ? String(data.anantago_score)
-          : "8"
+          : ""
       );
 
       setQualityScore(
         data.quality_score !== null &&
-          data.quality_score !== undefined
+          data.quality_score !== undefined &&
+          data.quality_score !== ""
           ? String(data.quality_score)
-          : "8"
+          : ""
       );
 
       setPerformanceScore(
         data.performance_score !== null &&
-          data.performance_score !== undefined
+          data.performance_score !== undefined &&
+          data.performance_score !== ""
           ? String(data.performance_score)
-          : "8"
+          : ""
       );
 
       setValueScore(
         data.value_score !== null &&
-          data.value_score !== undefined
+          data.value_score !== undefined &&
+          data.value_score !== ""
           ? String(data.value_score)
-          : "8"
+          : ""
       );
 
       setFeaturesScore(
         data.features_score !== null &&
-          data.features_score !== undefined
+          data.features_score !== undefined &&
+          data.features_score !== ""
           ? String(data.features_score)
-          : "8"
+          : ""
       );
 
       setDesignScore(
         data.design_score !== null &&
-          data.design_score !== undefined
+          data.design_score !== undefined &&
+          data.design_score !== ""
           ? String(data.design_score)
-          : "8"
+          : ""
       );
 
       setVerdict(
@@ -419,7 +432,10 @@ export default function EditProductPage() {
     try {
       const formData = new FormData();
 
-      formData.append("file", file);
+      formData.append(
+        "file",
+        file
+      );
 
       const res = await fetch(
         "/api/upload",
@@ -429,7 +445,8 @@ export default function EditProductPage() {
         }
       );
 
-      const data = await res.json();
+      const data =
+        await res.json();
 
       if (data.success) {
         setImageFunction(
@@ -486,22 +503,33 @@ export default function EditProductPage() {
     setAiReviewing(true);
 
     try {
-      const response = await fetch(
-        "/api/ai-review",
-        {
-          method: "POST",
+      const response =
+        await fetch(
+          "/api/ai-review",
+          {
+            method: "POST",
 
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
 
-          body: JSON.stringify({
-            productName:
+            body: JSON.stringify({
               productName,
-          }),
-        }
-      );
+
+              brand,
+
+              category:
+                categories.join(", "),
+
+              price,
+
+              description,
+
+              features,
+            }),
+          }
+        );
 
       const data =
         await response.json();
@@ -523,7 +551,7 @@ export default function EditProductPage() {
         data.review;
 
       // =========================
-      // SCORE
+      // OVERALL SCORE
       // =========================
 
       if (
@@ -533,6 +561,86 @@ export default function EditProductPage() {
       ) {
         setAnantagoScore(
           String(review.score)
+        );
+      }
+
+      // =========================
+      // QUALITY
+      // =========================
+
+      if (
+        review.qualityScore !==
+          undefined &&
+        review.qualityScore !== null
+      ) {
+        setQualityScore(
+          String(
+            review.qualityScore
+          )
+        );
+      }
+
+      // =========================
+      // PERFORMANCE
+      // =========================
+
+      if (
+        review.performanceScore !==
+          undefined &&
+        review.performanceScore !== null
+      ) {
+        setPerformanceScore(
+          String(
+            review.performanceScore
+          )
+        );
+      }
+
+      // =========================
+      // VALUE FOR MONEY
+      // =========================
+
+      if (
+        review.valueScore !==
+          undefined &&
+        review.valueScore !== null
+      ) {
+        setValueScore(
+          String(
+            review.valueScore
+          )
+        );
+      }
+
+      // =========================
+      // FEATURES
+      // =========================
+
+      if (
+        review.featuresScore !==
+          undefined &&
+        review.featuresScore !== null
+      ) {
+        setFeaturesScore(
+          String(
+            review.featuresScore
+          )
+        );
+      }
+
+      // =========================
+      // DESIGN
+      // =========================
+
+      if (
+        review.designScore !==
+          undefined &&
+        review.designScore !== null
+      ) {
+        setDesignScore(
+          String(
+            review.designScore
+          )
         );
       }
 
@@ -599,7 +707,7 @@ export default function EditProductPage() {
       }
 
       alert(
-        "🤖 AI review generated successfully. Please review and edit the content before saving."
+        "🤖 Genuine research-based AnantaGo review generated. Please check the generated content before saving."
       );
     } catch (error) {
       console.error(
@@ -905,9 +1013,7 @@ export default function EditProductPage() {
   if (loading) {
     return (
       <main className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
-
         <div className="bg-white rounded-xl shadow p-8 text-center">
-
           <p className="text-xl font-bold">
             Loading Product...
           </p>
@@ -915,9 +1021,7 @@ export default function EditProductPage() {
           <p className="text-gray-500 mt-2">
             Please wait.
           </p>
-
         </div>
-
       </main>
     );
   }
@@ -1234,9 +1338,11 @@ export default function EditProductPage() {
 
           <p className="text-sm text-gray-600 mb-5">
             These scores represent your
-            AnantaGo analysis. Do not claim
-            hands-on testing unless you
-            actually tested the product.
+            AnantaGo research analysis.
+            They are generated from product
+            information and web research.
+            Do not claim hands-on testing unless
+            you actually tested the product.
           </p>
 
           {/* =========================
@@ -1254,10 +1360,10 @@ export default function EditProductPage() {
                 </h3>
 
                 <p className="text-sm text-gray-600 mt-1">
-                  Generate an initial AnantaGo
-                  review using the product name.
-                  Check and edit the generated
-                  information before saving.
+                  Research the product and
+                  generate genuine AnantaGo
+                  scores, pros, cons and analysis.
+                  Review the result before saving.
                 </p>
 
               </div>
@@ -1276,8 +1382,8 @@ export default function EditProductPage() {
               >
 
                 {aiReviewing
-                  ? "🤖 Generating..."
-                  : "🤖 Auto Generate Review"}
+                  ? "🤖 Researching..."
+                  : "🤖 Research & Generate Review"}
 
               </button>
 
@@ -1334,13 +1440,14 @@ export default function EditProductPage() {
                 min="0"
                 max="10"
                 step="0.1"
+                placeholder="Generated after research"
                 value={anantagoScore}
                 onChange={(e) =>
                   setAnantagoScore(
                     e.target.value
                   )
                 }
-                className="border p-3 rounded w-32"
+                className="border p-3 rounded w-40"
               />
 
               <span className="text-xl font-bold">
@@ -1348,6 +1455,11 @@ export default function EditProductPage() {
               </span>
 
             </div>
+
+            <p className="text-xs text-gray-500 mt-2">
+              Overall score is calculated from
+              the five detailed scores.
+            </p>
 
           </div>
 
@@ -1359,7 +1471,16 @@ export default function EditProductPage() {
             Detailed Scores
           </h3>
 
+          <p className="text-sm text-gray-600 mb-4">
+            These scores are generated
+            independently from the researched
+            product information. They should not
+            all default to the same number.
+          </p>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+
+            {/* QUALITY */}
 
             <div>
 
@@ -1372,6 +1493,7 @@ export default function EditProductPage() {
                 min="0"
                 max="10"
                 step="0.1"
+                placeholder="Research-based score"
                 value={qualityScore}
                 onChange={(e) =>
                   setQualityScore(
@@ -1382,6 +1504,8 @@ export default function EditProductPage() {
               />
 
             </div>
+
+            {/* PERFORMANCE */}
 
             <div>
 
@@ -1394,6 +1518,7 @@ export default function EditProductPage() {
                 min="0"
                 max="10"
                 step="0.1"
+                placeholder="Research-based score"
                 value={performanceScore}
                 onChange={(e) =>
                   setPerformanceScore(
@@ -1404,6 +1529,8 @@ export default function EditProductPage() {
               />
 
             </div>
+
+            {/* VALUE */}
 
             <div>
 
@@ -1416,6 +1543,7 @@ export default function EditProductPage() {
                 min="0"
                 max="10"
                 step="0.1"
+                placeholder="Research-based score"
                 value={valueScore}
                 onChange={(e) =>
                   setValueScore(
@@ -1426,6 +1554,8 @@ export default function EditProductPage() {
               />
 
             </div>
+
+            {/* FEATURES */}
 
             <div>
 
@@ -1438,6 +1568,7 @@ export default function EditProductPage() {
                 min="0"
                 max="10"
                 step="0.1"
+                placeholder="Research-based score"
                 value={featuresScore}
                 onChange={(e) =>
                   setFeaturesScore(
@@ -1448,6 +1579,8 @@ export default function EditProductPage() {
               />
 
             </div>
+
+            {/* DESIGN */}
 
             <div>
 
@@ -1460,6 +1593,7 @@ export default function EditProductPage() {
                 min="0"
                 max="10"
                 step="0.1"
+                placeholder="Research-based score"
                 value={designScore}
                 onChange={(e) =>
                   setDesignScore(
@@ -1474,6 +1608,24 @@ export default function EditProductPage() {
           </div>
 
           {/* =========================
+              SCORE EXPLANATION
+          ========================= */}
+
+          <div className="bg-white border rounded-xl p-4 mb-5">
+
+            <p className="font-semibold mb-2">
+              AnantaGo Score Calculation
+            </p>
+
+            <p className="text-sm text-gray-600">
+              Quality 25% + Performance 25% +
+              Value for Money 20% + Features 20%
+              + Design 10%.
+            </p>
+
+          </div>
+
+          {/* =========================
               VERDICT
           ========================= */}
 
@@ -1482,7 +1634,7 @@ export default function EditProductPage() {
           </label>
 
           <textarea
-            placeholder="Example: This is a strong option for users who want fast charging and good portability."
+            placeholder="Example: Research suggests this is a strong option for users who want..."
             value={verdict}
             onChange={(e) =>
               setVerdict(
@@ -1851,7 +2003,8 @@ export default function EditProductPage() {
 
         {aiReviewing && (
           <div className="bg-purple-50 text-purple-700 p-4 rounded-lg mb-4">
-            🤖 AI is generating the review...
+            🤖 AI is researching the product
+            and generating the review...
           </div>
         )}
 
@@ -1883,4 +2036,3 @@ export default function EditProductPage() {
     </main>
   );
 }
-

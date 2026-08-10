@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
         : "";
 
     // =====================================================
-    // 4. CREATE PRODUCT CONTEXT
+    // 4. PRODUCT CONTEXT
     // =====================================================
 
     const productContext = `
@@ -92,7 +92,7 @@ ${brand || "Not provided"}
 Category:
 ${category || "Not provided"}
 
-Price:
+Current Price:
 ${price || "Not provided"}
 
 Description:
@@ -103,7 +103,7 @@ ${features || "Not provided"}
 `.trim();
 
     // =====================================================
-    // 5. CREATE SEARCH QUERY
+    // 5. SEARCH QUERY
     // =====================================================
 
     const query = `
@@ -111,12 +111,16 @@ ${productName}
 ${brand}
 ${category}
 official specifications
-product review
-performance
+technical specifications
+performance review
 pros and cons
 buyer experience
 limitations
+build quality
+design
+value for money
 warranty
+common problems
 `.trim();
 
     console.log(
@@ -210,22 +214,50 @@ warranty
     );
 
     // =====================================================
-    // 9. GENERATE ANANTAGO REVIEW
+    // 9. REQUIRE RESEARCH RESULTS
+    // =====================================================
+
+    if (sources.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "No reliable product research was found. Please try again with the full product name.",
+        },
+        { status: 404 }
+      );
+    }
+
+    // =====================================================
+    // 10. GENERATE ANANTAGO REVIEW
     // =====================================================
 
     const review =
-      generateAnantaGoReview(
+      await generateAnantaGoReview(
         productContext,
         tavilyData.answer || null,
         sources
       );
 
     console.log(
-      "✅ AnantaGo analysis generated"
+      "✅ Genuine AnantaGo analysis generated:",
+      {
+        score: review.score,
+        quality:
+          review.qualityScore,
+        performance:
+          review.performanceScore,
+        value:
+          review.valueScore,
+        features:
+          review.featuresScore,
+        design:
+          review.designScore,
+      }
     );
 
     // =====================================================
-    // 10. FINAL RESPONSE
+    // 11. RESPONSE
     // =====================================================
 
     return NextResponse.json({

@@ -2,7 +2,55 @@ import { supabase } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
 
 /* =========================================================
+   HELPERS
+========================================================= */
+
+function numberOrNull(value: unknown): number | null {
+  if (
+    value === undefined ||
+    value === null ||
+    value === ""
+  ) {
+    return null;
+  }
+
+  const number = Number(value);
+
+  return Number.isFinite(number)
+    ? number
+    : null;
+}
+
+function stringOrNull(value: unknown): string | null {
+  if (
+    value === undefined ||
+    value === null
+  ) {
+    return null;
+  }
+
+  const valueString = String(value).trim();
+
+  return valueString || null;
+}
+
+function stringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter(
+      (item: unknown): item is string =>
+        typeof item === "string"
+    )
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+/* =========================================================
    GET PRODUCTS
+   GET /api/products
 ========================================================= */
 
 export async function GET(request: NextRequest) {
@@ -33,21 +81,30 @@ export async function GET(request: NextRequest) {
         count: "exact",
       });
 
-    /* CATEGORY FILTER */
+    /* =====================================================
+       CATEGORY FILTER
+    ===================================================== */
 
-    if (categoryParam && categoryParam.trim() !== "") {
+    if (
+      categoryParam &&
+      categoryParam.trim() !== ""
+    ) {
       query = query.contains("categories", [
         categoryParam.trim(),
       ]);
     }
 
-    /* HOT PICK FILTER */
+    /* =====================================================
+       HOT PICK FILTER
+    ===================================================== */
 
     if (hotPickParam === "true") {
       query = query.eq("hot_pick", true);
     }
 
-    /* PAGINATION */
+    /* =====================================================
+       PAGINATION
+    ===================================================== */
 
     const from = (page - 1) * limit;
     const to = from + limit - 1;
@@ -103,18 +160,21 @@ export async function GET(request: NextRequest) {
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(
       "GET PRODUCTS ERROR:",
       error
     );
 
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Failed to load products";
+
     return NextResponse.json(
       {
         success: false,
-        message:
-          error?.message ||
-          "Failed to load products",
+        message,
         products: [],
         total: 0,
         page: 1,
@@ -128,6 +188,7 @@ export async function GET(request: NextRequest) {
 
 /* =========================================================
    POST - ADD PRODUCT
+   POST /api/products
 ========================================================= */
 
 export async function POST(request: NextRequest) {
@@ -141,7 +202,9 @@ export async function POST(request: NextRequest) {
     console.log("ADDING PRODUCT");
     console.log("Product name:", body?.name);
 
-    /* REQUIRED FIELD */
+    /* =====================================================
+       BASIC VALIDATION
+    ===================================================== */
 
     if (
       !body ||
@@ -157,94 +220,77 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    /* CATEGORIES */
+    /* =====================================================
+       CATEGORIES
+    ===================================================== */
 
-    let categories: string[] = [];
-
-    if (Array.isArray(body.categories)) {
-      categories = body.categories
-        .filter(
-          (item: unknown) =>
-            typeof item === "string"
-        )
-        .map((item: string) => item.trim())
-        .filter(Boolean);
-    }
-
-    /*
-      Backward compatibility:
-      If frontend still sends category instead
-      of categories, convert it.
-    */
+    let categories = stringArray(
+      body.categories
+    );
 
     if (
       categories.length === 0 &&
       typeof body.category === "string" &&
       body.category.trim() !== ""
     ) {
-      categories = [body.category.trim()];
+      categories = [
+        body.category.trim(),
+      ];
     }
 
-    /* IMAGES */
+    /* =====================================================
+       IMAGES
+    ===================================================== */
 
-    const image =
-      typeof body.image === "string"
-        ? body.image.trim()
-        : null;
+    const image = stringOrNull(
+      body.image
+    );
 
-    const image2 =
-      typeof body.image2 === "string"
-        ? body.image2.trim()
-        : null;
+    const image2 = stringOrNull(
+      body.image2
+    );
 
-    const image3 =
-      typeof body.image3 === "string"
-        ? body.image3.trim()
-        : null;
+    const image3 = stringOrNull(
+      body.image3
+    );
 
-    const image4 =
-      typeof body.image4 === "string"
-        ? body.image4.trim()
-        : null;
+    const image4 = stringOrNull(
+      body.image4
+    );
 
-    const image5 =
-      typeof body.image5 === "string"
-        ? body.image5.trim()
-        : null;
+    const image5 = stringOrNull(
+      body.image5
+    );
 
-    const image6 =
-      typeof body.image6 === "string"
-        ? body.image6.trim()
-        : null;
+    const image6 = stringOrNull(
+      body.image6
+    );
 
-    /* NUMBERS */
+    /* =====================================================
+       NUMBERS
+    ===================================================== */
 
-    const price =
-      body.price !== undefined &&
-      body.price !== null &&
-      body.price !== ""
-        ? Number(body.price)
-        : null;
+    const price = numberOrNull(
+      body.price
+    );
 
-    const oldPrice =
-      body.old_price !== undefined &&
-      body.old_price !== null &&
-      body.old_price !== ""
-        ? Number(body.old_price)
-        : null;
+    const oldPrice = numberOrNull(
+      body.old_price
+    );
 
-    const rating =
-      body.rating !== undefined &&
-      body.rating !== null &&
-      body.rating !== ""
-        ? Number(body.rating)
-        : null;
+    const rating = numberOrNull(
+      body.rating
+    );
 
-    /* VALIDATE PRICE */
+    /* =====================================================
+       VALIDATE NUMBERS
+    ===================================================== */
 
     if (
-      price !== null &&
-      !Number.isFinite(price)
+      body.price !== undefined &&
+      body.price !== null &&
+      body.price !== "" &&
+      price === null
     ) {
       return NextResponse.json(
         {
@@ -256,8 +302,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (
-      oldPrice !== null &&
-      !Number.isFinite(oldPrice)
+      body.old_price !== undefined &&
+      body.old_price !== null &&
+      body.old_price !== "" &&
+      oldPrice === null
     ) {
       return NextResponse.json(
         {
@@ -269,8 +317,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (
-      rating !== null &&
-      !Number.isFinite(rating)
+      body.rating !== undefined &&
+      body.rating !== null &&
+      body.rating !== "" &&
+      rating === null
     ) {
       return NextResponse.json(
         {
@@ -281,25 +331,70 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    /* FEATURES */
+    /* =====================================================
+       PROS & CONS
+    ===================================================== */
 
-    let features = body.features ?? null;
+    const pros = stringArray(
+      body.pros
+    );
 
-    if (
-      typeof features === "string" &&
-      features.trim() === ""
-    ) {
-      features = null;
-    }
+    const cons = stringArray(
+      body.cons
+    );
 
-    /* INSERT DATA */
+    /* =====================================================
+       ANANTAGO REVIEW SCORES
+    ===================================================== */
+
+    const anantagoScore =
+      numberOrNull(
+        body.anantago_score
+      );
+
+    const qualityScore =
+      numberOrNull(
+        body.quality_score
+      );
+
+    const performanceScore =
+      numberOrNull(
+        body.performance_score
+      );
+
+    const valueScore =
+      numberOrNull(
+        body.value_score
+      );
+
+    const featuresScore =
+      numberOrNull(
+        body.features_score
+      );
+
+    const designScore =
+      numberOrNull(
+        body.design_score
+      );
+
+    /* =====================================================
+       PRODUCT DATA
+    ===================================================== */
 
     const productData = {
+      /* BASIC */
+
       name: body.name.trim(),
+
+      brand: stringOrNull(
+        body.brand
+      ),
 
       price,
 
       old_price: oldPrice,
+
+      /* CATEGORIES */
 
       categories,
 
@@ -308,50 +403,156 @@ export async function POST(request: NextRequest) {
           ? body.category.trim() || null
           : categories[0] || null,
 
-      image,
+      /* IMAGES */
 
+      image,
       image2,
       image3,
       image4,
       image5,
       image6,
 
-      affiliate_link:
-        typeof body.affiliate_link === "string"
-          ? body.affiliate_link.trim() || null
-          : null,
+      /* PRODUCT CONTENT */
 
-      description:
-        typeof body.description === "string"
-          ? body.description.trim() || null
-          : null,
+      description: stringOrNull(
+        body.description
+      ),
 
-      features,
+      features:
+        body.features !== undefined &&
+        body.features !== null &&
+        String(body.features).trim() !== ""
+          ? body.features
+          : null,
 
       rating,
 
-      stock:
-        body.stock !== undefined &&
-        body.stock !== null &&
-        body.stock !== ""
-          ? String(body.stock)
-          : null,
+      /* AVAILABILITY */
 
-      coupon:
-        typeof body.coupon === "string"
-          ? body.coupon.trim() || null
-          : null,
+      stock:
+        stringOrNull(body.stock) ||
+        "In Stock",
+
+      delivery:
+        stringOrNull(body.delivery) ||
+        "Free Delivery",
+
+      /* COUPON */
+
+      coupon_available:
+        body.coupon_available === true,
+
+      coupon: stringOrNull(
+        body.coupon
+      ),
+
+      /* AFFILIATE */
+
+      affiliate_link:
+        stringOrNull(
+          body.affiliate_link
+        ),
+
+      /* HOT PICK */
 
       hot_pick:
         body.hot_pick === true,
 
+      /* ===================================================
+         ANANTAGO REVIEW
+      =================================================== */
+
+      anantago_score:
+        anantagoScore,
+
+      quality_score:
+        qualityScore,
+
+      performance_score:
+        performanceScore,
+
+      value_score:
+        valueScore,
+
+      features_score:
+        featuresScore,
+
+      design_score:
+        designScore,
+
+      /* REVIEW CONTENT */
+
+      verdict:
+        stringOrNull(
+          body.verdict
+        ),
+
+      best_for:
+        stringOrNull(
+          body.best_for
+        ),
+
+      not_ideal_for:
+        stringOrNull(
+          body.not_ideal_for
+        ),
+
+      /* ===================================================
+         PROS & CONS
+      =================================================== */
+
+      pros,
+
+      cons,
+
+      /* ===================================================
+         REVIEW TYPE
+      =================================================== */
+
+      review_type:
+        stringOrNull(
+          body.review_type
+        ) ||
+        "AnantaGo Analysis",
+
+      /* ===================================================
+         COMPARISON
+      =================================================== */
+
+      comparison_group:
+        stringOrNull(
+          body.comparison_group
+        ),
+
+      /* ===================================================
+         PRICE HISTORY
+      =================================================== */
+
+      lowest_price:
+        numberOrNull(
+          body.lowest_price
+        ),
+
+      highest_price:
+        numberOrNull(
+          body.highest_price
+        ),
+
+      /* ===================================================
+         ANALYTICS
+      =================================================== */
+
       views:
-        Number.isFinite(Number(body.views))
+        Number.isFinite(
+          Number(body.views)
+        )
           ? Number(body.views)
           : 0,
 
       clicks:
-        Number.isFinite(Number(body.clicks))
+        Number.isFinite(
+          Number(body.clicks)
+        )
           ? Number(body.clicks)
           : 0,
     };
@@ -361,13 +562,17 @@ export async function POST(request: NextRequest) {
       productData
     );
 
+    /* =====================================================
+       INSERT
+    ===================================================== */
+
     const {
       data,
       error,
     } = await supabase
       .from("products")
       .insert(productData)
-      .select()
+      .select("*")
       .single();
 
     if (error) {
@@ -382,7 +587,7 @@ export async function POST(request: NextRequest) {
           message:
             error.message ||
             "Failed to add product",
-          error: error,
+          error,
         },
         { status: 500 }
       );
@@ -400,23 +605,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        message: "Product added successfully",
+        message:
+          "Product added successfully",
         product: data,
       },
       { status: 201 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(
       "ADD PRODUCT ERROR:",
       error
     );
 
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Something went wrong while adding product";
+
     return NextResponse.json(
       {
         success: false,
-        message:
-          error?.message ||
-          "Something went wrong while adding product",
+        message,
       },
       { status: 500 }
     );
@@ -427,7 +636,9 @@ export async function POST(request: NextRequest) {
    PUT - UPDATE PRODUCT
 ========================================================= */
 
-export async function PUT(request: NextRequest) {
+export async function PUT(
+  request: NextRequest
+) {
   return updateProduct(request);
 }
 
@@ -435,7 +646,9 @@ export async function PUT(request: NextRequest) {
    PATCH - UPDATE PRODUCT
 ========================================================= */
 
-export async function PATCH(request: NextRequest) {
+export async function PATCH(
+  request: NextRequest
+) {
   return updateProduct(request);
 }
 
@@ -470,14 +683,14 @@ async function updateProduct(
       id
     );
 
-    /* BUILD UPDATE OBJECT */
-
     const updateData: Record<
       string,
       any
     > = {};
 
-    /* NAME */
+    /* =====================================================
+       BASIC
+    ===================================================== */
 
     if (body.name !== undefined) {
       updateData.name =
@@ -486,95 +699,98 @@ async function updateProduct(
           : body.name;
     }
 
-    /* PRICE */
-
-    if (body.price !== undefined) {
-      if (
-        body.price === "" ||
-        body.price === null
-      ) {
-        updateData.price = null;
-      } else {
-        const value = Number(body.price);
-
-        if (!Number.isFinite(value)) {
-          return NextResponse.json(
-            {
-              success: false,
-              message: "Invalid product price",
-            },
-            { status: 400 }
-          );
-        }
-
-        updateData.price = value;
-      }
+    if (body.brand !== undefined) {
+      updateData.brand =
+        stringOrNull(body.brand);
     }
 
-    /* OLD PRICE */
+    /* =====================================================
+       PRICE
+    ===================================================== */
 
-    if (body.old_price !== undefined) {
+    if (body.price !== undefined) {
+      const value =
+        numberOrNull(body.price);
+
       if (
-        body.old_price === "" ||
-        body.old_price === null
+        body.price !== "" &&
+        body.price !== null &&
+        value === null
       ) {
-        updateData.old_price = null;
-      } else {
-        const value = Number(
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "Invalid product price",
+          },
+          { status: 400 }
+        );
+      }
+
+      updateData.price = value;
+    }
+
+    if (
+      body.old_price !== undefined
+    ) {
+      const value =
+        numberOrNull(
           body.old_price
         );
 
-        if (!Number.isFinite(value)) {
-          return NextResponse.json(
-            {
-              success: false,
-              message: "Invalid old price",
-            },
-            { status: 400 }
-          );
-        }
-
-        updateData.old_price = value;
+      if (
+        body.old_price !== "" &&
+        body.old_price !== null &&
+        value === null
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "Invalid old price",
+          },
+          { status: 400 }
+        );
       }
+
+      updateData.old_price = value;
     }
 
-    /* CATEGORIES */
+    /* =====================================================
+       CATEGORIES
+    ===================================================== */
 
-    if (body.categories !== undefined) {
-      if (Array.isArray(body.categories)) {
-        updateData.categories =
+    if (
+      body.categories !== undefined
+    ) {
+      updateData.categories =
+        stringArray(
           body.categories
-            .filter(
-              (item: unknown) =>
-                typeof item === "string"
-            )
-            .map((item: string) =>
-              item.trim()
-            )
-            .filter(Boolean);
-      }
+        );
     }
 
-    /* BACKWARD COMPATIBILITY */
-
-    if (body.category !== undefined) {
+    if (
+      body.category !== undefined
+    ) {
       updateData.category =
         typeof body.category === "string"
           ? body.category.trim() || null
           : null;
 
       if (
-        body.categories === undefined &&
-        typeof body.category === "string"
+        body.categories === undefined
       ) {
         updateData.categories =
+          typeof body.category === "string" &&
           body.category.trim()
             ? [body.category.trim()]
             : [];
       }
     }
 
-    /* IMAGES */
+    /* =====================================================
+       IMAGES
+    ===================================================== */
 
     const imageFields = [
       "image",
@@ -585,100 +801,312 @@ async function updateProduct(
       "image6",
     ];
 
-    for (const field of imageFields) {
-      if (body[field] !== undefined) {
+    for (
+      const field of imageFields
+    ) {
+      if (
+        body[field] !== undefined
+      ) {
         updateData[field] =
-          typeof body[field] === "string"
-            ? body[field].trim() || null
-            : null;
+          stringOrNull(
+            body[field]
+          );
       }
     }
 
-    /* AFFILIATE LINK */
-
-    if (
-      body.affiliate_link !== undefined
-    ) {
-      updateData.affiliate_link =
-        typeof body.affiliate_link ===
-        "string"
-          ? body.affiliate_link.trim() ||
-            null
-          : null;
-    }
-
-    /* DESCRIPTION */
+    /* =====================================================
+       PRODUCT CONTENT
+    ===================================================== */
 
     if (
       body.description !== undefined
     ) {
       updateData.description =
-        typeof body.description === "string"
-          ? body.description.trim() || null
-          : null;
+        stringOrNull(
+          body.description
+        );
     }
 
-    /* FEATURES */
-
-    if (body.features !== undefined) {
+    if (
+      body.features !== undefined
+    ) {
       updateData.features =
-        body.features;
+        body.features === null ||
+        body.features === ""
+          ? null
+          : body.features;
     }
 
-    /* RATING */
+    /* =====================================================
+       RATING
+    ===================================================== */
 
-    if (body.rating !== undefined) {
-      if (
-        body.rating === "" ||
-        body.rating === null
-      ) {
-        updateData.rating = null;
-      } else {
-        const value = Number(
+    if (
+      body.rating !== undefined
+    ) {
+      const value =
+        numberOrNull(
           body.rating
         );
 
-        if (!Number.isFinite(value)) {
+      if (
+        body.rating !== "" &&
+        body.rating !== null &&
+        value === null
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "Invalid rating",
+          },
+          { status: 400 }
+        );
+      }
+
+      updateData.rating = value;
+    }
+
+    /* =====================================================
+       STOCK / DELIVERY
+    ===================================================== */
+
+    if (
+      body.stock !== undefined
+    ) {
+      updateData.stock =
+        stringOrNull(
+          body.stock
+        );
+    }
+
+    if (
+      body.delivery !== undefined
+    ) {
+      updateData.delivery =
+        stringOrNull(
+          body.delivery
+        );
+    }
+
+    /* =====================================================
+       COUPON
+    ===================================================== */
+
+    if (
+      body.coupon_available !== undefined
+    ) {
+      updateData.coupon_available =
+        body.coupon_available === true;
+    }
+
+    if (
+      body.coupon !== undefined
+    ) {
+      updateData.coupon =
+        stringOrNull(
+          body.coupon
+        );
+    }
+
+    /* =====================================================
+       AFFILIATE
+    ===================================================== */
+
+    if (
+      body.affiliate_link !== undefined
+    ) {
+      updateData.affiliate_link =
+        stringOrNull(
+          body.affiliate_link
+        );
+    }
+
+    /* =====================================================
+       HOT PICK
+    ===================================================== */
+
+    if (
+      body.hot_pick !== undefined
+    ) {
+      updateData.hot_pick =
+        body.hot_pick === true;
+    }
+
+    /* =====================================================
+       ANANTAGO REVIEW SCORES
+    ===================================================== */
+
+    const reviewScoreFields = [
+      "anantago_score",
+      "quality_score",
+      "performance_score",
+      "value_score",
+      "features_score",
+      "design_score",
+    ];
+
+    for (
+      const field of reviewScoreFields
+    ) {
+      if (
+        body[field] !== undefined
+      ) {
+        const value =
+          numberOrNull(
+            body[field]
+          );
+
+        if (
+          body[field] !== "" &&
+          body[field] !== null &&
+          value === null
+        ) {
           return NextResponse.json(
             {
               success: false,
-              message: "Invalid rating",
+              message: `Invalid ${field}`,
             },
             { status: 400 }
           );
         }
 
-        updateData.rating = value;
+        updateData[field] = value;
       }
     }
 
-    /* STOCK */
+    /* =====================================================
+       ANANTAGO REVIEW CONTENT
+    ===================================================== */
 
-    if (body.stock !== undefined) {
-      updateData.stock =
-        body.stock === "" ||
-        body.stock === null
-          ? null
-          : String(body.stock);
+    if (
+      body.verdict !== undefined
+    ) {
+      updateData.verdict =
+        stringOrNull(
+          body.verdict
+        );
     }
 
-    /* COUPON */
-
-    if (body.coupon !== undefined) {
-      updateData.coupon =
-        typeof body.coupon === "string"
-          ? body.coupon.trim() || null
-          : null;
+    if (
+      body.best_for !== undefined
+    ) {
+      updateData.best_for =
+        stringOrNull(
+          body.best_for
+        );
     }
 
-    /* HOT PICK */
-
-    if (body.hot_pick !== undefined) {
-      updateData.hot_pick =
-        body.hot_pick === true;
+    if (
+      body.not_ideal_for !== undefined
+    ) {
+      updateData.not_ideal_for =
+        stringOrNull(
+          body.not_ideal_for
+        );
     }
 
-    /* UPDATE */
+    /* =====================================================
+       PROS
+    ===================================================== */
+
+    if (
+      body.pros !== undefined
+    ) {
+      updateData.pros =
+        stringArray(
+          body.pros
+        );
+    }
+
+    /* =====================================================
+       CONS
+    ===================================================== */
+
+    if (
+      body.cons !== undefined
+    ) {
+      updateData.cons =
+        stringArray(
+          body.cons
+        );
+    }
+
+    /* =====================================================
+       REVIEW TYPE
+    ===================================================== */
+
+    if (
+      body.review_type !== undefined
+    ) {
+      updateData.review_type =
+        stringOrNull(
+          body.review_type
+        ) ||
+        "AnantaGo Analysis";
+    }
+
+    /* =====================================================
+       COMPARISON
+    ===================================================== */
+
+    if (
+      body.comparison_group !== undefined
+    ) {
+      updateData.comparison_group =
+        stringOrNull(
+          body.comparison_group
+        );
+    }
+
+    /* =====================================================
+       PRICE HISTORY
+    ===================================================== */
+
+    if (
+      body.lowest_price !== undefined
+    ) {
+      updateData.lowest_price =
+        numberOrNull(
+          body.lowest_price
+        );
+    }
+
+    if (
+      body.highest_price !== undefined
+    ) {
+      updateData.highest_price =
+        numberOrNull(
+          body.highest_price
+        );
+    }
+
+    /* =====================================================
+       SAFETY CHECK
+    ===================================================== */
+
+    if (
+      Object.keys(updateData)
+        .length === 0
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "No fields provided for update",
+        },
+        { status: 400 }
+      );
+    }
+
+    console.log(
+      "UPDATE DATA:",
+      updateData
+    );
+
+    /* =====================================================
+       UPDATE SUPABASE
+    ===================================================== */
 
     const {
       data,
@@ -687,7 +1115,7 @@ async function updateProduct(
       .from("products")
       .update(updateData)
       .eq("id", id)
-      .select()
+      .select("*")
       .single();
 
     if (error) {
@@ -726,18 +1154,21 @@ async function updateProduct(
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(
       "UPDATE PRODUCT ERROR:",
       error
     );
 
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Something went wrong while updating product";
+
     return NextResponse.json(
       {
         success: false,
-        message:
-          error?.message ||
-          "Something went wrong while updating product",
+        message,
       },
       { status: 500 }
     );
@@ -746,6 +1177,7 @@ async function updateProduct(
 
 /* =========================================================
    DELETE PRODUCT
+   DELETE /api/products?id=123
 ========================================================= */
 
 export async function DELETE(
@@ -758,11 +1190,9 @@ export async function DELETE(
     let id =
       searchParams.get("id");
 
-    /*
-      Also support:
-      DELETE /api/products
-      with JSON { id: "..." }
-    */
+    /* =====================================================
+       ALSO SUPPORT JSON BODY
+    ===================================================== */
 
     if (!id) {
       try {
@@ -779,7 +1209,8 @@ export async function DELETE(
       return NextResponse.json(
         {
           success: false,
-          message: "Product ID is required",
+          message:
+            "Product ID is required",
         },
         { status: 400 }
       );
@@ -801,7 +1232,7 @@ export async function DELETE(
       .from("products")
       .delete()
       .eq("id", id)
-      .select();
+      .select("*");
 
     if (error) {
       console.error(
@@ -821,7 +1252,10 @@ export async function DELETE(
       );
     }
 
-    if (!data || data.length === 0) {
+    if (
+      !data ||
+      data.length === 0
+    ) {
       return NextResponse.json(
         {
           success: false,
@@ -850,18 +1284,21 @@ export async function DELETE(
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(
       "DELETE PRODUCT ERROR:",
       error
     );
 
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Something went wrong while deleting product";
+
     return NextResponse.json(
       {
         success: false,
-        message:
-          error?.message ||
-          "Something went wrong while deleting product",
+        message,
       },
       { status: 500 }
     );

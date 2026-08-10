@@ -24,6 +24,87 @@ type TavilyResponse = {
 };
 
 /* =========================================================
+   HELPERS
+========================================================= */
+
+function normalizeText(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+/* =========================================================
+   PRODUCT TYPE
+========================================================= */
+
+function detectProductType(
+  productName: string,
+  category: string,
+  description: string,
+  features: string
+) {
+  const text = normalizeText(
+    `${productName} ${category} ${description} ${features}`
+  ).toLowerCase();
+
+  if (
+    /\bshirt\b|\bt-shirt\b|\btshirt\b|\bjeans\b|\btrouser\b|\bpants\b|\bdress\b|\bkurta\b|\bhoodie\b|\bjacket\b|\bapparel\b|\bclothing\b|\bwear\b|\bsweatshirt\b|\bshorts\b/.test(
+      text
+    )
+  ) {
+    return "clothing";
+  }
+
+  if (
+    /\bphone\b|\bsmartphone\b|\bmobile\b|\btablet\b|\blaptop\b|\bcomputer\b|\bmonitor\b|\bkeyboard\b|\bmouse\b/.test(
+      text
+    )
+  ) {
+    return "electronics";
+  }
+
+  if (
+    /\bheadphone\b|\bearphone\b|\bearbuds\b|\bneckband\b|\bspeaker\b/.test(
+      text
+    )
+  ) {
+    return "audio";
+  }
+
+  if (
+    /\bpower bank\b|\bcharger\b|\badapter\b|\bhub\b|\bcable\b|\bpower strip\b/.test(
+      text
+    )
+  ) {
+    return "accessory";
+  }
+
+  if (
+    /\bscale\b|\bchopper\b|\bmixer\b|\bgrinder\b|\bkettle\b|\bblender\b|\bcookware\b|\bkitchen\b/.test(
+      text
+    )
+  ) {
+    return "kitchen";
+  }
+
+  if (
+    /\bwatch\b|\bsmartwatch\b|\bfitness band\b|\bsmart band\b/.test(
+      text
+    )
+  ) {
+    return "wearable";
+  }
+
+  if (
+    /\bshoe\b|\bsandal\b|\bslipper\b|\bsneaker\b|\bfootwear\b/.test(
+      text
+    )
+  ) {
+    return "footwear";
+  }
+
+  return "general";
+}
+
+/* =========================================================
    TAVILY SEARCH
 ========================================================= */
 
@@ -33,9 +114,7 @@ async function searchWeb(
   const apiKey = process.env.TAVILY_API_KEY;
 
   if (!apiKey) {
-    throw new Error(
-      "TAVILY_API_KEY is missing"
-    );
+    throw new Error("TAVILY_API_KEY is missing.");
   }
 
   const response = await fetch(
@@ -49,20 +128,18 @@ async function searchWeb(
 
       body: JSON.stringify({
         api_key: apiKey,
-
         query,
 
         search_depth: "advanced",
-
         topic: "general",
 
-        max_results: 6,
+        max_results: 8,
 
         include_answer: true,
-
         include_raw_content: false,
-
         include_images: false,
+
+        chunks_per_source: 3,
       }),
 
       cache: "no-store",
@@ -78,6 +155,302 @@ async function searchWeb(
   }
 
   return (await response.json()) as TavilyResponse;
+}
+
+/* =========================================================
+   SEARCH QUERIES
+========================================================= */
+
+function buildSearchQueries(
+  brand: string,
+  productName: string,
+  productType: string
+) {
+  const product = `"${brand} ${productName}"`;
+
+  const commonQueries = [
+    `${product} official specifications features`,
+    `${product} detailed review`,
+    `${product} user experience review`,
+    `${product} limitations drawbacks`,
+  ];
+
+  const categoryQueries: Record<string, string[]> = {
+    clothing: [
+      `${product} fabric material fit comfort review`,
+      `${product} sizing fit quality review`,
+      `${product} casual everyday wear review`,
+    ],
+
+    electronics: [
+      `${product} performance benchmark review`,
+      `${product} real world performance issues`,
+      `${product} features compatibility limitations`,
+    ],
+
+    audio: [
+      `${product} sound quality comfort battery review`,
+      `${product} microphone connectivity issues`,
+      `${product} user experience review`,
+    ],
+
+    accessory: [
+      `${product} compatibility performance review`,
+      `${product} ports charging transfer speed review`,
+      `${product} limitations compatibility issues`,
+    ],
+
+    kitchen: [
+      `${product} performance ease of use review`,
+      `${product} build quality durability review`,
+      `${product} cleaning usability limitations`,
+    ],
+
+    wearable: [
+      `${product} accuracy battery comfort review`,
+      `${product} features real world performance`,
+      `${product} limitations user experience`,
+    ],
+
+    footwear: [
+      `${product} comfort fit quality review`,
+      `${product} sizing durability review`,
+      `${product} everyday use review`,
+    ],
+
+    general: [
+      `${product} quality performance usability review`,
+      `${product} strengths weaknesses review`,
+      `${product} real world user experience`,
+    ],
+  };
+
+  return [
+    ...commonQueries,
+    ...(categoryQueries[productType] ||
+      categoryQueries.general),
+
+    `${product} warranty after sales support`,
+    `${product} price value for money India`,
+  ];
+}
+
+/* =========================================================
+   SOURCE QUALITY
+========================================================= */
+
+function sourcePriority(source: SearchResult) {
+  const url = source.url || "";
+
+  let domain = "";
+
+  try {
+    domain = new URL(url)
+      .hostname
+      .toLowerCase();
+  } catch {
+    return 0.5;
+  }
+
+  if (
+    domain.includes("rtings.com") ||
+    domain.includes("techradar.com") ||
+    domain.includes("tomsguide.com") ||
+    domain.includes("pcmag.com") ||
+    domain.includes("trustedreviews.com") ||
+    domain.includes("gsmarena.com") ||
+    domain.includes("91mobiles.com")
+  ) {
+    return 1;
+  }
+
+  if (
+    domain.includes("amazon.") ||
+    domain.includes("flipkart.")
+  ) {
+    return 0.9;
+  }
+
+  if (
+    domain.includes("reddit.com") ||
+    domain.includes("quora.com")
+  ) {
+    return 0.65;
+  }
+
+  return 0.75;
+}
+
+/* =========================================================
+   SOURCE SCORE
+========================================================= */
+
+function calculateSourceScore(source: SearchResult) {
+  const tavilyScore =
+    typeof source.score === "number"
+      ? Math.max(0, Math.min(1, source.score))
+      : 0.5;
+
+  const quality = sourcePriority(source);
+
+  return tavilyScore * 0.7 + quality * 0.3;
+}
+
+/* =========================================================
+   DEDUPLICATE SOURCES
+========================================================= */
+
+function deduplicateSources(
+  sources: SearchResult[]
+) {
+  const map = new Map<string, SearchResult>();
+
+  for (const source of sources) {
+    if (!source.url) {
+      continue;
+    }
+
+    const url = source.url.trim();
+
+    if (!url) {
+      continue;
+    }
+
+    const existing = map.get(url);
+
+    if (!existing) {
+      map.set(url, source);
+      continue;
+    }
+
+    const existingScore =
+      typeof existing.score === "number"
+        ? existing.score
+        : 0;
+
+    const newScore =
+      typeof source.score === "number"
+        ? source.score
+        : 0;
+
+    if (newScore > existingScore) {
+      map.set(url, source);
+    }
+  }
+
+  return Array.from(map.values());
+}
+
+/* =========================================================
+   SELECT BEST SOURCES
+========================================================= */
+
+function selectBestSources(
+  sources: SearchResult[],
+  limit = 20
+) {
+  return sources
+    .filter(
+      (source) =>
+        source.url &&
+        source.content &&
+        source.content.trim().length >= 80
+    )
+    .map((source) => ({
+      source,
+
+      calculatedScore:
+        calculateSourceScore(source),
+    }))
+    .sort(
+      (a, b) =>
+        b.calculatedScore -
+        a.calculatedScore
+    )
+    .slice(0, limit)
+    .map((item) => item.source);
+}
+
+/* =========================================================
+   BUILD RESEARCH
+========================================================= */
+
+function buildResearchText(
+  productName: string,
+  brand: string,
+  category: string,
+  price: string,
+  productType: string,
+  tavilyAnswers: string[],
+  sources: SearchResult[]
+) {
+  const summaries = Array.from(
+    new Set(
+      tavilyAnswers
+        .map(normalizeText)
+        .filter(Boolean)
+    )
+  );
+
+  const sourceSections = sources.map(
+    (source, index) => {
+      return [
+        `SOURCE ${index + 1}`,
+
+        `Title: ${
+          source.title || "Unknown"
+        }`,
+
+        `URL: ${
+          source.url || "Unknown"
+        }`,
+
+        `Tavily relevance: ${
+          typeof source.score === "number"
+            ? source.score.toFixed(3)
+            : "unknown"
+        }`,
+
+        "Information:",
+
+        normalizeText(
+          source.content || ""
+        ),
+      ].join("\n");
+    }
+  );
+
+  return [
+    "ANANTAGO RESEARCH DATA",
+
+    `Product: ${productName}`,
+
+    brand ? `Brand: ${brand}` : "",
+
+    category ? `Category: ${category}` : "",
+
+    price ? `Current Price: ₹${price}` : "",
+
+    `Detected Product Type: ${productType}`,
+
+    "",
+
+    "TAVILY RESEARCH SUMMARIES",
+
+    summaries.length
+      ? summaries.join("\n\n")
+      : "No Tavily summary available.",
+
+    "",
+
+    "WEB EVIDENCE",
+
+    sourceSections.join(
+      "\n\n------------------------------\n\n"
+    ),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 /* =========================================================
@@ -100,8 +473,7 @@ export async function POST(
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Product ID is required",
+          message: "Product ID is required.",
         },
         { status: 400 }
       );
@@ -116,15 +488,14 @@ export async function POST(
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Invalid product ID",
+          message: "Invalid product ID.",
         },
         { status: 400 }
       );
     }
 
     /* =====================================================
-       CHECK TAVILY KEY
+       TAVILY KEY
     ===================================================== */
 
     if (!process.env.TAVILY_API_KEY) {
@@ -160,8 +531,7 @@ export async function POST(
       return NextResponse.json(
         {
           success: false,
-          message:
-            productError.message,
+          message: productError.message,
         },
         { status: 500 }
       );
@@ -171,8 +541,7 @@ export async function POST(
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Product not found",
+          message: "Product not found.",
         },
         { status: 404 }
       );
@@ -194,53 +563,108 @@ export async function POST(
        PRODUCT INFORMATION
     ===================================================== */
 
-    const productName =
-      product.name || "";
+    const productName = String(
+      product.name || ""
+    ).trim();
 
-    const brand =
-      product.brand || "";
+    const brand = String(
+      product.brand || ""
+    ).trim();
 
-    const category =
-      product.category || "";
+    const category = String(
+      product.category || ""
+    ).trim();
 
-    const description =
-      product.description || "";
+    const description = String(
+      product.description || ""
+    ).trim();
 
-    const features =
-      product.features || "";
+    const features = String(
+      product.features || ""
+    ).trim();
 
-    const price =
-      product.price || "";
+    const price = String(
+      product.price || ""
+    ).trim();
 
     /* =====================================================
-       PRODUCT IDENTITY
+       PRODUCT TYPE
     ===================================================== */
 
-    const productIdentity = [
-      brand,
-      productName,
-      category,
-      features,
+    const productType =
+      detectProductType(
+        productName,
+        category,
+        description,
+        features
+      );
+
+    /* =====================================================
+       PRODUCT CONTEXT
+    ===================================================== */
+
+    const productContext = [
+      `Product: ${productName}`,
+
+      brand ? `Brand: ${brand}` : "",
+
+      category ? `Category: ${category}` : "",
+
+      price ? `Current Price: ₹${price}` : "",
+
+      description
+        ? `Description: ${description}`
+        : "",
+
+      features
+        ? `Features: ${features}`
+        : "",
+
+      `Detected Product Type: ${productType}`,
     ]
       .filter(Boolean)
-      .join(" ");
+      .join("\n");
 
     /* =====================================================
        SEARCH QUERIES
     ===================================================== */
 
-    const queries = [
-      `"${brand} ${productName}" official specifications`,
+    const queries =
+      buildSearchQueries(
+        brand,
+        productName,
+        productType
+      );
 
-      `"${brand} ${productName}" review`,
+    console.log(
+      "===================================="
+    );
 
-      `"${brand} ${productName}" pros cons`,
+    console.log(
+      "AnantaGo research started"
+    );
 
-      `"${brand} ${productName}" warranty`,
-    ];
+    console.log(
+      "Product:",
+      productName
+    );
+
+    console.log(
+      "Product type:",
+      productType
+    );
+
+    console.log(
+      "Search queries:",
+      queries
+    );
+
+    console.log(
+      "===================================="
+    );
 
     /* =====================================================
-       SEARCH
+       TAVILY SEARCH
     ===================================================== */
 
     const searchResults: SearchResult[] = [];
@@ -249,10 +673,13 @@ export async function POST(
 
     for (const query of queries) {
       try {
+        console.log(
+          "Tavily search:",
+          query
+        );
+
         const result =
           await searchWeb(query);
-
-        /* Save Tavily answer */
 
         if (
           result.answer &&
@@ -262,8 +689,6 @@ export async function POST(
             result.answer.trim()
           );
         }
-
-        /* Save search results */
 
         if (
           Array.isArray(
@@ -276,39 +701,45 @@ export async function POST(
         }
       } catch (error) {
         console.error(
-          `Search failed for query: ${query}`,
+          `Tavily search failed: ${query}`,
           error
         );
       }
     }
 
     /* =====================================================
-       REMOVE DUPLICATE SOURCES
+       DEDUPLICATE
     ===================================================== */
 
     const uniqueSources =
-      Array.from(
-        new Map(
-          searchResults
-            .filter(
-              (item) =>
-                item.url
-            )
-            .map(
-              (item) => [
-                item.url,
-                item,
-              ]
-            )
-        ).values()
-      ).slice(0, 20);
+      deduplicateSources(
+        searchResults
+      );
+
+    console.log(
+      `Tavily returned ${uniqueSources.length} unique sources.`
+    );
+
+    /* =====================================================
+       SELECT BEST SOURCES
+    ===================================================== */
+
+    const selectedSources =
+      selectBestSources(
+        uniqueSources,
+        20
+      );
+
+    console.log(
+      `Selected ${selectedSources.length} research sources.`
+    );
 
     /* =====================================================
        NO SOURCES
     ===================================================== */
 
     if (
-      uniqueSources.length === 0
+      selectedSources.length === 0
     ) {
       await supabase
         .from("products")
@@ -322,115 +753,54 @@ export async function POST(
         {
           success: false,
           message:
-            "No reliable web research results were found.",
+            "No useful web research results were found.",
         },
         { status: 422 }
       );
     }
 
     /* =====================================================
-       BUILD RESEARCH TEXT
+       BUILD RESEARCH
     ===================================================== */
 
-    const researchText =
-      uniqueSources
-        .map(
-          (source, index) => {
-            return [
-              `SOURCE ${index + 1}`,
-              "",
-              `Title: ${
-                source.title ||
-                "Unknown"
-              }`,
-              "",
-              `URL: ${
-                source.url ||
-                "Unknown"
-              }`,
-              "",
-              `Information: ${
-                source.content ||
-                "No information available"
-              }`,
-            ].join("\n");
-          }
-        )
-        .join("\n\n-------------------------\n\n");
-
-    /* =====================================================
-       TAVILY SUMMARY
-    ===================================================== */
-
-    const tavilySummary =
-      Array.from(
-        new Set(tavilyAnswers)
-      ).join("\n\n");
-
-    /* =====================================================
-       FULL RESEARCH REPORT
-    ===================================================== */
-
-    const finalResearch = [
-      `Product: ${productName}`,
-
-      brand
-        ? `Brand: ${brand}`
-        : "",
-
-      category
-        ? `Category: ${category}`
-        : "",
-
-      price
-        ? `Current Price: ${price}`
-        : "",
-
-      "",
-
-      "Product Identity:",
-
-      productIdentity,
-
-      "",
-
-      "Tavily Research Summary:",
-
-      tavilySummary ||
-        "No summary was returned.",
-
-      "",
-
-      "Web Sources:",
-
-      researchText,
-    ]
-      .filter(
-        (item) =>
-          item !== ""
-      )
-      .join("\n");
+    const finalResearch =
+      buildResearchText(
+        productName,
+        brand,
+        category,
+        price,
+        productType,
+        tavilyAnswers,
+        selectedSources
+      );
 
     /* =====================================================
        SOURCE TEXT
     ===================================================== */
 
     const sourceText =
-      uniqueSources
-        .map(
-          (source) =>
-            `${source.title || "Source"}\n${
-              source.url || ""
-            }`
+      selectedSources
+        .map((source) =>
+          [
+            source.title || "Source",
+
+            source.url || "",
+
+            typeof source.score === "number"
+              ? `Tavily Score: ${source.score}`
+              : "",
+          ]
+            .filter(Boolean)
+            .join("\n")
         )
         .join("\n\n");
 
     /* =====================================================
-       SAVE TO SUPABASE
+       SAVE RESEARCH
     ===================================================== */
 
     const {
-      error: updateError,
+      error: researchSaveError,
     } = await supabase
       .from("products")
       .update({
@@ -441,17 +811,17 @@ export async function POST(
           sourceText,
 
         anantago_analysis_status:
-          "generated",
+          "research_completed",
 
         anantago_researched_at:
           new Date().toISOString(),
       })
       .eq("id", productId);
 
-    if (updateError) {
+    if (researchSaveError) {
       console.error(
         "Research save error:",
-        updateError
+        researchSaveError
       );
 
       await supabase
@@ -463,34 +833,62 @@ export async function POST(
         .eq("id", productId);
 
       throw new Error(
-        updateError.message
+        researchSaveError.message
       );
     }
 
     /* =====================================================
-       RETURN RESULT
+       SUCCESS
     ===================================================== */
+
+    console.log(
+      "===================================="
+    );
+
+    console.log(
+      "AnantaGo research completed"
+    );
+
+    console.log(
+      "Sources:",
+      selectedSources.length
+    );
+
+    console.log(
+      "===================================="
+    );
 
     return NextResponse.json(
       {
         success: true,
 
         message:
-          "AnantaGo web research completed successfully.",
+          "AnantaGo product research completed successfully.",
 
         analysis: {
+          productId,
+
+          productName,
+
+          productType,
+
+          sourceCount:
+            selectedSources.length,
+
           research:
             finalResearch,
 
           sources:
-            uniqueSources.map(
+            selectedSources.map(
               (source) => ({
                 title:
-                  source.title ||
-                  "",
+                  source.title || "",
+
                 url:
-                  source.url ||
-                  "",
+                  source.url || "",
+
+                score:
+                  source.score ?? null,
               })
             ),
         },
@@ -499,14 +897,22 @@ export async function POST(
     );
   } catch (error: unknown) {
     console.error(
+      "===================================="
+    );
+
+    console.error(
       "AnantaGo research error:",
       error
+    );
+
+    console.error(
+      "===================================="
     );
 
     const message =
       error instanceof Error
         ? error.message
-        : "Research failed";
+        : "Research failed.";
 
     return NextResponse.json(
       {
