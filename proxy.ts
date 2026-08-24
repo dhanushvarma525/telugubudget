@@ -1,38 +1,20 @@
+
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken } from "@/lib/auth";
 
 export function proxy(request: NextRequest) {
-
   const { pathname } = request.nextUrl;
 
-  // Allow login page
-  if (pathname === "/admin/login") {
-    return NextResponse.next();
-  }
+  /*
+   * Admin authentication is currently handled by
+   * Supabase Auth on the client side.
+   *
+   * The previous admin_token / verifyToken system
+   * has been removed because it belongs to the old
+   * authentication system.
+   */
 
-  // Protect all admin pages
   if (pathname.startsWith("/admin")) {
-
-    const token = request.cookies.get("admin_token")?.value;
-
-    if (!token) {
-      return NextResponse.redirect(
-        new URL("/admin/login", request.url)
-      );
-    }
-
-    const user = verifyToken(token);
-
-    if (!user) {
-
-      const response = NextResponse.redirect(
-        new URL("/admin/login", request.url)
-      );
-
-      response.cookies.delete("admin_token");
-
-      return response;
-    }
+    return NextResponse.next();
   }
 
   return NextResponse.next();
@@ -41,3 +23,4 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: ["/admin/:path*"],
 };
+

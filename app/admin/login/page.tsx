@@ -1,215 +1,235 @@
+
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { FormEvent, useState } from "react";
+import {
+  Eye,
+  EyeOff,
+  LockKeyhole,
+  Loader2,
+} from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
-
-export default function AdminLogin() {
-
-  const router = useRouter();
-
-  const [username, setUsername] = useState("");
-
+export default function AdminLoginPage() {
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
 
+    console.log("LOGIN BUTTON CLICKED");
 
-  async function handleLogin() {
-
-
-    if (!username || !password) {
-
-      alert("Please enter username and password");
-
-      return;
-
-    }
-
-
+    setError("");
     setLoading(true);
 
-
     try {
+      const cleanEmail = email.trim();
 
+      console.log("Attempting Supabase login...");
+      console.log("Email:", cleanEmail);
 
-      const response = await fetch("/api/admin/login", {
-
-        method: "POST",
-
-        headers: {
-
-          "Content-Type": "application/json"
-
-        },
-
-        body: JSON.stringify({
-
-          username,
-
-          password
-
-        })
-
+      const {
+        data,
+        error: loginError,
+      } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password,
       });
 
+      if (loginError) {
+        console.error(
+          "SUPABASE LOGIN ERROR:",
+          loginError
+        );
 
-
-      const data = await response.json();
-
-
-      console.log("LOGIN RESPONSE:", data);
-
-
-
-      if (data.success) {
-
-
-        alert("Login Success");
-
-
-        // Force navigation after cookie creation
-        window.location.href = "/admin/dashboard";
-
-
-      } else {
-
-
-        alert(data.message || "Invalid Login");
-
-
+        setError(loginError.message);
+        return;
       }
 
+      console.log(
+        "SUPABASE LOGIN SUCCESS:",
+        data.user?.email
+      );
 
+      /*
+       * Supabase login has succeeded.
+       *
+       * Use a full browser navigation instead of
+       * router.replace() so we can completely
+       * reload the admin dashboard.
+       */
+      console.log(
+        "Redirecting to /admin/blogs..."
+      );
 
-    } catch(error) {
+      window.location.href = "/admin/blogs";
+    } catch (error) {
+      console.error(
+        "ADMIN LOGIN UNEXPECTED ERROR:",
+        error
+      );
 
-
-      console.log("LOGIN ERROR:", error);
-
-      alert("Server Error");
-
-
+      setError(
+        "Something went wrong while signing in. Please try again."
+      );
     } finally {
-
-
       setLoading(false);
-
-
     }
-
-
   }
 
-
-
   return (
+    <main className="flex min-h-screen items-center justify-center bg-zinc-950 px-4 py-10">
+      <div className="w-full max-w-md">
 
+        {/* Brand */}
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-white text-zinc-950">
+            <LockKeyhole className="h-6 w-6" />
+          </div>
 
-    <main className="
-      min-h-screen
-      flex
-      items-center
-      justify-center
-      bg-gray-100
-    ">
+          <h1 className="text-3xl font-bold tracking-tight text-white">
+            AnantaGo
+          </h1>
 
+          <p className="mt-2 text-sm text-zinc-400">
+            Admin Dashboard
+          </p>
+        </div>
 
-      <div className="
-        bg-white
-        w-96
-        p-8
-        rounded-2xl
-        shadow-lg
-      ">
+        {/* Login Card */}
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl sm:p-8">
 
+          <div className="mb-7">
+            <h2 className="text-xl font-semibold text-white">
+              Welcome back
+            </h2>
 
-        <h1 className="
-          text-3xl
-          font-bold
-          text-center
-          mb-6
-        ">
+            <p className="mt-1 text-sm text-zinc-400">
+              Sign in to manage your AnantaGo publication.
+            </p>
+          </div>
 
-          Admin Login
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-5"
+          >
 
-        </h1>
+            {/* Email */}
+            <div>
+              <label
+                htmlFor="email"
+                className="mb-2 block text-sm font-medium text-zinc-200"
+              >
+                Email
+              </label>
 
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(event) =>
+                  setEmail(event.target.value)
+                }
+                placeholder="admin@example.com"
+                autoComplete="email"
+                required
+                disabled={loading}
+                className="h-11 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-zinc-400 focus:ring-1 focus:ring-zinc-400 disabled:cursor-not-allowed disabled:opacity-60"
+              />
+            </div>
 
+            {/* Password */}
+            <div>
+              <label
+                htmlFor="password"
+                className="mb-2 block text-sm font-medium text-zinc-200"
+              >
+                Password
+              </label>
 
-        <input
+              <div className="relative">
 
-          type="text"
+                <input
+                  id="password"
+                  type={
+                    showPassword
+                      ? "text"
+                      : "password"
+                  }
+                  value={password}
+                  onChange={(event) =>
+                    setPassword(event.target.value)
+                  }
+                  placeholder="Enter your password"
+                  autoComplete="current-password"
+                  required
+                  disabled={loading}
+                  className="h-11 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 pr-11 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-zinc-400 focus:ring-1 focus:ring-zinc-400 disabled:cursor-not-allowed disabled:opacity-60"
+                />
 
-          placeholder="Username"
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowPassword(
+                      (value) => !value
+                    )
+                  }
+                  disabled={loading}
+                  aria-label={
+                    showPassword
+                      ? "Hide password"
+                      : "Show password"
+                  }
+                  className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center text-zinc-500 transition hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
 
-          value={username}
+              </div>
+            </div>
 
-          onChange={(e)=>setUsername(e.target.value)}
+            {/* Error */}
+            {error && (
+              <div className="rounded-lg border border-red-900/60 bg-red-950/40 px-3 py-3 text-sm leading-relaxed text-red-300">
+                {error}
+              </div>
+            )}
 
-          className="
-            border
-            w-full
-            p-3
-            rounded
-            mb-4
-          "
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                "Sign In"
+              )}
+            </button>
 
-        />
+          </form>
 
+          <p className="mt-6 text-center text-xs leading-5 text-zinc-500">
+            AnantaGo Admin · AI • TECH • DIGITAL LIFE
+          </p>
 
-
-        <input
-
-          type="password"
-
-          placeholder="Password"
-
-          value={password}
-
-          onChange={(e)=>setPassword(e.target.value)}
-
-          className="
-            border
-            w-full
-            p-3
-            rounded
-            mb-6
-          "
-
-        />
-
-
-
-        <button
-
-          onClick={handleLogin}
-
-          disabled={loading}
-
-          className="
-            bg-orange-500
-            text-white
-            w-full
-            py-3
-            rounded-lg
-            font-bold
-          "
-
-        >
-
-          {loading ? "Logging in..." : "LOGIN"}
-
-        </button>
-
-
+        </div>
       </div>
-
-
     </main>
-
-
   );
-
 }
+

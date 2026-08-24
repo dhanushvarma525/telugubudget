@@ -1,337 +1,672 @@
-import { supabase } from "@/lib/supabase";
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
+/* =========================================================
+   SUPABASE
+========================================================= */
 
-// ==========================
-// GET SINGLE BLOG
-// ==========================
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ slug: string }> }
-) {
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error(
+    "Missing Supabase environment variables."
+  );
+}
 
-  try {
+const supabaseAdmin = createClient(
+  supabaseUrl,
+  supabaseServiceKey,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  }
+);
 
-    const { slug } = await params;
+/* =========================================================
+   PARAMS
+========================================================= */
 
+type RouteContext = {
+  params: Promise<{
+    slug: string;
+  }>;
+};
 
-    const { data, error } = await supabase
+/* =========================================================
+   FIND BLOG
+   Supports BOTH:
+   /api/blogs/1
+   /api/blogs/my-article-slug
+========================================================= */
 
+async function findBlog(identifier: string) {
+  const value = decodeURIComponent(
+    identifier || ""
+  ).trim();
+
+  if (!value) {
+    return {
+      blog: null,
+      error: null,
+    };
+  }
+
+  /* =====================================================
+     FIRST TRY ID
+  ===================================================== */
+
+  if (/^\d+$/.test(value)) {
+    const {
+      data: blogById,
+      error: idError,
+    } = await supabaseAdmin
       .from("blogs")
-
       .select("*")
-
-      .eq("slug", slug)
-
+      .eq("id", Number(value))
       .maybeSingle();
 
-
-
-    if (error) {
-
-      throw error;
-
+    if (idError) {
+      return {
+        blog: null,
+        error: idError,
+      };
     }
 
+    if (blogById) {
+      return {
+        blog: blogById,
+        error: null,
+      };
+    }
+  }
 
+  /* =====================================================
+     THEN TRY SLUG
+  ===================================================== */
 
-    if (!data) {
+  const {
+    data: blogBySlug,
+    error: slugError,
+  } = await supabaseAdmin
+    .from("blogs")
+    .select("*")
+    .eq("slug", value)
+    .maybeSingle();
 
-      return Response.json(
+  if (slugError) {
+    return {
+      blog: null,
+      error: slugError,
+    };
+  }
 
+  return {
+    blog: blogBySlug,
+    error: null,
+  };
+}
+
+/* =========================================================
+   GET BLOG
+========================================================= */
+
+export async function GET(
+  request: NextRequest,
+  context: RouteContext
+) {
+  try {
+    const params = await context.params;
+
+    const identifier = decodeURIComponent(
+      params.slug || ""
+    ).trim();
+
+    console.log(
+      "GET BLOG IDENTIFIER:",
+      identifier
+    );
+
+    if (!identifier) {
+      return NextResponse.json(
         {
           success: false,
-          message: "Blog not found",
+          message:
+            "Blog ID or slug is required.",
         },
+        {
+          status: 400,
+        }
+      );
+    }
 
+    const {
+      blog,
+      error,
+    } = await findBlog(identifier);
+
+    if (error) {
+      console.error(
+        "GET BLOG DATABASE ERROR:",
+        error
+      );
+
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Failed to load blog.",
+          error:
+            error.message,
+          details:
+            error.details,
+          hint:
+            error.hint,
+          code:
+            error.code,
+        },
+        {
+          status: 500,
+        }
+      );
+    }
+
+    if (!blog) {
+      console.error(
+        "BLOG NOT FOUND:",
+        identifier
+      );
+
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Blog not found.",
+          identifier,
+        },
         {
           status: 404,
         }
-
       );
-
     }
 
-
-
-    return Response.json({
-
+    return NextResponse.json({
       success: true,
-
-      blog: data,
-
+      blog,
     });
-
-
-
-  } catch (error:any) {
-
-
-    return Response.json(
-
-      {
-
-        success:false,
-
-        message:error.message,
-
-      },
-
-      {
-
-        status:500,
-
-      }
-
+  } catch (error: any) {
+    console.error(
+      "GET BLOG SERVER ERROR:",
+      error
     );
 
-
+    return NextResponse.json(
+      {
+        success: false,
+        message:
+          error?.message ||
+          "Failed to load blog.",
+      },
+      {
+        status: 500,
+      }
+    );
   }
-
 }
 
-
-
-
-// ==========================
-// UPDATE BLOG
-// ==========================
-
+/* =========================================================
+   UPDATE BLOG
+========================================================= */
 
 export async function PUT(
-
-  req: Request,
-
-  { params }: { params: Promise<{ slug:string }> }
-
+  request: NextRequest,
+  context: RouteContext
 ) {
-
-
   try {
+    const params = await context.params;
 
+    const identifier = decodeURIComponent(
+      params.slug || ""
+    ).trim();
 
-    const { slug } = await params;
+    if (!identifier) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Blog ID or slug is required.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
 
+    const body =
+      await request.json();
 
-    const body = await req.json();
+    if (!body.title?.trim()) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Blog title is required.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
 
+    /* =====================================================
+       FIND EXISTING BLOG
+    ===================================================== */
 
+    const {
+      blog: existingBlog,
+      error: findError,
+    } = await findBlog(identifier);
 
+    if (findError) {
+      console.error(
+        "FIND BLOG ERROR:",
+        findError
+      );
 
-    const updateData = {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Failed to find existing blog.",
+          error:
+            findError.message,
+        },
+        {
+          status: 500,
+        }
+      );
+    }
 
+    if (!existingBlog) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Blog not found.",
+        },
+        {
+          status: 404,
+        }
+      );
+    }
 
-      title: body.title || "",
+    /* =====================================================
+       SLUG
+    ===================================================== */
 
+    const generatedSlug =
+      body.title
+        .trim()
+        .toLowerCase()
+        .replace(
+          /[^a-z0-9\s-]/g,
+          ""
+        )
+        .replace(
+          /\s+/g,
+          "-"
+        )
+        .replace(
+          /-+/g,
+          "-"
+        );
 
-      slug: body.slug || slug,
+    const finalSlug =
+      body.slug?.trim() ||
+      generatedSlug;
 
+    /* =====================================================
+       CHECK DUPLICATE SLUG
+    ===================================================== */
 
-      excerpt: body.excerpt || "",
+    const {
+      data: duplicateBlog,
+      error: duplicateError,
+    } = await supabaseAdmin
+      .from("blogs")
+      .select("id")
+      .eq("slug", finalSlug)
+      .neq(
+        "id",
+        existingBlog.id
+      )
+      .maybeSingle();
 
+    if (duplicateError) {
+      console.error(
+        "DUPLICATE SLUG ERROR:",
+        duplicateError
+      );
 
-      content: body.content || "",
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Failed to check slug.",
+          error:
+            duplicateError.message,
+        },
+        {
+          status: 500,
+        }
+      );
+    }
 
+    if (duplicateBlog) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Another blog already uses this slug.",
+        },
+        {
+          status: 409,
+        }
+      );
+    }
 
-      cover_image: body.cover_image || "",
+    /* =====================================================
+       TAGS
+    ===================================================== */
 
+    const tags =
+      Array.isArray(body.tags)
+        ? body.tags
+            .map(
+              (tag: unknown) =>
+                String(tag).trim()
+            )
+            .filter(Boolean)
+        : [];
 
-      category: body.category || "",
+    /* =====================================================
+       CONTENT BLOCKS
+    ===================================================== */
 
+    const contentBlocks =
+      Array.isArray(
+        body.content_blocks
+      )
+        ? body.content_blocks
+        : [];
 
-      author: body.author || "AnantaGo",
+    /* =====================================================
+       UPDATE DATA
+    ===================================================== */
 
+    const updateData: Record<
+      string,
+      unknown
+    > = {
+      title:
+        body.title.trim(),
 
-      tags: body.tags || [],
+      slug:
+        finalSlug,
 
+      excerpt:
+        body.excerpt?.trim() ||
+        "",
 
-      published: body.published ?? true,
+      content:
+        body.content || "",
 
+      cover_image:
+        body.cover_image || "",
 
-      featured: body.featured ?? false,
+      category:
+        body.category?.trim() ||
+        "",
 
+      author:
+        body.author?.trim() ||
+        "AnantaGo",
 
+      tags,
 
-      // Related products IDs
+      published:
+        body.published === true,
 
-      related_products:
+      featured:
+        body.featured === true,
 
-      body.related_products || [],
-
-
+      content_blocks:
+        contentBlocks,
 
       updated_at:
-
-      new Date().toISOString(),
-
-
+        new Date().toISOString(),
     };
 
+    /* =====================================================
+       PUBLISHED AT
+    ===================================================== */
 
-
-
-
-
-    const { error } = await supabase
-
-
-      .from("blogs")
-
-
-      .update(updateData)
-
-
-      .eq("slug", slug);
-
-
-
-
-
-
-    if(error){
-
-      throw error;
-
+    if (
+      body.published === true
+    ) {
+      updateData.published_at =
+        new Date().toISOString();
     }
 
+    /* =====================================================
+       UPDATE
+    ===================================================== */
 
+    const {
+      data,
+      error,
+    } = await supabaseAdmin
+      .from("blogs")
+      .update(updateData)
+      .eq(
+        "id",
+        existingBlog.id
+      )
+      .select("*")
+      .single();
 
+    if (error) {
+      console.error(
+        "UPDATE BLOG DATABASE ERROR:",
+        error
+      );
 
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            error.message ||
+            "Failed to update blog.",
+          details:
+            error.details,
+          hint:
+            error.hint,
+          code:
+            error.code,
+        },
+        {
+          status: 500,
+        }
+      );
+    }
 
-
-    return Response.json({
-
-      success:true,
-
-      message:"Blog updated successfully",
-
+    return NextResponse.json({
+      success: true,
+      message:
+        "Blog updated successfully.",
+      blog: data,
     });
-
-
-
-
-
-  }
-
-  catch(error:any){
-
-
-    return Response.json(
-
-      {
-
-        success:false,
-
-        message:error.message,
-
-      },
-
-      {
-
-        status:500,
-
-      }
-
+  } catch (error: any) {
+    console.error(
+      "UPDATE BLOG SERVER ERROR:",
+      error
     );
 
-
+    return NextResponse.json(
+      {
+        success: false,
+        message:
+          error?.message ||
+          "Failed to update blog.",
+      },
+      {
+        status: 500,
+      }
+    );
   }
-
-
 }
 
-
-
-
-
-
-// ==========================
-// DELETE BLOG
-// ==========================
-
+/* =========================================================
+   DELETE BLOG
+========================================================= */
 
 export async function DELETE(
+  request: NextRequest,
+  context: RouteContext
+) {
+  try {
+    const params = await context.params;
 
-  req:Request,
+    const identifier =
+      decodeURIComponent(
+        params.slug || ""
+      ).trim();
 
-  { params }: { params:Promise<{slug:string}> }
-
-){
-
-
-  try{
-
-
-    const { slug } = await params;
-
-
-
-
-
-    const { error } = await supabase
-
-
-      .from("blogs")
-
-
-      .delete()
-
-
-      .eq("slug",slug);
-
-
-
-
-
-
-    if(error){
-
-      throw error;
-
+    if (!identifier) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Blog ID or slug is required.",
+        },
+        {
+          status: 400,
+        }
+      );
     }
 
+    /* =====================================================
+       FIND BLOG
+    ===================================================== */
 
-
-
-
-
-    return Response.json({
-
-      success:true,
-
-      message:"Blog deleted successfully",
-
-    });
-
-
-
-
-
-  }
-
-  catch(error:any){
-
-
-    return Response.json(
-
-      {
-
-        success:false,
-
-        message:error.message,
-
-      },
-
-      {
-
-        status:500,
-
-      }
-
+    const {
+      blog,
+      error: findError,
+    } = await findBlog(
+      identifier
     );
 
+    if (findError) {
+      console.error(
+        "DELETE FIND ERROR:",
+        findError
+      );
 
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Failed to find blog.",
+          error:
+            findError.message,
+        },
+        {
+          status: 500,
+        }
+      );
+    }
+
+    if (!blog) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Blog not found.",
+        },
+        {
+          status: 404,
+        }
+      );
+    }
+
+    /* =====================================================
+       DELETE
+    ===================================================== */
+
+    const {
+      error: deleteError,
+    } = await supabaseAdmin
+      .from("blogs")
+      .delete()
+      .eq(
+        "id",
+        blog.id
+      );
+
+    if (deleteError) {
+      console.error(
+        "DELETE BLOG ERROR:",
+        deleteError
+      );
+
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            deleteError.message ||
+            "Failed to delete blog.",
+          details:
+            deleteError.details,
+          hint:
+            deleteError.hint,
+          code:
+            deleteError.code,
+        },
+        {
+          status: 500
+        }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message:
+        "Blog deleted successfully.",
+      deletedBlog: {
+        id: blog.id,
+        title: blog.title,
+        slug: blog.slug,
+      },
+    });
+  } catch (error: any) {
+    console.error(
+      "DELETE BLOG SERVER ERROR:",
+      error
+    );
+
+    return NextResponse.json(
+      {
+        success: false,
+        message:
+          error?.message ||
+          "Failed to delete blog.",
+      },
+      {
+        status: 500,
+      }
+    );
   }
-
-
 }

@@ -1,162 +1,125 @@
-
 import { MetadataRoute } from "next";
 import { supabase } from "@/lib/supabase";
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = "https://anatago.com";
+const BASE_URL = "https://anatago.com";
 
-  // ==========================================
-  // STATIC PAGES
-  // ==========================================
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  /* =========================================================
+     STATIC PAGES
+  ========================================================= */
 
   const staticPages: MetadataRoute.Sitemap = [
     {
-      url: baseUrl,
+      url: BASE_URL,
       lastModified: new Date(),
     },
     {
-      url: `${baseUrl}/about`,
+      url: `${BASE_URL}/blog`,
       lastModified: new Date(),
     },
     {
-      url: `${baseUrl}/blog`,
+      url: `${BASE_URL}/categories`,
       lastModified: new Date(),
     },
     {
-      url: `${baseUrl}/categories`,
+      url: `${BASE_URL}/about`,
       lastModified: new Date(),
     },
     {
-      url: `${baseUrl}/contact`,
+      url: `${BASE_URL}/contact`,
       lastModified: new Date(),
     },
     {
-      url: `${baseUrl}/privacy`,
+      url: `${BASE_URL}/privacy`,
       lastModified: new Date(),
     },
     {
-      url: `${baseUrl}/terms`,
+      url: `${BASE_URL}/terms`,
       lastModified: new Date(),
     },
     {
-      url: `${baseUrl}/disclaimer`,
-      lastModified: new Date(),
-    },
-    {
-      url: `${baseUrl}/affiliate-disclosure`,
-      lastModified: new Date(),
-    },
-    {
-      url: `${baseUrl}/categories/deals`,
-      lastModified: new Date(),
-    },
-    {
-      url: `${baseUrl}/categories/todays-deals`,
-      lastModified: new Date(),
-    },
-    {
-      url: `${baseUrl}/categories/under-150`,
-      lastModified: new Date(),
-    },
-    {
-      url: `${baseUrl}/categories/crush`,
-      lastModified: new Date(),
-    },
-    {
-      url: `${baseUrl}/categories/mom`,
-      lastModified: new Date(),
-    },
-    {
-      url: `${baseUrl}/categories/dad`,
-      lastModified: new Date(),
-    },
-    {
-      url: `${baseUrl}/categories/devotional`,
-      lastModified: new Date(),
-    },
-    {
-      url: `${baseUrl}/categories/electronics`,
-      lastModified: new Date(),
-    },
-    {
-      url: `${baseUrl}/categories/fashion`,
-      lastModified: new Date(),
-    },
-    {
-      url: `${baseUrl}/categories/men-women-wear`,
-      lastModified: new Date(),
-    },
-    {
-      url: `${baseUrl}/categories/hot-picks`,
+      url: `${BASE_URL}/disclaimer`,
       lastModified: new Date(),
     },
   ];
 
-  // ==========================================
-  // PRODUCTS FROM SUPABASE
-  // ==========================================
+  /* =========================================================
+     BLOG CATEGORY PAGES
+     
+     Keep these only if these routes actually exist
+     on your website.
+  ========================================================= */
 
-  let productUrls: MetadataRoute.Sitemap = [];
+  const categoryPages = [
+    "ai",
+    "tech",
+    "how-to",
+    "apps",
+    "security",
+    "explained",
+  ];
 
-  try {
-    const { data: products, error } = await supabase
-      .from("products")
-      .select("id, updated_at, created_at")
-      .order("created_at", { ascending: false });
+  const categoryUrls: MetadataRoute.Sitemap =
+    categoryPages.map((category) => ({
+      url: `${BASE_URL}/${category}`,
+      lastModified: new Date(),
+    }));
 
-    if (error) {
-      console.error("Products sitemap error:", error);
-    } else {
-      productUrls = (products || []).map((product) => ({
-        url: `${baseUrl}/products/${product.id}`,
-        lastModified: product.updated_at
-          ? new Date(product.updated_at)
-          : product.created_at
-            ? new Date(product.created_at)
-            : new Date(),
-      }));
-    }
-  } catch (error) {
-    console.error("Products sitemap error:", error);
-  }
-
-  // ==========================================
-  // BLOGS FROM SUPABASE
-  // ==========================================
+  /* =========================================================
+     PUBLISHED BLOG ARTICLES
+  ========================================================= */
 
   let blogUrls: MetadataRoute.Sitemap = [];
 
   try {
     const { data: blogs, error } = await supabase
       .from("blogs")
-      .select("slug, published, updated_at, created_at")
+      .select(
+        "slug, published, updated_at, created_at, published_at"
+      )
       .eq("published", true)
-      .order("created_at", { ascending: false });
+      .order("published_at", {
+        ascending: false,
+      });
 
     if (error) {
-      console.error("Blogs sitemap error:", error);
+      console.error(
+        "Sitemap blogs error:",
+        error
+      );
     } else {
-      blogUrls = (blogs || []).map((blog) => ({
-        url: `${baseUrl}/blog/${blog.slug}`,
-        lastModified: blog.updated_at
-          ? new Date(blog.updated_at)
-          : blog.created_at
-            ? new Date(blog.created_at)
-            : new Date(),
-      }));
+      blogUrls = (blogs || [])
+        .filter(
+          (blog) =>
+            typeof blog.slug === "string" &&
+            blog.slug.trim() !== ""
+        )
+        .map((blog) => ({
+          url: `${BASE_URL}/blog/${blog.slug}`,
+
+          lastModified: blog.updated_at
+            ? new Date(blog.updated_at)
+            : blog.published_at
+              ? new Date(blog.published_at)
+              : blog.created_at
+                ? new Date(blog.created_at)
+                : new Date(),
+        }));
     }
   } catch (error) {
-    console.error("Blogs sitemap error:", error);
+    console.error(
+      "Sitemap blogs exception:",
+      error
+    );
   }
 
-  // ==========================================
-  // FINAL SITEMAP
-  // ==========================================
+  /* =========================================================
+     FINAL SITEMAP
+  ========================================================= */
 
   return [
     ...staticPages,
-    ...productUrls,
+    ...categoryUrls,
     ...blogUrls,
   ];
 }
-

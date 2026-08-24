@@ -1,364 +1,124 @@
-
-import { getBaseUrl } from "@/lib/getBaseUrl";
 import { notFound } from "next/navigation";
-import RelatedBlogs from "@/components/RelatedBlogs";
-import BlogViewTracker from "@/components/BlogViewTracker";
+import Image from "next/image";
+import Link from "next/link";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 import { supabase } from "@/lib/supabase";
 
-// =====================================================
-// GET BLOG
-// =====================================================
+type Blog = {
+  id: number;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  content: string | null;
+  cover_image: string | null;
+  cover_image_alt: string | null;
+  category: string | null;
+  author: string | null;
+  tags: string[] | null;
+  published: boolean;
+  featured: boolean;
+  reading_time: number | null;
+  created_at: string;
+  updated_at: string;
+  seo_title: string | null;
+  seo_description: string | null;
+};
 
-async function getBlog(slug: string) {
-  const res = await fetch(
-    `${getBaseUrl()}/api/blogs/${slug}`,
-    {
-      cache: "no-store",
-    }
-  );
+type PageProps = {
+  params: Promise<{
+    slug: string;
+  }>;
+};
 
-  if (!res.ok) {
-    return null;
-  }
-
-  const data = await res.json();
-
-  return data.blog || null;
-}
-
-// =====================================================
-// GET RELATED PRODUCTS
-// =====================================================
-
-async function getRelatedProducts(ids: string[]) {
-  if (!ids || ids.length === 0) {
-    return [];
-  }
+async function getBlog(slug: string): Promise<Blog | null> {
+  const decodedSlug = decodeURIComponent(slug);
 
   const { data, error } = await supabase
-    .from("products")
+    .from("blogs")
     .select("*")
-    .in("id", ids);
+    .eq("slug", decodedSlug)
+    .eq("published", true)
+    .maybeSingle();
 
   if (error) {
-    console.log(
-      "RELATED PRODUCTS ERROR:",
-      error
-    );
-
-    return [];
-  }
-
-  return data || [];
-}
-
-// =====================================================
-// GET ADDITIONAL IMAGES
-// =====================================================
-
-function getAdditionalImages(
-  blog: any
-): string[] {
-  if (!blog.additional_images) {
-    return [];
-  }
-
-  // Database array
-  if (Array.isArray(blog.additional_images)) {
-    return blog.additional_images.filter(
-      (image: any) =>
-        typeof image === "string" &&
-        image.trim() !== ""
-    );
-  }
-
-  // JSON string or comma-separated URLs
-  if (
-    typeof blog.additional_images ===
-    "string"
-  ) {
-    try {
-      const parsed =
-        JSON.parse(
-          blog.additional_images
-        );
-
-      if (Array.isArray(parsed)) {
-        return parsed.filter(
-          (image: any) =>
-            typeof image === "string" &&
-            image.trim() !== ""
-        );
-      }
-    } catch {
-      // Not JSON, continue
-    }
-
-    return blog.additional_images
-      .split(",")
-      .map(
-        (image: string) =>
-          image.trim()
-      )
-      .filter(Boolean);
-  }
-
-  return [];
-}
-
-// =====================================================
-// CONTENT BLOCK TYPES
-// =====================================================
-
-type TextBlock = {
-  type: "text";
-  content: string;
-  headingType?:
-    | "paragraph"
-    | "h1"
-    | "h2"
-    | "h3";
-};
-
-type ImageBlock = {
-  type: "image";
-  url: string;
-  alt?: string;
-};
-
-type ContentBlock =
-  | TextBlock
-  | ImageBlock;
-
-// =====================================================
-// GET CONTENT BLOCKS
-// =====================================================
-
-function getContentBlocks(
-  blog: any
-): ContentBlock[] {
-  if (!Array.isArray(blog.content_blocks)) {
-    return [];
-  }
-
-  return blog.content_blocks.filter(
-    (block: any) => {
-      if (!block) {
-        return false;
-      }
-
-      if (block.type === "text") {
-        return (
-          typeof block.content === "string" &&
-          block.content.trim() !== ""
-        );
-      }
-
-      if (block.type === "image") {
-        return (
-          typeof block.url === "string" &&
-          block.url.trim() !== ""
-        );
-      }
-
-      return false;
-    }
-  );
-}
-
-// =====================================================
-// RENDER CONTENT BLOCK
-// =====================================================
-
-function renderContentBlock(
-  block: ContentBlock,
-  index: number
-) {
-  // ===================================================
-  // IMAGE
-  // ===================================================
-
-  if (block.type === "image") {
-    return (
-      <figure
-        key={`image-${index}`}
-        className="my-8"
-      >
-        <img
-          src={block.url}
-          alt={
-            block.alt ||
-            "AnantaGo article image"
-          }
-          loading="lazy"
-          className="
-            w-full
-            max-w-3xl
-            mx-auto
-            rounded-2xl
-            object-cover
-            shadow-sm
-          "
-        />
-      </figure>
-    );
-  }
-
-  // ===================================================
-  // TEXT
-  // ===================================================
-
-  const content =
-    block.content?.trim();
-
-  if (!content) {
+    console.error("BLOG FETCH ERROR:", error);
     return null;
   }
 
-  const headingType =
-    block.headingType ||
-    "paragraph";
-
-  // ===================================================
-  // H1
-  // ===================================================
-
-  if (headingType === "h1") {
-    return (
-      <h1
-        key={`h1-${index}`}
-        className="
-          text-3xl
-          sm:text-4xl
-          font-bold
-          leading-tight
-          mt-10
-          mb-5
-          text-gray-900
-        "
-      >
-        {content}
-      </h1>
-    );
-  }
-
-  // ===================================================
-  // H2
-  // ===================================================
-
-  if (headingType === "h2") {
-    return (
-      <h2
-        key={`h2-${index}`}
-        className="
-          text-2xl
-          sm:text-3xl
-          font-bold
-          leading-tight
-          mt-10
-          mb-4
-          text-gray-900
-        "
-      >
-        {content}
-      </h2>
-    );
-  }
-
-  // ===================================================
-  // H3
-  // ===================================================
-
-  if (headingType === "h3") {
-    return (
-      <h3
-        key={`h3-${index}`}
-        className="
-          text-xl
-          sm:text-2xl
-          font-bold
-          leading-tight
-          mt-8
-          mb-3
-          text-gray-900
-        "
-      >
-        {content}
-      </h3>
-    );
-  }
-
-  // ===================================================
-  // NORMAL PARAGRAPH
-  // ===================================================
-
-  return (
-    <p
-      key={`paragraph-${index}`}
-      className="
-        whitespace-pre-line
-        text-base
-        sm:text-lg
-        leading-8
-        text-gray-800
-        mb-6
-      "
-    >
-      {content}
-    </p>
-  );
+  return data as Blog | null;
 }
 
-// =====================================================
-// METADATA
-// =====================================================
+function formatDate(date: string) {
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(date));
+}
 
 export async function generateMetadata({
   params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
+}: PageProps) {
   const { slug } = await params;
-
   const blog = await getBlog(slug);
 
   if (!blog) {
     return {
-      title: "Blog Not Found | AnantaGo",
+      title: "Article Not Found | AnantaGo",
     };
   }
 
-  const description =
-    blog.excerpt ||
-    blog.content?.slice(0, 150) ||
-    "";
-
   return {
-    title: `${blog.title} | AnantaGo`,
+    title:
+      blog.seo_title ||
+      `${blog.title} | AnantaGo`,
 
-    description,
+    description:
+      blog.seo_description ||
+      blog.excerpt ||
+      "Useful technology stories, AI updates and practical guides from AnantaGo.",
 
     openGraph: {
-      title: blog.title,
+      title:
+        blog.seo_title ||
+        blog.title,
 
-      description,
+      description:
+        blog.seo_description ||
+        blog.excerpt ||
+        "",
 
-      images: blog.cover_image
-        ? [blog.cover_image]
-        : [],
+      type: "article",
+
+      publishedTime: blog.created_at,
+
+      modifiedTime: blog.updated_at,
+
+      authors: [
+        blog.author ||
+          "AnantaGo Editorial",
+      ],
+
+      ...(blog.cover_image
+        ? {
+            images: [
+              {
+                url: blog.cover_image,
+                alt:
+                  blog.cover_image_alt ||
+                  blog.title,
+              },
+            ],
+          }
+        : {}),
     },
   };
 }
 
-// =====================================================
-// BLOG ARTICLE PAGE
-// =====================================================
-
 export default async function BlogArticlePage({
   params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
+}: PageProps) {
   const { slug } = await params;
 
   const blog = await getBlog(slug);
@@ -367,365 +127,438 @@ export default async function BlogArticlePage({
     notFound();
   }
 
-  // ===================================================
-  // RELATED PRODUCTS
-  // ===================================================
-
-  const relatedProducts =
-    await getRelatedProducts(
-      blog.related_products || []
-    );
-
-  // ===================================================
-  // OLD ADDITIONAL IMAGES
-  // ===================================================
-
-  const additionalImages =
-    getAdditionalImages(blog);
-
-  // ===================================================
-  // NEW CONTENT BLOCKS
-  // ===================================================
-
-  const contentBlocks =
-    getContentBlocks(blog);
-
-  const hasContentBlocks =
-    contentBlocks.length > 0;
-
   return (
-    <article
-      className="
-        max-w-4xl
-        mx-auto
-        px-4
-        py-8
-        sm:px-6
-      "
-    >
-      {/* =================================================
-          BLOG VIEW TRACKER
-      ================================================= */}
+    <>
+      <Header />
 
-      <BlogViewTracker
-        slug={blog.slug}
-      />
+      <main className="bg-white">
 
-      {/* =================================================
-          BLOG HEADER
-      ================================================= */}
+        {/* =========================
+            ARTICLE HEADER
+        ========================== */}
 
-      <div className="mb-6">
-        {blog.category && (
-          <div
-            className="
-              text-sm
-              font-semibold
-              text-orange-500
-              mb-3
-            "
-          >
-            {blog.category}
+        <header className="border-b border-zinc-200">
+          <div className="mx-auto max-w-5xl px-5 pb-10 pt-12 sm:px-6 sm:pb-14 sm:pt-16 lg:px-8 lg:pt-20">
+
+            {blog.category && (
+              <Link
+                href={`/${blog.category
+                  .toLowerCase()
+                  .replace(/\s+/g, "-")}`}
+                className="inline-flex rounded-full bg-zinc-950 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-zinc-800"
+              >
+                {blog.category}
+              </Link>
+            )}
+
+            <h1 className="mt-6 max-w-4xl text-4xl font-black leading-[1.05] tracking-[-0.04em] text-zinc-950 sm:text-5xl lg:text-6xl">
+              {blog.title}
+            </h1>
+
+            {blog.excerpt && (
+              <p className="mt-6 max-w-3xl text-lg leading-8 text-zinc-600 sm:text-xl sm:leading-9">
+                {blog.excerpt}
+              </p>
+            )}
+
+            <div className="mt-7 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-zinc-500">
+              <span className="font-semibold text-zinc-900">
+                {blog.author ||
+                  "AnantaGo Editorial"}
+              </span>
+
+              <span className="text-zinc-300">
+                •
+              </span>
+
+              <time dateTime={blog.created_at}>
+                {formatDate(blog.created_at)}
+              </time>
+
+              {blog.reading_time && (
+                <>
+                  <span className="text-zinc-300">
+                    •
+                  </span>
+
+                  <span>
+                    {blog.reading_time} min read
+                  </span>
+                </>
+              )}
+            </div>
           </div>
+        </header>
+
+        {/* =========================
+            COVER IMAGE
+        ========================== */}
+
+        {blog.cover_image && (
+          <section className="mx-auto max-w-6xl px-5 pt-8 sm:px-6 sm:pt-10 lg:px-8">
+
+            <div className="overflow-hidden rounded-2xl bg-zinc-100 sm:rounded-3xl">
+
+              <img
+                src={blog.cover_image}
+                alt={
+                  blog.cover_image_alt ||
+                  blog.title
+                }
+                className="block h-auto max-h-[650px] w-full object-cover"
+              />
+
+            </div>
+
+          </section>
         )}
 
-        {/* MAIN BLOG H1 */}
+        {/* =========================
+            ARTICLE CONTENT
+        ========================== */}
 
-        <h1
-          className="
-            text-3xl
-            sm:text-4xl
-            lg:text-5xl
-            font-bold
-            leading-tight
-            mb-4
-          "
-        >
-          {blog.title}
-        </h1>
-
-        <div
-          className="
-            text-sm
-            text-gray-500
-          "
-        >
-          {blog.author || "AnantaGo"}
-
-          {" • "}
-
-          {blog.created_at
-            ? new Date(
-                blog.created_at
-              )
-                .toISOString()
-                .slice(0, 10)
-            : ""}
-        </div>
-      </div>
-
-      {/* =================================================
-          COVER IMAGE
-      ================================================= */}
-
-      {blog.cover_image && (
-        <img
-          src={blog.cover_image}
-          alt={blog.title}
-          className="
-            w-full
-            max-h-[420px]
-            object-cover
-            rounded-2xl
-            mb-8
-          "
-        />
-      )}
-
-      {/* =================================================
-          ARTICLE CONTENT
-      ================================================= */}
-
-      <div>
-        {hasContentBlocks ? (
-          <>
-            {contentBlocks.map(
-              (
-                block,
-                index
-              ) =>
-                renderContentBlock(
-                  block,
-                  index
-                )
-            )}
-          </>
-        ) : (
-          <>
-            {/* =================================================
-                OLD BLOG FALLBACK
-            ================================================= */}
-
-            {additionalImages.length >
-              0 && (
-              <div
-                className="
-                  space-y-8
-                  mb-10
-                "
-              >
-                {additionalImages.map(
-                  (
-                    image: string,
-                    index: number
-                  ) => (
-                    <figure
-                      key={index}
-                      className="my-8"
-                    >
-                      <img
-                        src={image}
-                        alt={`${blog.title} - Image ${
-                          index + 1
-                        }`}
-                        loading="lazy"
-                        className="
-                          w-full
-                          max-w-3xl
-                          mx-auto
-                          rounded-2xl
-                          object-cover
-                          shadow-sm
-                        "
-                      />
-                    </figure>
-                  )
-                )}
-              </div>
-            )}
-
-            {blog.content && (
-              <div
-                className="
-                  whitespace-pre-line
-                  text-base
-                  sm:text-lg
-                  leading-8
-                  text-gray-800
-                "
-              >
-                {blog.content}
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* =================================================
-          RECOMMENDED PRODUCTS
-      ================================================= */}
-
-      {relatedProducts.length >
-        0 && (
-        <section
-          className="
-            mt-12
-            border-t
-            pt-8
-          "
-        >
-          <h2
-            className="
-              text-2xl
-              font-bold
-              mb-5
-            "
-          >
-            🛒 Recommended Products
-          </h2>
+        <article className="mx-auto max-w-3xl px-5 py-12 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
 
           <div
-            className="
-              grid
-              grid-cols-2
-              md:grid-cols-3
-              gap-4
-              md:gap-5
-            "
-          >
-            {relatedProducts.map(
-              (product: any) => (
-                <div
-                  key={product.id}
-                  className="
-                    border
-                    rounded-xl
-                    p-3
-                    sm:p-4
-                    bg-white
-                    shadow-sm
-                  "
-                >
-                  {product.image && (
-                    <img
-                      src={product.image}
-                      alt={
-                        product.name
-                      }
-                      loading="lazy"
-                      className="
-                        w-full
-                        h-32
-                        sm:h-40
-                        object-contain
-                        rounded-lg
-                      "
-                    />
-                  )}
+            className="article-content"
+            dangerouslySetInnerHTML={{
+              __html: blog.content || "",
+            }}
+          />
 
-                  <h3
-                    className="
-                      font-semibold
-                      text-sm
-                      sm:text-base
-                      mt-3
-                      line-clamp-2
-                    "
-                  >
-                    {product.name}
-                  </h3>
+          {/* =========================
+              TAGS
+          ========================== */}
 
-                  <div className="mt-2">
+          {blog.tags &&
+            blog.tags.length > 0 && (
+              <div className="mt-16 border-t border-zinc-200 pt-8">
+
+                <p className="mb-4 text-xs font-bold uppercase tracking-[0.16em] text-zinc-500">
+                  Topics
+                </p>
+
+                <div className="flex flex-wrap gap-2">
+                  {blog.tags.map((tag) => (
                     <span
-                      className="
-                        font-bold
-                        text-lg
-                      "
+                      key={tag}
+                      className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-700"
                     >
-                      ₹
-                      {product.price}
+                      {tag}
                     </span>
-                  </div>
-
-                  {product.affiliate_link && (
-                    <a
-                      href={
-                        product.affiliate_link
-                      }
-                      target="_blank"
-                      rel="
-                        nofollow
-                        sponsored
-                        noopener
-                        noreferrer
-                      "
-                      className="
-                        block
-                        text-center
-                        mt-4
-                        bg-orange-500
-                        hover:bg-orange-600
-                        text-white
-                        py-2
-                        rounded-lg
-                        font-semibold
-                        text-sm
-                      "
-                    >
-                      View Deal
-                    </a>
-                  )}
+                  ))}
                 </div>
-              )
+
+              </div>
             )}
+
+        </article>
+
+        {/* =========================
+            BOTTOM CTA
+        ========================== */}
+
+        <section className="border-t border-zinc-200 bg-zinc-950 text-white">
+
+          <div className="mx-auto max-w-5xl px-5 py-16 sm:px-6 lg:px-8">
+
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-400">
+              AnantaGo
+            </p>
+
+            <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">
+              Technology, made easier.
+            </h2>
+
+            <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-400">
+              Useful AI and technology stories,
+              practical guides and clear explanations
+              for the digital world.
+            </p>
+
+            <Link
+              href="/"
+              className="mt-7 inline-flex items-center rounded-xl bg-white px-5 py-3 text-sm font-bold text-zinc-950 hover:bg-zinc-200"
+            >
+              Explore AnantaGo
+              <span className="ml-2">
+                →
+              </span>
+            </Link>
+
           </div>
+
         </section>
-      )}
 
-      {/* =================================================
-          RELATED BLOGS
-      ================================================= */}
+      </main>
 
-      <section
-        className="
-          mt-12
-          border-t
-          pt-8
-        "
-      >
-        <RelatedBlogs
-          category={blog.category}
-          slug={blog.slug}
-        />
-      </section>
+      <Footer />
 
-      {/* =================================================
-          MORE ARTICLES
-      ================================================= */}
+      {/* =========================
+          ARTICLE STYLES
+      ========================== */}
 
-      <div
-        className="
-          mt-10
-          text-center
-        "
-      >
-        <a
-          href="/blog"
-          className="
-            inline-block
-            bg-black
-            text-white
-            px-6
-            py-3
-            rounded-xl
-            font-semibold
-            hover:bg-gray-800
-          "
-        >
-          ← More Articles
-        </a>
-      </div>
-    </article>
+      <style>{`
+
+        .article-content {
+          color: #27272a;
+          font-size: 1.08rem;
+          line-height: 1.9;
+          overflow-wrap: break-word;
+        }
+
+        /* H2 */
+
+        .article-content h2 {
+          margin-top: 4rem;
+          margin-bottom: 1.25rem;
+          color: #09090b;
+          font-size: 2rem;
+          line-height: 1.2;
+          font-weight: 850;
+          letter-spacing: -0.035em;
+        }
+
+        .article-content > h2:first-child {
+          margin-top: 0;
+        }
+
+        /* H3 */
+
+        .article-content h3 {
+          margin-top: 2.75rem;
+          margin-bottom: 1rem;
+          color: #09090b;
+          font-size: 1.45rem;
+          line-height: 1.3;
+          font-weight: 800;
+          letter-spacing: -0.025em;
+        }
+
+        /* Paragraph */
+
+        .article-content p {
+          margin: 1.25rem 0;
+        }
+
+        /* Bold */
+
+        .article-content strong {
+          color: #09090b;
+          font-weight: 750;
+        }
+
+        /* Italic */
+
+        .article-content em {
+          font-style: italic;
+        }
+
+        /* Links */
+
+        .article-content a {
+          color: #18181b;
+          font-weight: 650;
+          text-decoration: underline;
+          text-decoration-thickness: 1px;
+          text-underline-offset: 4px;
+        }
+
+        .article-content a:hover {
+          color: #52525b;
+        }
+
+        /* Lists */
+
+        .article-content ul {
+          margin: 1.5rem 0;
+          padding-left: 1.6rem;
+          list-style: disc;
+        }
+
+        .article-content ol {
+          margin: 1.5rem 0;
+          padding-left: 1.6rem;
+          list-style: decimal;
+        }
+
+        .article-content li {
+          margin: 0.55rem 0;
+          padding-left: 0.3rem;
+        }
+
+        /* Quote */
+
+        .article-content blockquote {
+          margin: 2.5rem 0;
+          border-left: 4px solid #18181b;
+          border-radius: 0 1rem 1rem 0;
+          background: #f4f4f5;
+          padding: 1.25rem 1.5rem;
+          color: #52525b;
+          font-style: italic;
+        }
+
+        /* Code */
+
+        .article-content pre {
+          margin: 2rem 0;
+          overflow-x: auto;
+          border-radius: 1rem;
+          background: #18181b;
+          padding: 1.25rem;
+          color: #f4f4f5;
+          font-family:
+            ui-monospace,
+            SFMono-Regular,
+            Menlo,
+            Monaco,
+            Consolas,
+            monospace;
+          font-size: 0.9rem;
+          line-height: 1.7;
+        }
+
+        .article-content code {
+          border-radius: 0.35rem;
+          background: #f4f4f5;
+          padding: 0.15rem 0.35rem;
+          font-family:
+            ui-monospace,
+            SFMono-Regular,
+            Menlo,
+            Monaco,
+            Consolas,
+            monospace;
+          font-size: 0.9em;
+        }
+
+        .article-content pre code {
+          background: transparent;
+          padding: 0;
+        }
+
+        /* ALL ARTICLE IMAGES */
+
+        .article-content figure {
+          width: 100%;
+          margin: 3rem 0;
+        }
+
+        .article-content img {
+          display: block;
+          width: 100% !important;
+          max-width: 100% !important;
+          height: auto !important;
+          max-height: 700px;
+          object-fit: contain;
+          border-radius: 1rem;
+          margin: 0 auto;
+        }
+
+        .article-content figcaption {
+          margin-top: 0.75rem;
+          text-align: center;
+          color: #71717a;
+          font-size: 0.8rem;
+          line-height: 1.5;
+        }
+
+        /* Tables */
+
+        .article-content table {
+          width: 100%;
+          margin: 2.5rem 0;
+          border-collapse: collapse;
+          border: 1px solid #e4e4e7;
+          font-size: 0.95rem;
+        }
+
+        .article-content th,
+        .article-content td {
+          border: 1px solid #e4e4e7;
+          padding: 0.8rem 0.9rem;
+          text-align: left;
+          vertical-align: top;
+        }
+
+        .article-content th {
+          background: #f4f4f5;
+          color: #18181b;
+          font-weight: 700;
+        }
+
+        .article-content tr:nth-child(even) td {
+          background: #fafafa;
+        }
+
+        /* Horizontal rule */
+
+        .article-content hr {
+          margin: 3rem 0;
+          border: 0;
+          border-top: 1px solid #e4e4e7;
+        }
+
+        /* Buttons */
+
+        .article-content button {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          max-width: 100%;
+          padding: 0.7rem 1rem;
+          border-radius: 0.75rem;
+          background: #18181b;
+          color: white;
+          font-weight: 700;
+          text-decoration: none;
+        }
+
+        /* Prevent broken wide content */
+
+        .article-content iframe,
+        .article-content video {
+          display: block;
+          width: 100%;
+          max-width: 100%;
+          margin: 2rem 0;
+          border-radius: 1rem;
+        }
+
+        /* Mobile */
+
+        @media (max-width: 640px) {
+
+          .article-content {
+            font-size: 1rem;
+            line-height: 1.8;
+          }
+
+          .article-content h2 {
+            margin-top: 3rem;
+            font-size: 1.55rem;
+          }
+
+          .article-content h3 {
+            margin-top: 2rem;
+            font-size: 1.25rem;
+          }
+
+          .article-content img {
+            max-height: 500px;
+            border-radius: 0.75rem;
+          }
+
+          .article-content table {
+            display: block;
+            overflow-x: auto;
+            white-space: nowrap;
+          }
+
+        }
+
+      `}</style>
+    </>
   );
 }
-

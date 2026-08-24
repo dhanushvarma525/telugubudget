@@ -1,232 +1,95 @@
 import Link from "next/link";
 
+const footerLinks = [
+  { name: "About", href: "/about" },
+  { name: "Contact", href: "/contact" },
+  { name: "Privacy Policy", href: "/privacy-policy" },
+  { name: "Terms", href: "/terms" },
+];
+
+const categories = [
+  { name: "AI", href: "/ai" },
+  { name: "Tech", href: "/tech" },
+  { name: "How-To", href: "/how-to" },
+  { name: "Apps", href: "/apps" },
+  { name: "Security", href: "/security" },
+  { name: "Explained", href: "/explained" },
+];
+
 export default function Footer() {
-
-  const year = new Date().getFullYear();
-
-
   return (
+    <footer className="border-t border-gray-200 bg-white">
+      <div className="mx-auto max-w-7xl px-5 py-14 lg:px-8">
+        {/* Main Footer */}
+        <div className="grid gap-12 md:grid-cols-3">
+          {/* Brand */}
+          <div>
+            <Link href="/" className="inline-block">
+              <div className="text-2xl font-black tracking-tight text-black">
+                AnantaGo
+              </div>
 
-    <footer className="bg-slate-950 text-gray-300 mt-14 border-t border-slate-800">
+              <div className="mt-1 text-[9px] font-semibold tracking-[0.25em] text-gray-500">
+                AI • TECH • DIGITAL LIFE
+              </div>
+            </Link>
 
-      <div className="max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
-
-
-        {/* BRAND */}
-
-        <div>
-
-          <Link
-            href="/"
-            className="text-3xl font-black tracking-tight"
-          >
-            <span className="text-blue-500">Ananta</span>
-            <span className="text-orange-500">Go</span>
-          </Link>
-
-
-          <p className="mt-5 leading-7 text-gray-400 text-sm">
-            Discover the best Amazon & Flipkart deals,
-            trending products, honest reviews and
-            smart shopping recommendations—all in one place.
-          </p>
-
-
-          <div className="mt-6">
-
-            <span className="inline-block bg-blue-600 text-white text-xs px-3 py-1 rounded-full">
-              Infinite Deals
-            </span>
-
-
-            <span className="inline-block ml-2 bg-orange-500 text-white text-xs px-3 py-1 rounded-full">
-              Smarter Shopping
-            </span>
-
+            <p className="mt-5 max-w-sm text-sm leading-7 text-gray-600">
+              Clear, useful stories about AI, technology, apps, security and
+              the digital world — explained simply.
+            </p>
           </div>
 
-        </div>
+          {/* Explore */}
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-[0.15em] text-black">
+              Explore
+            </h3>
 
-
-
-
-
-        {/* QUICK LINKS */}
-
-        <div>
-
-          <h3 className="text-white font-bold text-lg mb-5">
-            Quick Links
-          </h3>
-
-
-          <div className="flex flex-col gap-3">
-
-
-            <Link href="/" className="hover:text-blue-400 transition">
-              🏠 Home
-            </Link>
-
-
-            <Link href="/categories" className="hover:text-blue-400 transition">
-              📂 Categories
-            </Link>
-
-
-            <Link href="/categories/todays-deals" className="hover:text-blue-400 transition">
-              🔥 Today's Deals
-            </Link>
-
-
-            <Link href="/blog" className="hover:text-blue-400 transition">
-              📝 Blogs
-            </Link>
-
-
-            <Link href="/contact" className="hover:text-blue-400 transition">
-              📞 Contact
-            </Link>
-
-
+            <div className="mt-5 grid grid-cols-2 gap-x-8 gap-y-4">
+              {categories.map((category) => (
+                <Link
+                  key={category.href}
+                  href={category.href}
+                  className="text-sm text-gray-600 transition-colors duration-200 hover:text-black"
+                >
+                  {category.name}
+                </Link>
+              ))}
+            </div>
           </div>
 
-        </div>
+          {/* Company */}
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-[0.15em] text-black">
+              AnantaGo
+            </h3>
 
-
-
-
-
-
-        {/* LEGAL */}
-
-        <div>
-
-          <h3 className="text-white font-bold text-lg mb-5">
-            Legal
-          </h3>
-
-
-          <div className="flex flex-col gap-3">
-
-
-            <Link href="/about" className="hover:text-blue-400 transition">
-              👤 About Us
-            </Link>
-
-
-            <Link href="/privacy" className="hover:text-blue-400 transition">
-              🔒 Privacy Policy
-            </Link>
-
-
-            <Link href="/terms" className="hover:text-blue-400 transition">
-              📄 Terms & Conditions
-            </Link>
-
-
-            <Link href="/disclaimer" className="hover:text-blue-400 transition">
-              ⚠️ Disclaimer
-            </Link>
-
-
-            <Link href="/affiliate-disclosure" className="hover:text-blue-400 transition">
-              💰 Affiliate Disclosure
-            </Link>
-
-
+            <div className="mt-5 flex flex-col gap-4">
+              {footerLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="text-sm text-gray-600 transition-colors duration-200 hover:text-black"
+                >
+                  {link.name}
+                </Link>
+              ))}
+            </div>
           </div>
-
         </div>
 
+        {/* Bottom Bar */}
+        <div className="mt-14 border-t border-gray-200 pt-7">
+          <div className="flex flex-col gap-3 text-sm text-gray-500 sm:flex-row sm:items-center sm:justify-between">
+            <p>
+              © {new Date().getFullYear()} AnantaGo. All rights reserved.
+            </p>
 
-
-
-
-
-        {/* SUPPORT */}
-
-        <div>
-
-
-          <h3 className="text-white font-bold text-lg mb-5">
-            Need Help?
-          </h3>
-
-
-          <p className="text-sm text-gray-400 leading-7">
-            Have a question, suggestion, or found a better deal?
-            We'd love to hear from you.
-          </p>
-
-
-          <Link
-            href="/contact"
-            className="inline-flex items-center justify-center mt-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-full transition"
-          >
-            Contact Us
-          </Link>
-
-
-          <div className="mt-6 text-sm text-gray-400 space-y-2">
-
-            <p>✔ Trusted Product Recommendations</p>
-
-            <p>✔ Updated Deals Every Day</p>
-
-            <p>✔ Honest Reviews</p>
-
+            <p>AI • Technology • Digital Life</p>
           </div>
-
-
         </div>
-
-
       </div>
-
-
-
-
-
-      {/* BOTTOM */}
-
-      <div className="border-t border-slate-800">
-
-
-        <div className="max-w-7xl mx-auto px-6 py-6 flex flex-col md:flex-row items-center justify-between gap-4">
-
-
-          <p className="text-sm text-gray-400 text-center md:text-left">
-
-            © {year}{" "}
-
-            <span className="font-semibold text-white">
-              Ananta<span className="text-orange-500">Go</span>
-            </span>
-
-            . All Rights Reserved.
-
-          </p>
-
-
-
-
-          <p className="text-xs text-gray-500 text-center md:text-right max-w-2xl">
-
-            Some links on this website are affiliate links.
-            If you purchase through these links, we may earn
-            a small commission at no extra cost to you.
-
-          </p>
-
-
-        </div>
-
-
-      </div>
-
-
     </footer>
-
   );
-
 }
