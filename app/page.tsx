@@ -116,8 +116,7 @@ export default async function HomePage() {
     )
     .slice(0, 6);
 
-  const hasMoreArticles =
-    blogs.length > 7;
+  const hasMoreArticles = blogs.length > 7;
 
   return (
     <>
@@ -130,11 +129,13 @@ export default async function HomePage() {
         ====================================================== */}
 
         <section className="relative overflow-hidden bg-[#0b0b0d] text-white">
+
           <div className="pointer-events-none absolute -right-40 -top-40 h-[500px] w-[500px] rounded-full bg-white/[0.04] blur-3xl" />
 
           <div className="pointer-events-none absolute -bottom-40 -left-40 h-[400px] w-[400px] rounded-full bg-white/[0.025] blur-3xl" />
 
           <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
+
             <div className="grid min-h-[570px] items-center gap-12 py-16 sm:py-20 lg:grid-cols-[1.08fr_0.92fr] lg:gap-16 lg:py-24">
 
               {/* LEFT */}
@@ -142,6 +143,7 @@ export default async function HomePage() {
               <div className="max-w-3xl">
 
                 <div className="inline-flex items-center rounded-full border border-white/15 bg-white/[0.06] px-4 py-2">
+
                   <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-300 sm:text-xs">
                     AI
                   </span>
@@ -157,6 +159,7 @@ export default async function HomePage() {
                   <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-300 sm:text-xs">
                     DIGITAL LIFE
                   </span>
+
                 </div>
 
                 <h1 className="mt-7 text-5xl font-black leading-[0.96] tracking-[-0.055em] text-white sm:text-6xl lg:text-8xl">
@@ -173,34 +176,44 @@ export default async function HomePage() {
                   explanations of the digital world.
                 </p>
 
+                {/* HERO BUTTONS */}
+
                 <div className="mt-9 flex flex-col gap-3 sm:flex-row">
 
                   <Link
                     href="/ai"
-                    className="inline-flex h-12 items-center justify-center rounded-xl bg-white px-6 text-sm font-bold text-black shadow-lg transition hover:bg-zinc-200"
+                    className="inline-flex h-12 items-center justify-center rounded-xl bg-white px-6 text-sm font-bold !text-black shadow-lg transition hover:bg-zinc-200 hover:!text-black"
                   >
-                    Explore AI
-                    <span className="ml-2">
+                    <span className="!text-black">
+                      Explore AI
+                    </span>
+
+                    <span className="ml-2 !text-black">
                       →
                     </span>
                   </Link>
 
                   <Link
                     href="/tech"
-                    className="inline-flex h-12 items-center justify-center rounded-xl border border-white/25 bg-white/10 px-6 text-sm font-bold text-white backdrop-blur-sm transition hover:bg-white/20"
+                    className="inline-flex h-12 items-center justify-center rounded-xl border border-white/25 bg-white/10 px-6 text-sm font-bold !text-white backdrop-blur-sm transition hover:bg-white/20 hover:!text-white"
                   >
-                    Latest Tech
-                    <span className="ml-2">
+                    <span className="!text-white">
+                      Latest Tech
+                    </span>
+
+                    <span className="ml-2 !text-white">
                       →
                     </span>
                   </Link>
 
                 </div>
+
               </div>
 
               {/* RIGHT VISUAL */}
 
               <div className="hidden lg:block">
+
                 <div className="relative mx-auto aspect-square max-w-[430px]">
 
                   <div className="absolute inset-12 rounded-full bg-white/[0.045] blur-3xl" />
@@ -255,12 +268,17 @@ export default async function HomePage() {
                       </div>
 
                     </div>
+
                   </div>
+
                 </div>
+
               </div>
 
             </div>
+
           </div>
+
         </section>
 
         {/* =====================================================
@@ -286,7 +304,7 @@ export default async function HomePage() {
 
               <Link
                 href="/"
-                className="hidden text-sm font-bold text-zinc-500 transition hover:text-zinc-950 sm:block"
+                className="hidden text-sm font-bold !text-zinc-500 transition hover:!text-zinc-950 sm:block"
               >
                 AnantaGo
               </Link>
@@ -305,7 +323,7 @@ export default async function HomePage() {
                 <div className="flex flex-col justify-center p-7 sm:p-10 lg:p-12 xl:p-14">
 
                   {featuredArticle.category && (
-                    <span className="w-fit rounded-full bg-zinc-950 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-white">
+                    <span className="w-fit rounded-full bg-zinc-950 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] !text-white">
                       {featuredArticle.category}
                     </span>
                   )}
@@ -342,14 +360,20 @@ export default async function HomePage() {
 
                   </div>
 
+                  {/* READ BUTTON */}
+
                   <div className="mt-7">
 
-                    <span className="inline-flex h-11 items-center rounded-xl bg-zinc-950 px-5 text-sm font-bold text-white transition group-hover:bg-zinc-800">
-                      Read the story
+                    <span className="inline-flex h-11 items-center rounded-xl bg-zinc-950 px-5 text-sm font-bold !text-white transition group-hover:bg-zinc-800">
 
-                      <span className="ml-2 transition-transform group-hover:translate-x-1">
+                      <span className="!text-white">
+                        Read the story
+                      </span>
+
+                      <span className="ml-2 !text-white transition-transform group-hover:translate-x-1">
                         →
                       </span>
+
                     </span>
 
                   </div>
@@ -378,6 +402,7 @@ export default async function HomePage() {
                 </div>
 
               </div>
+
             </Link>
 
           </section>
@@ -389,7 +414,7 @@ export default async function HomePage() {
 
         <section className="border-y border-zinc-200 bg-zinc-50">
 
-          <div className="mx-auto max-w-7xl px-5 py-14 sm:py-16 lg:px-8 lg:py-20">
+          <div className="mx-auto max-w-7xl px-5 py-14 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
 
             <div className="mb-9 flex items-end justify-between gap-6">
 
@@ -437,9 +462,7 @@ export default async function HomePage() {
 
                             {article.cover_image ? (
                               <img
-                                src={
-                                  article.cover_image
-                                }
+                                src={article.cover_image}
                                 alt={
                                   article.cover_image_alt ||
                                   article.title
@@ -462,7 +485,7 @@ export default async function HomePage() {
                               </span>
                             )}
 
-                            <h3 className="mt-3 text-2xl font-black leading-tight tracking-tight">
+                            <h3 className="mt-3 text-2xl font-black leading-tight tracking-tight text-zinc-950">
                               {article.title}
                             </h3>
 
@@ -494,11 +517,15 @@ export default async function HomePage() {
 
                             </div>
 
-                            <div className="mt-6 text-sm font-bold text-zinc-950">
+                            {/* READ MORE */}
 
-                              Read more
+                            <div className="mt-6 text-sm font-bold !text-zinc-950">
 
-                              <span className="ml-1 inline-block transition-transform group-hover:translate-x-1">
+                              <span className="!text-zinc-950">
+                                Read more
+                              </span>
+
+                              <span className="ml-1 inline-block !text-zinc-950 transition-transform group-hover:translate-x-1">
                                 →
                               </span>
 
@@ -519,10 +546,13 @@ export default async function HomePage() {
 
                     <Link
                       href="/search"
-                      className="inline-flex h-12 items-center justify-center rounded-xl border border-zinc-300 bg-white px-6 text-sm font-bold text-zinc-950 transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white"
+                      className="inline-flex h-12 items-center justify-center rounded-xl border border-zinc-300 bg-white px-6 text-sm font-bold !text-zinc-950 transition hover:border-zinc-950 hover:bg-zinc-950 hover:!text-white"
                     >
-                      View all articles
-                      <span className="ml-2">
+                      <span className="!text-zinc-950 hover:!text-white">
+                        View all articles
+                      </span>
+
+                      <span className="ml-2 !text-zinc-950">
                         →
                       </span>
                     </Link>
@@ -535,7 +565,7 @@ export default async function HomePage() {
 
               <div className="rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-16 text-center">
 
-                <h3 className="text-2xl font-black">
+                <h3 className="text-2xl font-black text-zinc-950">
                   Articles are coming soon.
                 </h3>
 
@@ -549,6 +579,7 @@ export default async function HomePage() {
             )}
 
           </div>
+
         </section>
 
         {/* =====================================================
@@ -561,7 +592,7 @@ export default async function HomePage() {
             Explore
           </p>
 
-          <h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">
+          <h2 className="mt-2 text-3xl font-black tracking-tight text-zinc-950 sm:text-4xl">
             Explore AnantaGo
           </h2>
 
@@ -595,11 +626,11 @@ export default async function HomePage() {
 
                   <div className="flex items-start justify-between gap-4">
 
-                    <h3 className="text-2xl font-black tracking-tight">
+                    <h3 className="text-2xl font-black tracking-tight text-zinc-950">
                       {category.name}
                     </h3>
 
-                    <span className="text-xl text-zinc-400 transition-transform group-hover:translate-x-1">
+                    <span className="text-xl !text-zinc-400 transition-transform group-hover:translate-x-1">
                       →
                     </span>
 
@@ -609,7 +640,7 @@ export default async function HomePage() {
                     {category.description}
                   </p>
 
-                  <span className="mt-6 inline-block text-sm font-bold text-zinc-950">
+                  <span className="mt-6 inline-block text-sm font-bold !text-zinc-950">
                     Explore category
                   </span>
 
@@ -633,7 +664,7 @@ export default async function HomePage() {
               Our approach
             </p>
 
-            <h2 className="mt-6 text-4xl font-black leading-[1.05] tracking-[-0.035em] text-white sm:text-5xl lg:text-6xl">
+            <h2 className="mt-6 text-4xl font-black leading-[1.05] tracking-[-0.035em] !text-white sm:text-5xl lg:text-6xl">
               Useful technology content without
               the unnecessary noise.
             </h2>
@@ -648,10 +679,13 @@ export default async function HomePage() {
 
               <Link
                 href="/about"
-                className="inline-flex h-11 items-center rounded-xl border border-white/20 px-5 text-sm font-bold text-white transition hover:bg-white hover:text-black"
+                className="inline-flex h-11 items-center rounded-xl border border-white/20 px-5 text-sm font-bold !text-white transition hover:bg-white hover:!text-black"
               >
-                Learn about AnantaGo
-                <span className="ml-2">
+                <span className="!text-white">
+                  Learn about AnantaGo
+                </span>
+
+                <span className="ml-2 !text-white">
                   →
                 </span>
               </Link>
@@ -659,6 +693,7 @@ export default async function HomePage() {
             </div>
 
           </div>
+
         </section>
 
       </main>
