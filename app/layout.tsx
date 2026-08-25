@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.anantago.com"),
+  metadataBase: new URL("https://www.anatago.com"),
 
   title: {
     default: "AnantaGo — AI, Tech & Digital Life",
@@ -24,9 +27,17 @@ export const metadata: Metadata = {
     "Technology Guides",
   ],
 
-  authors: [{ name: "AnantaGo" }],
+  authors: [
+    {
+      name: "AnantaGo",
+      url: "https://www.anatago.com",
+    },
+  ],
+
   creator: "AnantaGo",
   publisher: "AnantaGo",
+
+  applicationName: "AnantaGo",
 
   icons: {
     icon: "/favicon.png",
@@ -39,13 +50,21 @@ export const metadata: Metadata = {
     siteName: "AnantaGo",
     title: "AnantaGo — AI, Tech & Digital Life",
     description:
-      "AI, technology, apps, cybersecurity, how-to guides and technology explainers.",
-    url: "https://www.anantago.com",
+      "AnantaGo covers AI, technology, apps, cybersecurity, how-to guides and easy-to-understand technology explainers.",
+    url: "https://www.anatago.com/",
+    locale: "en_US",
   },
 
   robots: {
     index: true,
     follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
   },
 };
 
@@ -54,9 +73,34 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const websiteSchema = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "AnantaGo",
+    alternateName: "AnantaGo",
+    url: "https://www.anatago.com/",
+  };
+
   return (
     <html lang="en">
-      <body>{children}</body>
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(websiteSchema),
+          }}
+        />
+      </head>
+
+      <body className="min-h-screen bg-white text-gray-950">
+        <div className="flex min-h-screen flex-col">
+          <Header />
+
+          <main className="flex-1">{children}</main>
+
+          <Footer />
+        </div>
+      </body>
     </html>
   );
 }

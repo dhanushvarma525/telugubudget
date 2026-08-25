@@ -27,7 +27,7 @@ const supabaseAdmin = createClient(
 );
 
 /* =========================================================
-   PARAMS
+   ROUTE PARAMS
 ========================================================= */
 
 type RouteContext = {
@@ -37,8 +37,45 @@ type RouteContext = {
 };
 
 /* =========================================================
+   TYPES
+========================================================= */
+
+type ContentBlock = {
+  type: string;
+  [key: string]: unknown;
+};
+
+/* =========================================================
+   BLOG COLUMNS
+   IMPORTANT:
+   There is NO "content" column.
+========================================================= */
+
+const BLOG_COLUMNS = `
+  id,
+  title,
+  slug,
+  excerpt,
+  introduction,
+  cover_image,
+  category,
+  author,
+  tags,
+  content_blocks,
+  faqs,
+  published,
+  featured,
+  views,
+  meta_title,
+  meta_description,
+  published_at,
+  created_at,
+  updated_at
+`;
+
+/* =========================================================
    FIND BLOG
-   Supports BOTH:
+   Supports:
    /api/blogs/1
    /api/blogs/my-article-slug
 ========================================================= */
@@ -55,9 +92,9 @@ async function findBlog(identifier: string) {
     };
   }
 
-  /* =====================================================
+  /* =======================================================
      FIRST TRY ID
-  ===================================================== */
+  ======================================================= */
 
   if (/^\d+$/.test(value)) {
     const {
@@ -65,7 +102,7 @@ async function findBlog(identifier: string) {
       error: idError,
     } = await supabaseAdmin
       .from("blogs")
-      .select("*")
+      .select(BLOG_COLUMNS)
       .eq("id", Number(value))
       .maybeSingle();
 
@@ -84,16 +121,16 @@ async function findBlog(identifier: string) {
     }
   }
 
-  /* =====================================================
+  /* =======================================================
      THEN TRY SLUG
-  ===================================================== */
+  ======================================================= */
 
   const {
     data: blogBySlug,
     error: slugError,
   } = await supabaseAdmin
     .from("blogs")
-    .select("*")
+    .select(BLOG_COLUMNS)
     .eq("slug", value)
     .maybeSingle();
 
@@ -159,14 +196,10 @@ export async function GET(
           success: false,
           message:
             "Failed to load blog.",
-          error:
-            error.message,
-          details:
-            error.details,
-          hint:
-            error.hint,
-          code:
-            error.code,
+          error: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
         },
         {
           status: 500,
@@ -175,16 +208,10 @@ export async function GET(
     }
 
     if (!blog) {
-      console.error(
-        "BLOG NOT FOUND:",
-        identifier
-      );
-
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Blog not found.",
+          message: "Blog not found.",
           identifier,
         },
         {
@@ -248,7 +275,14 @@ export async function PUT(
     const body =
       await request.json();
 
-    if (!body.title?.trim()) {
+    /* =====================================================
+       VALIDATE TITLE
+    ===================================================== */
+
+    if (
+      typeof body.title !== "string" ||
+      !body.title.trim()
+    ) {
       return NextResponse.json(
         {
           success: false,
@@ -281,8 +315,7 @@ export async function PUT(
           success: false,
           message:
             "Failed to find existing blog.",
-          error:
-            findError.message,
+          error: findError.message,
         },
         {
           status: 500,
@@ -294,8 +327,7 @@ export async function PUT(
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Blog not found.",
+          message: "Blog not found.",
         },
         {
           status: 404,
@@ -325,8 +357,24 @@ export async function PUT(
         );
 
     const finalSlug =
-      body.slug?.trim() ||
-      generatedSlug;
+      typeof body.slug === "string" &&
+      body.slug.trim()
+        ? body.slug
+            .trim()
+            .toLowerCase()
+            .replace(
+              /[^a-z0-9\s-]/g,
+              ""
+            )
+            .replace(
+              /\s+/g,
+              "-"
+            )
+            .replace(
+              /-+/g,
+              "-"
+            )
+        : generatedSlug;
 
     /* =====================================================
        CHECK DUPLICATE SLUG
@@ -394,17 +442,41 @@ export async function PUT(
 
     /* =====================================================
        CONTENT BLOCKS
+
+       We keep blocks exactly as the editor sends them.
+
+       IMPORTANT:
+       No "content" database column is used.
     ===================================================== */
 
-    const contentBlocks =
+    const contentBlocks: ContentBlock[] =
       Array.isArray(
         body.content_blocks
       )
         ? body.content_blocks
+            .filter(
+              (block: unknown) =>
+                block &&
+                typeof block ===
+                  "object"
+            )
+        : [];
+
+    /* =====================================================
+       FAQS
+    ===================================================== */
+
+    const faqs =
+      Array.isArray(body.faqs)
+        ? body.faqs
         : [];
 
     /* =====================================================
        UPDATE DATA
+
+       IMPORTANT:
+       Only columns that actually exist
+       in the current blogs table.
     ===================================================== */
 
     const updateData: Record<
@@ -418,24 +490,42 @@ export async function PUT(
         finalSlug,
 
       excerpt:
-        body.excerpt?.trim() ||
-        "",
+        typeof body.excerpt ===
+        "string"
+          ? body.excerpt.trim()
+          : "",
 
-      content:
-        body.content || "",
+      introduction:
+        typeof body.introduction ===
+        "string"
+          ? body.introduction.trim()
+          : "",
 
       cover_image:
-        body.cover_image || "",
+        typeof body.cover_image ===
+        "string"
+          ? body.cover_image.trim()
+          : "",
 
       category:
-        body.category?.trim() ||
-        "",
+        typeof body.category ===
+        "string"
+          ? body.category.trim()
+          : "",
 
       author:
-        body.author?.trim() ||
-        "AnantaGo",
+        typeof body.author ===
+        "string" &&
+        body.author.trim()
+          ? body.author.trim()
+          : "AnantaGo",
 
       tags,
+
+      content_blocks:
+        contentBlocks,
+
+      faqs,
 
       published:
         body.published === true,
@@ -443,8 +533,17 @@ export async function PUT(
       featured:
         body.featured === true,
 
-      content_blocks:
-        contentBlocks,
+      meta_title:
+        typeof body.meta_title ===
+        "string"
+          ? body.meta_title.trim()
+          : "",
+
+      meta_description:
+        typeof body.meta_description ===
+        "string"
+          ? body.meta_description.trim()
+          : "",
 
       updated_at:
         new Date().toISOString(),
@@ -457,12 +556,50 @@ export async function PUT(
     if (
       body.published === true
     ) {
+      /*
+       * If the article was already published,
+       * keep its original published_at.
+       *
+       * If it is being published for the
+       * first time, create the timestamp.
+       */
+
       updateData.published_at =
+        existingBlog.published_at ||
         new Date().toISOString();
+    } else {
+      /*
+       * Keep the old publication date rather
+       * than destroying it when switching to draft.
+       */
+      updateData.published_at =
+        existingBlog.published_at ||
+        null;
     }
 
     /* =====================================================
-       UPDATE
+       LOG
+    ===================================================== */
+
+    console.log(
+      "UPDATING BLOG:",
+      {
+        id: existingBlog.id,
+        title: updateData.title,
+        slug: updateData.slug,
+        introductionLength:
+          String(
+            updateData.introduction ||
+              ""
+          ).length,
+        contentBlocks:
+          contentBlocks.length,
+        faqs: faqs.length,
+      }
+    );
+
+    /* =====================================================
+       UPDATE DATABASE
     ===================================================== */
 
     const {
@@ -475,7 +612,7 @@ export async function PUT(
         "id",
         existingBlog.id
       )
-      .select("*")
+      .select(BLOG_COLUMNS)
       .single();
 
     if (error) {
@@ -636,7 +773,7 @@ export async function DELETE(
             deleteError.code,
         },
         {
-          status: 500
+          status: 500,
         }
       );
     }

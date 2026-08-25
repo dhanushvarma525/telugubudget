@@ -1,21 +1,13 @@
 "use client";
 
-import {
-  useEffect,
-  useState,
-  type ChangeEvent,
-} from "react";
+import { useEffect, useState, type ChangeEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 /* =========================================================
    TYPES
 ========================================================= */
 
-type TextBlockType =
-  | "paragraph"
-  | "h1"
-  | "h2"
-  | "h3";
+type TextBlockType = "paragraph" | "h1" | "h2" | "h3";
 
 type TextBlock = {
   type: "text";
@@ -29,9 +21,47 @@ type ImageBlock = {
   alt: string;
 };
 
+type CalloutBlock = {
+  type: "callout";
+  content: string;
+  title?: string;
+};
+
+type QuoteBlock = {
+  type: "quote";
+  content: string;
+  author?: string;
+};
+
+type ListBlock = {
+  type:
+    | "bullet-list"
+    | "bullets"
+    | "unordered-list"
+    | "ordered-list"
+    | "numbered-list";
+  items: string[];
+};
+
+type TableBlock = {
+  type: "table";
+  headers: string[];
+  rows: string[][];
+};
+
+type UnknownBlock = {
+  type: string;
+  [key: string]: any;
+};
+
 type ContentBlock =
   | TextBlock
-  | ImageBlock;
+  | ImageBlock
+  | CalloutBlock
+  | QuoteBlock
+  | ListBlock
+  | TableBlock
+  | UnknownBlock;
 
 type BlogImage = {
   url: string;
@@ -46,8 +76,7 @@ const ALLOWED_IMAGE_TYPES = [
   "image/gif",
 ];
 
-const MAX_IMAGE_SIZE =
-  10 * 1024 * 1024;
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 
 /* =========================================================
    PAGE
@@ -62,17 +91,16 @@ export default function EditBlogPage() {
     : String(params?.slug || "");
 
   /* =======================================================
-     BLOG
+     STATE
   ======================================================= */
 
-  const [blogId, setBlogId] = useState<
-    string | number | null
-  >(null);
+  const [blogId, setBlogId] = useState<string | number | null>(null);
 
   const [form, setForm] = useState({
     title: "",
     slug: "",
     excerpt: "",
+    introduction: "",
     category: "",
     author: "AnantaGo",
     tags: "",
@@ -81,38 +109,28 @@ export default function EditBlogPage() {
     featured: false,
   });
 
-  const [contentBlocks, setContentBlocks] =
-    useState<ContentBlock[]>([
-      {
-        type: "text",
-        content: "",
-        headingType: "paragraph",
-      },
-    ]);
+  const [contentBlocks, setContentBlocks] = useState<ContentBlock[]>([
+    {
+      type: "text",
+      content: "",
+      headingType: "paragraph",
+    },
+  ]);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  const [saving, setSaving] =
-    useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [uploadingBlockIndex, setUploadingBlockIndex] = useState<
+    number | null
+  >(null);
 
-  const [deleting, setDeleting] =
-    useState(false);
-
-  const [uploadingCover, setUploadingCover] =
-    useState(false);
-
-  const [uploadingBlockIndex, setUploadingBlockIndex] =
-    useState<number | null>(null);
-
-  const [showPreview, setShowPreview] =
-    useState(false);
-
-  const [showDeleteConfirm, setShowDeleteConfirm] =
-    useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   /* =======================================================
-     LOAD BLOG
+     LOAD
   ======================================================= */
 
   useEffect(() => {
@@ -122,30 +140,174 @@ export default function EditBlogPage() {
   }, [slug]);
 
   /* =======================================================
-     GET BLOG
+     NORMALIZE BLOCK
+  ======================================================= */
+
+  function normalizeBlock(block: any): ContentBlock | null {
+    if (!block || typeof block !== "object") {
+      return null;
+    }
+
+    /* IMAGE */
+
+    if (block.type === "image") {
+      return {
+        type: "image",
+        url:
+          typeof block.url === "string"
+            ? block.url
+            : typeof block.src === "string"
+            ? block.src
+            : "",
+        alt: typeof block.alt === "string" ? block.alt : "",
+      };
+    }
+
+    /* TEXT */
+
+    if (
+      block.type === "text" ||
+      block.type === "paragraph" ||
+      block.type === "p"
+    ) {
+      return {
+        type: "text",
+        content:
+          typeof block.content === "string"
+            ? block.content
+            : typeof block.text === "string"
+            ? block.text
+            : "",
+        headingType:
+          block.headingType === "h1" ||
+          block.headingType === "h2" ||
+          block.headingType === "h3"
+            ? block.headingType
+            : "paragraph",
+      };
+    }
+
+    /* HEADINGS */
+
+    if (
+      block.type === "h1" ||
+      block.type === "h2" ||
+      block.type === "h3"
+    ) {
+      return {
+        type: "text",
+        content:
+          typeof block.content === "string"
+            ? block.content
+            : typeof block.text === "string"
+            ? block.text
+            : "",
+        headingType: block.type,
+      };
+    }
+
+    /* CALLOUT */
+
+    if (block.type === "callout") {
+      return {
+        type: "callout",
+        title: typeof block.title === "string" ? block.title : "",
+        content:
+          typeof block.content === "string"
+            ? block.content
+            : typeof block.text === "string"
+            ? block.text
+            : "",
+      };
+    }
+
+    /* QUOTE */
+
+    if (block.type === "quote" || block.type === "blockquote") {
+      return {
+        type: "quote",
+        content:
+          typeof block.content === "string"
+            ? block.content
+            : typeof block.text === "string"
+            ? block.text
+            : "",
+        author: typeof block.author === "string" ? block.author : "",
+      };
+    }
+
+    /* LIST */
+
+    if (
+      block.type === "bullet-list" ||
+      block.type === "bullets" ||
+      block.type === "unordered-list" ||
+      block.type === "ordered-list" ||
+      block.type === "numbered-list"
+    ) {
+      const items = Array.isArray(block.items)
+        ? block.items
+            .map((item: any) => {
+              if (typeof item === "string") {
+                return item;
+              }
+
+              if (typeof item?.text === "string") {
+                return item.text;
+              }
+
+              return "";
+            })
+            .filter(Boolean)
+        : [];
+
+      return {
+        type: block.type,
+        items,
+      };
+    }
+
+    /* TABLE */
+
+    if (block.type === "table") {
+      return {
+        type: "table",
+        headers: Array.isArray(block.headers)
+          ? block.headers.map(String)
+          : [],
+        rows: Array.isArray(block.rows)
+          ? block.rows.map((row: any) =>
+              Array.isArray(row) ? row.map(String) : []
+            )
+          : [],
+      };
+    }
+
+    /* UNKNOWN */
+
+    return {
+      ...block,
+    };
+  }
+
+  /* =======================================================
+     LOAD BLOG
   ======================================================= */
 
   async function loadBlog() {
     try {
       setLoading(true);
 
-      const response = await fetch(
-        `/api/blogs/${slug}`,
-        {
-          cache: "no-store",
-        }
-      );
+      const response = await fetch(`/api/blogs/${slug}`, {
+        cache: "no-store",
+      });
 
       if (!response.ok) {
-        throw new Error(
-          "Failed to load blog"
-        );
+        throw new Error("Failed to load blog");
       }
 
-      const result =
-        await response.json();
-
-      const blog = result.blog;
+      const result = await response.json();
+      const blog = result?.blog;
 
       if (!blog) {
         alert("Blog not found");
@@ -159,151 +321,51 @@ export default function EditBlogPage() {
         title: blog.title || "",
         slug: blog.slug || "",
         excerpt: blog.excerpt || "",
+        introduction: blog.introduction || "",
         category: blog.category || "",
         author: blog.author || "AnantaGo",
-
         tags: Array.isArray(blog.tags)
           ? blog.tags.join(", ")
           : blog.tags || "",
-
-        cover_image:
-          blog.cover_image || "",
-
-        published:
-          blog.published !== false,
-
-        featured:
-          blog.featured === true,
+        cover_image: blog.cover_image || "",
+        published: blog.published !== false,
+        featured: blog.featured === true,
       });
 
-      /* =====================================================
-         CONTENT BLOCKS
-      ===================================================== */
-
       if (
-        Array.isArray(
-          blog.content_blocks
-        ) &&
+        Array.isArray(blog.content_blocks) &&
         blog.content_blocks.length > 0
       ) {
-        const normalizedBlocks =
-          blog.content_blocks
-            .map(
-              (
-                block: any
-              ): ContentBlock | null => {
-                if (!block) {
-                  return null;
-                }
+        const normalized = blog.content_blocks
+          .map(normalizeBlock)
+          .filter(Boolean) as ContentBlock[];
 
-                /* IMAGE */
-
-                if (
-                  block.type ===
-                  "image"
-                ) {
-                  if (
-                    typeof block.url !==
-                      "string" ||
-                    !block.url.trim()
-                  ) {
-                    return null;
-                  }
-
-                  return {
-                    type: "image",
-                    url: block.url,
-                    alt:
-                      typeof block.alt ===
-                      "string"
-                        ? block.alt
-                        : "",
-                  };
-                }
-
-                /* TEXT */
-
-                if (
-                  block.type ===
-                  "text"
-                ) {
-                  return {
-                    type: "text",
-
-                    content:
-                      typeof block.content ===
-                      "string"
-                        ? block.content
-                        : "",
-
-                    headingType:
-                      block.headingType ===
-                        "h1" ||
-                      block.headingType ===
-                        "h2" ||
-                      block.headingType ===
-                        "h3" ||
-                      block.headingType ===
-                        "paragraph"
-                        ? block.headingType
-                        : "paragraph",
-                  };
-                }
-
-                return null;
-              }
-            )
-            .filter(
-              Boolean
-            ) as ContentBlock[];
-
-        if (
-          normalizedBlocks.length >
-          0
-        ) {
-          setContentBlocks(
-            normalizedBlocks
-          );
+        if (normalized.length > 0) {
+          setContentBlocks(normalized);
         }
+      } else if (
+        typeof blog.content === "string" &&
+        blog.content.trim()
+      ) {
+        setContentBlocks([
+          {
+            type: "text",
+            content: blog.content,
+            headingType: "paragraph",
+          },
+        ]);
       } else {
-        /* ===================================================
-           OLD BLOG COMPATIBILITY
-        =================================================== */
-
-        if (
-          typeof blog.content ===
-            "string" &&
-          blog.content.trim()
-        ) {
-          setContentBlocks([
-            {
-              type: "text",
-              content:
-                blog.content,
-              headingType:
-                "paragraph",
-            },
-          ]);
-        } else {
-          setContentBlocks([
-            {
-              type: "text",
-              content: "",
-              headingType:
-                "paragraph",
-            },
-          ]);
-        }
+        setContentBlocks([
+          {
+            type: "text",
+            content: "",
+            headingType: "paragraph",
+          },
+        ]);
       }
     } catch (error) {
-      console.error(
-        "LOAD BLOG ERROR:",
-        error
-      );
-
-      alert(
-        "Failed to load blog"
-      );
+      console.error("LOAD BLOG ERROR:", error);
+      alert("Failed to load blog.");
     } finally {
       setLoading(false);
     }
@@ -313,65 +375,34 @@ export default function EditBlogPage() {
      IMAGE UPLOAD
   ======================================================= */
 
-  async function uploadImage(
-    file: File
-  ): Promise<string | null> {
+  async function uploadImage(file: File): Promise<string | null> {
     try {
-      if (!file) {
+      if (!file) return null;
+
+      if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+        alert("Only JPG, PNG, WEBP and GIF images are allowed.");
         return null;
       }
 
-      /* TYPE */
-
-      if (
-        !ALLOWED_IMAGE_TYPES.includes(
-          file.type
-        )
-      ) {
-        alert(
-          "Only JPG, PNG, WEBP and GIF images are allowed."
-        );
-
+      if (file.size > MAX_IMAGE_SIZE) {
+        alert("Image must be 10MB or smaller.");
         return null;
       }
 
-      /* SIZE */
+      const formData = new FormData();
 
-      if (
-        file.size >
-        MAX_IMAGE_SIZE
-      ) {
-        alert(
-          "Image must be 10MB or smaller."
-        );
+      formData.append("file", file);
+      formData.append("folder", "articles");
 
-        return null;
-      }
-
-      const formData =
-        new FormData();
-
-      formData.append(
-        "file",
-        file
+      const response = await fetch(
+        "/api/blogs/blog-images/upload",
+        {
+          method: "POST",
+          body: formData,
+        }
       );
 
-      formData.append(
-        "folder",
-        "articles"
-      );
-
-      const response =
-        await fetch(
-          "/api/blogs/blog-images/upload",
-          {
-            method: "POST",
-            body: formData,
-          }
-        );
-
-      const result =
-        await response.json();
+      const result = await response.json();
 
       if (!response.ok) {
         throw new Error(
@@ -381,130 +412,89 @@ export default function EditBlogPage() {
         );
       }
 
-      if (
-        !result.success ||
-        !result.url
-      ) {
-        throw new Error(
-          "Image URL was not returned."
-        );
+      if (!result.success || !result.url) {
+        throw new Error("Image URL was not returned.");
       }
 
       return result.url;
     } catch (error: any) {
-      console.error(
-        "IMAGE UPLOAD ERROR:",
-        error
-      );
+      console.error("IMAGE UPLOAD ERROR:", error);
 
-      alert(
-        error?.message ||
-          "Image upload failed."
-      );
+      alert(error?.message || "Image upload failed.");
 
       return null;
     }
   }
 
   /* =======================================================
-     COVER IMAGE
+     COVER UPLOAD
   ======================================================= */
 
   async function handleCoverUpload(
     e: ChangeEvent<HTMLInputElement>
   ) {
-    const file =
-      e.target.files?.[0];
+    const file = e.target.files?.[0];
 
-    if (!file) {
-      return;
-    }
+    if (!file) return;
 
     try {
       setUploadingCover(true);
 
-      const url =
-        await uploadImage(file);
+      const url = await uploadImage(file);
 
       if (url) {
-        setForm(
-          (prev) => ({
-            ...prev,
-            cover_image:
-              url,
-          })
-        );
+        setForm((prev) => ({
+          ...prev,
+          cover_image: url,
+        }));
       }
     } finally {
       setUploadingCover(false);
-
       e.target.value = "";
     }
   }
 
   function removeCoverImage() {
-    setForm(
-      (prev) => ({
-        ...prev,
-        cover_image: "",
-      })
-    );
+    setForm((prev) => ({
+      ...prev,
+      cover_image: "",
+    }));
   }
 
   /* =======================================================
-     CONTENT IMAGE
+     BLOCK IMAGE UPLOAD
   ======================================================= */
 
   async function handleBlockImageUpload(
     index: number,
     e: ChangeEvent<HTMLInputElement>
   ) {
-    const file =
-      e.target.files?.[0];
+    const file = e.target.files?.[0];
 
-    if (!file) {
-      return;
-    }
+    if (!file) return;
 
     try {
-      setUploadingBlockIndex(
-        index
-      );
+      setUploadingBlockIndex(index);
 
-      const url =
-        await uploadImage(file);
+      const url = await uploadImage(file);
 
       if (url) {
-        setContentBlocks(
-          (prev) => {
-            const updated = [
-              ...prev,
-            ];
+        setContentBlocks((prev) => {
+          const updated = [...prev];
+          const block = updated[index];
 
-            const block =
-              updated[index];
-
-            if (
-              block &&
-              block.type ===
-                "image"
-            ) {
-              updated[index] =
-                {
-                  ...block,
-                  url,
-                };
-            }
-
-            return updated;
+          if (block?.type === "image") {
+            updated[index] = {
+              ...block,
+              url,
+            };
           }
-        );
+
+          return updated;
+        });
       }
     } finally {
-      setUploadingBlockIndex(
-        null
-      );
-
+      setUploadingBlockIndex(null);
       e.target.value = "";
     }
   }
@@ -515,129 +505,90 @@ export default function EditBlogPage() {
 
   function handleChange(
     e: ChangeEvent<
-      HTMLInputElement |
-        HTMLTextAreaElement |
-        HTMLSelectElement
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
     >
   ) {
-    const {
-      name,
-      value,
-    } = e.target;
+    const { name, value } = e.target;
 
-    setForm(
-      (prev) => ({
-        ...prev,
-        [name]: value,
-      })
-    );
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   }
 
   /* =======================================================
      SLUG
   ======================================================= */
 
-  function generateSlug(
-    title: string
-  ) {
+  function generateSlug(title: string) {
     return title
       .toLowerCase()
       .trim()
-      .replace(
-        /[^a-z0-9\s-]/g,
-        ""
-      )
-      .replace(
-        /\s+/g,
-        "-"
-      )
-      .replace(
-        /-+/g,
-        "-"
-      );
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-");
   }
 
   /* =======================================================
      ADD TEXT
   ======================================================= */
 
-  function addTextBlock(
-    afterIndex?: number
-  ) {
-    const newBlock: TextBlock =
-      {
-        type: "text",
-        content: "",
-        headingType:
-          "paragraph",
-      };
+  function addTextBlock(afterIndex?: number) {
+    const block: TextBlock = {
+      type: "text",
+      content: "",
+      headingType: "paragraph",
+    };
 
-    setContentBlocks(
-      (prev) => {
-        if (
-          afterIndex ===
-          undefined
-        ) {
-          return [
-            ...prev,
-            newBlock,
-          ];
-        }
-
-        const updated = [
-          ...prev,
-        ];
-
-        updated.splice(
-          afterIndex + 1,
-          0,
-          newBlock
-        );
-
-        return updated;
+    setContentBlocks((prev) => {
+      if (afterIndex === undefined) {
+        return [...prev, block];
       }
-    );
+
+      const updated = [...prev];
+
+      updated.splice(afterIndex + 1, 0, block);
+
+      return updated;
+    });
   }
 
   /* =======================================================
      ADD IMAGE
   ======================================================= */
 
-  function addImageBlock(
-    afterIndex?: number
-  ) {
-    const newBlock: ImageBlock =
-      {
-        type: "image",
-        url: "",
-        alt: "",
-      };
+  function addImageBlock(afterIndex?: number) {
+    const block: ImageBlock = {
+      type: "image",
+      url: "",
+      alt: "",
+    };
 
-    setContentBlocks(
-      (prev) => {
-        if (
-          afterIndex ===
-          undefined
-        ) {
-          return [
-            ...prev,
-            newBlock,
-          ];
-        }
-
-        const updated = [
-          ...prev,
-        ];
-
-        updated.splice(
-          afterIndex + 1,
-          0,
-          newBlock
-        );
-
-        return updated;
+    setContentBlocks((prev) => {
+      if (afterIndex === undefined) {
+        return [...prev, block];
       }
-    );
+
+      const updated = [...prev];
+
+      updated.splice(afterIndex + 1, 0, block);
+
+      return updated;
+    });
+  }
+
+  /* =======================================================
+     ADD TABLE
+  ======================================================= */
+
+  function addTableBlock() {
+    const block: TableBlock = {
+      type: "table",
+      headers: ["Feature", "Details"],
+      rows: [["", ""]],
+    };
+
+    setContentBlocks((prev) => [...prev, block]);
   }
 
   /* =======================================================
@@ -648,206 +599,245 @@ export default function EditBlogPage() {
     index: number,
     value: string
   ) {
-    setContentBlocks(
-      (prev) => {
-        const updated = [
-          ...prev,
-        ];
+    setContentBlocks((prev) => {
+      const updated = [...prev];
+      const block = updated[index];
 
-        const block =
-          updated[index];
-
-        if (
-          block &&
-          block.type ===
-            "text"
-        ) {
-          updated[index] =
-            {
-              ...block,
-              content:
-                value,
-            };
-        }
-
-        return updated;
+      if (block?.type === "text") {
+        updated[index] = {
+          ...block,
+          content: value,
+        };
       }
-    );
-  }
 
-  /* =======================================================
-     UPDATE TEXT TYPE
-  ======================================================= */
+      return updated;
+    });
+  }
 
   function updateTextBlockType(
     index: number,
     headingType: TextBlockType
   ) {
-    setContentBlocks(
-      (prev) => {
-        const updated = [
-          ...prev,
-        ];
+    setContentBlocks((prev) => {
+      const updated = [...prev];
+      const block = updated[index];
 
-        const block =
-          updated[index];
-
-        if (
-          block &&
-          block.type ===
-            "text"
-        ) {
-          updated[index] =
-            {
-              ...block,
-              headingType,
-            };
-        }
-
-        return updated;
+      if (block?.type === "text") {
+        updated[index] = {
+          ...block,
+          headingType,
+        };
       }
-    );
+
+      return updated;
+    });
   }
 
   /* =======================================================
-     UPDATE ALT
+     IMAGE ALT
   ======================================================= */
 
   function updateImageAlt(
     index: number,
     value: string
   ) {
-    setContentBlocks(
-      (prev) => {
-        const updated = [
-          ...prev,
-        ];
+    setContentBlocks((prev) => {
+      const updated = [...prev];
+      const block = updated[index];
 
-        const block =
-          updated[index];
-
-        if (
-          block &&
-          block.type ===
-            "image"
-        ) {
-          updated[index] =
-            {
-              ...block,
-              alt: value,
-            };
-        }
-
-        return updated;
+      if (block?.type === "image") {
+        updated[index] = {
+          ...block,
+          alt: value,
+        };
       }
-    );
+
+      return updated;
+    });
   }
 
   /* =======================================================
      DELETE BLOCK
   ======================================================= */
 
-  function deleteBlock(
-    index: number
-  ) {
-    setContentBlocks(
-      (prev) => {
-        const updated =
-          prev.filter(
-            (_, i) =>
-              i !== index
-          );
+  function deleteBlock(index: number) {
+    setContentBlocks((prev) => {
+      const updated = prev.filter(
+        (_, i) => i !== index
+      );
 
-        if (
-          updated.length ===
-          0
-        ) {
-          return [
-            {
-              type: "text",
-              content: "",
-              headingType:
-                "paragraph",
-            },
-          ];
-        }
-
-        return updated;
+      if (updated.length === 0) {
+        return [
+          {
+            type: "text",
+            content: "",
+            headingType: "paragraph",
+          },
+        ];
       }
-    );
+
+      return updated;
+    });
   }
 
   /* =======================================================
-     MOVE UP
+     MOVE BLOCK
   ======================================================= */
 
-  function moveBlockUp(
-    index: number
-  ) {
-    if (
-      index === 0
-    ) {
-      return;
-    }
+  function moveBlockUp(index: number) {
+    if (index === 0) return;
 
-    setContentBlocks(
-      (prev) => {
-        const updated = [
-          ...prev,
-        ];
+    setContentBlocks((prev) => {
+      const updated = [...prev];
 
-        [
-          updated[
-            index - 1
-          ],
-          updated[index],
-        ] = [
-          updated[index],
-          updated[
-            index - 1
-          ],
-        ];
+      [updated[index - 1], updated[index]] = [
+        updated[index],
+        updated[index - 1],
+      ];
 
-        return updated;
+      return updated;
+    });
+  }
+
+  function moveBlockDown(index: number) {
+    setContentBlocks((prev) => {
+      if (index >= prev.length - 1) {
+        return prev;
       }
-    );
+
+      const updated = [...prev];
+
+      [updated[index], updated[index + 1]] = [
+        updated[index + 1],
+        updated[index],
+      ];
+
+      return updated;
+    });
   }
 
   /* =======================================================
-     MOVE DOWN
+     TABLE HELPERS
   ======================================================= */
 
-  function moveBlockDown(
-    index: number
+  function updateTableHeader(
+    blockIndex: number,
+    headerIndex: number,
+    value: string
   ) {
-    setContentBlocks(
-      (prev) => {
-        if (
-          index >=
-          prev.length - 1
-        ) {
-          return prev;
-        }
+    setContentBlocks((prev) => {
+      const updated = [...prev];
+      const block = updated[blockIndex];
 
-        const updated = [
-          ...prev,
-        ];
-
-        [
-          updated[index],
-          updated[
-            index + 1
-          ],
-        ] = [
-          updated[
-            index + 1
-          ],
-          updated[index],
-        ];
-
-        return updated;
+      if (block?.type !== "table") {
+        return prev;
       }
-    );
+
+      const headers = [...block.headers];
+
+      headers[headerIndex] = value;
+
+      updated[blockIndex] = {
+        ...block,
+        headers,
+      };
+
+      return updated;
+    });
+  }
+
+  function updateTableCell(
+    blockIndex: number,
+    rowIndex: number,
+    cellIndex: number,
+    value: string
+  ) {
+    setContentBlocks((prev) => {
+      const updated = [...prev];
+      const block = updated[blockIndex];
+
+      if (block?.type !== "table") {
+        return prev;
+      }
+
+      const rows = block.rows.map((row) => [...row]);
+
+      if (!rows[rowIndex]) {
+        return prev;
+      }
+
+      rows[rowIndex][cellIndex] = value;
+
+      updated[blockIndex] = {
+        ...block,
+        rows,
+      };
+
+      return updated;
+    });
+  }
+
+  function addTableColumn(blockIndex: number) {
+    setContentBlocks((prev) => {
+      const updated = [...prev];
+      const block = updated[blockIndex];
+
+      if (block?.type !== "table") {
+        return prev;
+      }
+
+      updated[blockIndex] = {
+        ...block,
+        headers: [...block.headers, "New Column"],
+        rows: block.rows.map((row) => [...row, ""]),
+      };
+
+      return updated;
+    });
+  }
+
+  function addTableRow(blockIndex: number) {
+    setContentBlocks((prev) => {
+      const updated = [...prev];
+      const block = updated[blockIndex];
+
+      if (block?.type !== "table") {
+        return prev;
+      }
+
+      updated[blockIndex] = {
+        ...block,
+        rows: [
+          ...block.rows,
+          block.headers.map(() => ""),
+        ],
+      };
+
+      return updated;
+    });
+  }
+
+  function deleteTableRow(
+    blockIndex: number,
+    rowIndex: number
+  ) {
+    setContentBlocks((prev) => {
+      const updated = [...prev];
+      const block = updated[blockIndex];
+
+      if (block?.type !== "table") {
+        return prev;
+      }
+
+      updated[blockIndex] = {
+        ...block,
+        rows: block.rows.filter(
+          (_, index) => index !== rowIndex
+        ),
+      };
+
+      return updated;
+    });
   }
 
   /* =======================================================
@@ -855,29 +845,44 @@ export default function EditBlogPage() {
   ======================================================= */
 
   function getCleanBlocks() {
-    return contentBlocks.filter(
-      (block) => {
-        if (
-          block.type ===
-          "text"
-        ) {
-          return Boolean(
-            block.content.trim()
-          );
-        }
-
-        if (
-          block.type ===
-          "image"
-        ) {
-          return Boolean(
-            block.url.trim()
-          );
-        }
-
-        return false;
+    return contentBlocks.filter((block) => {
+      if (block.type === "text") {
+        return Boolean(block.content?.trim());
       }
-    );
+
+      if (block.type === "image") {
+        return Boolean(block.url?.trim());
+      }
+
+      if (
+        block.type === "callout" ||
+        block.type === "quote"
+      ) {
+        return Boolean(block.content?.trim());
+      }
+
+      if (
+        block.type === "bullet-list" ||
+        block.type === "bullets" ||
+        block.type === "unordered-list" ||
+        block.type === "ordered-list" ||
+        block.type === "numbered-list"
+      ) {
+        return (
+          Array.isArray(block.items) &&
+          block.items.some((item) => item.trim())
+        );
+      }
+
+      if (block.type === "table") {
+        return (
+          block.headers.length > 0 &&
+          block.rows.length > 0
+        );
+      }
+
+      return true;
+    });
   }
 
   /* =======================================================
@@ -888,19 +893,42 @@ export default function EditBlogPage() {
     blocks: ContentBlock[]
   ) {
     return blocks
-      .filter(
-        (
-          block
-        ) =>
-          block.type ===
-          "text"
-      )
-      .map(
-        (
-          block
-        ) =>
-          block.content
-      )
+      .map((block) => {
+        if (block.type === "text") {
+          return block.content;
+        }
+
+        if (
+          block.type === "callout" ||
+          block.type === "quote"
+        ) {
+          return block.content || "";
+        }
+
+        if (
+          block.type === "bullet-list" ||
+          block.type === "bullets" ||
+          block.type === "unordered-list" ||
+          block.type === "ordered-list" ||
+          block.type === "numbered-list"
+        ) {
+          return Array.isArray(block.items)
+            ? block.items.join("\n")
+            : "";
+        }
+
+        if (block.type === "table") {
+          return [
+            block.headers.join(" | "),
+            ...block.rows.map((row) =>
+              row.join(" | ")
+            ),
+          ].join("\n");
+        }
+
+        return "";
+      })
+      .filter(Boolean)
       .join("\n\n");
   }
 
@@ -913,22 +941,14 @@ export default function EditBlogPage() {
   ): BlogImage[] {
     return blocks
       .filter(
-        (
-          block
-        ): block is ImageBlock =>
-          block.type ===
-          "image"
+        (block): block is ImageBlock =>
+          block.type === "image" &&
+          Boolean(block.url)
       )
-      .map(
-        (
-          block,
-          index
-        ) => ({
-          url: block.url,
-          position:
-            index + 1,
-        })
-      );
+      .map((block, index) => ({
+        url: block.url,
+        position: index + 1,
+      }));
   }
 
   /* =======================================================
@@ -937,77 +957,59 @@ export default function EditBlogPage() {
 
   async function updateBlog() {
     if (!blogId) {
-      alert(
-        "Blog ID is missing."
-      );
+      alert("Blog ID is missing.");
       return;
     }
 
-    if (
-      !form.title.trim()
-    ) {
-      alert(
-        "Please enter a blog title."
-      );
+    if (!form.title.trim()) {
+      alert("Please enter a blog title.");
       return;
     }
 
-    const cleanBlocks =
-      getCleanBlocks();
+    const cleanBlocks = getCleanBlocks();
 
     const hasText =
+      Boolean(form.introduction.trim()) ||
       cleanBlocks.some(
         (block) =>
-          block.type ===
-            "text" &&
-          block.content.trim()
+          block.type === "text" &&
+          Boolean(block.content?.trim())
       );
 
     if (!hasText) {
-      alert(
-        "Please write some blog content."
-      );
+      alert("Please write some blog content.");
       return;
     }
 
     try {
       setSaving(true);
 
-      const plainText =
-        getPlainText(
-          cleanBlocks
-        );
+      const plainText = getPlainText(cleanBlocks);
 
       const additionalImages =
-        getAdditionalImages(
-          cleanBlocks
-        );
+        getAdditionalImages(cleanBlocks);
 
       const finalSlug =
         form.slug.trim() ||
-        generateSlug(
-          form.title
-        );
+        generateSlug(form.title);
 
       const payload = {
         id: blogId,
 
-        title:
-          form.title.trim(),
+        title: form.title.trim(),
 
         slug: finalSlug,
 
-        excerpt:
-          form.excerpt.trim(),
+        excerpt: form.excerpt.trim(),
 
-        content:
-          plainText,
+        introduction:
+          form.introduction.trim(),
 
-        cover_image:
-          form.cover_image,
+        content: plainText,
 
-        content_blocks:
-          cleanBlocks,
+        cover_image: form.cover_image,
+
+        content_blocks: cleanBlocks,
 
         additional_images:
           additionalImages,
@@ -1018,48 +1020,29 @@ export default function EditBlogPage() {
         author:
           form.author.trim(),
 
-        tags:
-          form.tags
-            .split(",")
-            .map(
-              (tag) =>
-                tag.trim()
-            )
-            .filter(
-              Boolean
-            ),
+        tags: form.tags
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean),
 
-        published:
-          form.published,
+        published: form.published,
 
-        featured:
-          form.featured,
+        featured: form.featured,
       };
 
-      console.log(
-        "UPDATING BLOG:",
-        payload
+      const response = await fetch(
+        `/api/blogs/${slug}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
       );
 
-      const response =
-        await fetch(
-          `/api/blogs/${slug}`,
-          {
-            method: "PUT",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            body: JSON.stringify(
-              payload
-            ),
-          }
-        );
-
-      const data =
-        await response.json();
+      const data = await response.json();
 
       if (!response.ok) {
         throw new Error(
@@ -1069,14 +1052,9 @@ export default function EditBlogPage() {
         );
       }
 
-      alert(
-        "Blog updated successfully!"
-      );
+      alert("Blog updated successfully!");
 
-      router.push(
-        "/admin/blogs"
-      );
-
+      router.push("/admin/blogs");
       router.refresh();
     } catch (error: any) {
       console.error(
@@ -1094,30 +1072,26 @@ export default function EditBlogPage() {
   }
 
   /* =======================================================
-     DELETE BLOG
+     DELETE
   ======================================================= */
 
   async function deleteBlog() {
     if (!blogId || !slug) {
-      alert(
-        "Blog information is missing."
-      );
+      alert("Blog information is missing.");
       return;
     }
 
     try {
       setDeleting(true);
 
-      const response =
-        await fetch(
-          `/api/blogs/${slug}`,
-          {
-            method: "DELETE",
-          }
-        );
+      const response = await fetch(
+        `/api/blogs/${slug}`,
+        {
+          method: "DELETE",
+        }
+      );
 
-      const data =
-        await response.json();
+      const data = await response.json();
 
       if (!response.ok) {
         throw new Error(
@@ -1127,14 +1101,9 @@ export default function EditBlogPage() {
         );
       }
 
-      alert(
-        "Blog deleted successfully."
-      );
+      alert("Blog deleted successfully.");
 
-      router.push(
-        "/admin/blogs"
-      );
-
+      router.push("/admin/blogs");
       router.refresh();
     } catch (error: any) {
       console.error(
@@ -1160,13 +1129,10 @@ export default function EditBlogPage() {
     block: ContentBlock,
     index: number
   ) {
-    if (
-      block.type ===
-      "image"
-    ) {
-      if (!block.url) {
-        return null;
-      }
+    /* IMAGE */
+
+    if (block.type === "image") {
+      if (!block.url) return null;
 
       return (
         <figure
@@ -1179,23 +1145,11 @@ export default function EditBlogPage() {
               block.alt ||
               form.title
             }
-            className="
-              w-full
-              rounded-2xl
-              object-cover
-              shadow-sm
-            "
+            className="w-full rounded-2xl object-cover shadow-sm"
           />
 
           {block.alt && (
-            <figcaption
-              className="
-                text-center
-                text-sm
-                text-gray-500
-                mt-2
-              "
-            >
+            <figcaption className="mt-2 text-center text-sm text-gray-500">
               {block.alt}
             </figcaption>
           )}
@@ -1203,84 +1157,185 @@ export default function EditBlogPage() {
       );
     }
 
-    if (
-      block.headingType ===
-      "h1"
-    ) {
+    /* TEXT */
+
+    if (block.type === "text") {
+      if (block.headingType === "h1") {
+        return (
+          <h1
+            key={index}
+            className="mb-5 mt-10 text-3xl font-bold text-gray-900 sm:text-4xl"
+          >
+            {block.content}
+          </h1>
+        );
+      }
+
+      if (block.headingType === "h2") {
+        return (
+          <h2
+            key={index}
+            className="mb-4 mt-10 text-2xl font-bold text-gray-900 sm:text-3xl"
+          >
+            {block.content}
+          </h2>
+        );
+      }
+
+      if (block.headingType === "h3") {
+        return (
+          <h3
+            key={index}
+            className="mb-3 mt-8 text-xl font-semibold text-gray-900 sm:text-2xl"
+          >
+            {block.content}
+          </h3>
+        );
+      }
+
       return (
-        <h1
+        <p
           key={index}
-          className="
-            text-3xl
-            sm:text-4xl
-            font-bold
-            text-gray-900
-            mt-10
-            mb-5
-          "
+          className="mb-5 whitespace-pre-line text-base leading-8 text-gray-700 sm:text-lg"
         >
           {block.content}
-        </h1>
+        </p>
+      );
+    }
+
+    /* CALLOUT */
+
+    if (block.type === "callout") {
+      return (
+        <div
+          key={index}
+          className="my-8 rounded-2xl border border-zinc-200 bg-zinc-50 p-6"
+        >
+          {block.title && (
+            <h3 className="mb-2 font-bold text-zinc-950">
+              {block.title}
+            </h3>
+          )}
+
+          <p className="whitespace-pre-line leading-7 text-zinc-700">
+            {block.content}
+          </p>
+        </div>
+      );
+    }
+
+    /* QUOTE */
+
+    if (block.type === "quote") {
+      return (
+        <blockquote
+          key={index}
+          className="my-8 border-l-4 border-zinc-900 pl-5 text-xl font-medium italic leading-8 text-zinc-700"
+        >
+          “{block.content}”
+
+          {block.author && (
+            <footer className="mt-3 text-sm font-semibold not-italic text-zinc-500">
+              — {block.author}
+            </footer>
+          )}
+        </blockquote>
+      );
+    }
+
+    /* LIST */
+
+    if (
+      block.type === "bullet-list" ||
+      block.type === "bullets" ||
+      block.type === "unordered-list"
+    ) {
+      return (
+        <ul
+          key={index}
+          className="my-6 list-disc space-y-2 pl-7 text-lg leading-8 text-zinc-700"
+        >
+          {block.items.map(
+            (item, itemIndex) => (
+              <li key={itemIndex}>
+                {item}
+              </li>
+            )
+          )}
+        </ul>
       );
     }
 
     if (
-      block.headingType ===
-      "h2"
+      block.type === "ordered-list" ||
+      block.type === "numbered-list"
     ) {
       return (
-        <h2
+        <ol
           key={index}
-          className="
-            text-2xl
-            sm:text-3xl
-            font-bold
-            text-gray-900
-            mt-10
-            mb-4
-          "
+          className="my-6 list-decimal space-y-2 pl-7 text-lg leading-8 text-zinc-700"
         >
-          {block.content}
-        </h2>
+          {block.items.map(
+            (item, itemIndex) => (
+              <li key={itemIndex}>
+                {item}
+              </li>
+            )
+          )}
+        </ol>
       );
     }
 
-    if (
-      block.headingType ===
-      "h3"
-    ) {
+    /* TABLE */
+
+    if (block.type === "table") {
       return (
-        <h3
+        <div
           key={index}
-          className="
-            text-xl
-            sm:text-2xl
-            font-semibold
-            text-gray-900
-            mt-8
-            mb-3
-          "
+          className="my-8 overflow-x-auto rounded-xl border"
         >
-          {block.content}
-        </h3>
+          <table className="w-full border-collapse text-sm">
+            {block.headers.length > 0 && (
+              <thead>
+                <tr>
+                  {block.headers.map(
+                    (header, headerIndex) => (
+                      <th
+                        key={headerIndex}
+                        className="border-b bg-zinc-100 px-4 py-3 text-left font-bold"
+                      >
+                        {header}
+                      </th>
+                    )
+                  )}
+                </tr>
+              </thead>
+            )}
+
+            <tbody>
+              {block.rows.map(
+                (row, rowIndex) => (
+                  <tr key={rowIndex}>
+                    {row.map(
+                      (cell, cellIndex) => (
+                        <td
+                          key={cellIndex}
+                          className="border-b px-4 py-3"
+                        >
+                          {cell}
+                        </td>
+                      )
+                    )}
+                  </tr>
+                )
+              )}
+            </tbody>
+          </table>
+        </div>
       );
     }
 
-    return (
-      <p
-        key={index}
-        className="
-          text-base
-          sm:text-lg
-          leading-8
-          text-gray-700
-          whitespace-pre-line
-          mb-5
-        "
-      >
-        {block.content}
-      </p>
-    );
+    return null;
   }
 
   /* =======================================================
@@ -1289,17 +1344,8 @@ export default function EditBlogPage() {
 
   if (loading) {
     return (
-      <main className="p-6 max-w-6xl mx-auto">
-        <div
-          className="
-            bg-white
-            border
-            rounded-2xl
-            p-10
-            text-center
-            text-gray-500
-          "
-        >
+      <main className="mx-auto max-w-6xl p-6">
+        <div className="rounded-2xl border bg-white p-10 text-center text-gray-500">
           Loading blog...
         </div>
       </main>
@@ -1312,80 +1358,31 @@ export default function EditBlogPage() {
 
   return (
     <>
-      <main
-        className="
-          max-w-7xl
-          mx-auto
-          p-4
-          sm:p-6
-          pb-32
-        "
-      >
-        {/* =================================================
-            HEADER
-        ================================================= */}
+      <main className="mx-auto max-w-7xl p-4 pb-32 sm:p-6">
 
-        <div
-          className="
-            flex
-            flex-col
-            lg:flex-row
-            lg:items-center
-            lg:justify-between
-            gap-4
-            mb-8
-          "
-        >
+        {/* HEADER */}
+
+        <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+
           <div>
-            <h1
-              className="
-                text-2xl
-                sm:text-3xl
-                font-bold
-                text-gray-900
-              "
-            >
+            <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
               ✏️ Edit Blog
             </h1>
 
-            <p
-              className="
-                text-sm
-                text-gray-500
-                mt-1
-              "
-            >
-              Update your article,
-              preview it, publish it
-              or delete it.
+            <p className="mt-1 text-sm text-gray-500">
+              Update your article, preview it,
+              publish it or delete it.
             </p>
           </div>
 
-          <div
-            className="
-              flex
-              flex-wrap
-              gap-3
-            "
-          >
+          <div className="flex flex-wrap gap-3">
+
             <button
               type="button"
               onClick={() =>
-                router.push(
-                  "/admin/blogs"
-                )
+                router.push("/admin/blogs")
               }
-              className="
-                px-5
-                py-3
-                rounded-xl
-                border
-                border-gray-300
-                bg-white
-                text-gray-900
-                font-semibold
-                hover:bg-gray-50
-              "
+              className="rounded-xl border border-gray-300 bg-white px-5 py-3 font-semibold text-gray-900 hover:bg-gray-50"
             >
               ← Back
             </button>
@@ -1393,347 +1390,163 @@ export default function EditBlogPage() {
             <button
               type="button"
               onClick={() =>
-                setShowPreview(
-                  true
-                )
+                setShowPreview(true)
               }
-              className="
-                px-5
-                py-3
-                rounded-xl
-                border
-                border-gray-300
-                bg-white
-                text-gray-900
-                font-semibold
-                hover:bg-gray-50
-              "
+              className="rounded-xl border border-gray-300 bg-white px-5 py-3 font-semibold text-gray-900 hover:bg-gray-50"
             >
               👁 Preview
             </button>
 
             <button
               type="button"
-              onClick={
-                updateBlog
-              }
+              onClick={updateBlog}
               disabled={
                 saving ||
                 deleting
               }
-              className="
-                px-6
-                py-3
-                rounded-xl
-                bg-black
-                text-white
-                font-semibold
-                hover:bg-gray-800
-                disabled:opacity-50
-              "
+              className="rounded-xl bg-black px-6 py-3 font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
             >
               {saving
                 ? "Saving..."
                 : "Save Changes"}
             </button>
+
           </div>
         </div>
 
         <div className="space-y-6">
 
-          {/* =================================================
-              ARTICLE DETAILS
-          ================================================= */}
+          {/* ARTICLE DETAILS */}
 
-          <section
-            className="
-              bg-white
-              border
-              rounded-2xl
-              p-5
-              sm:p-7
-              shadow-sm
-            "
-          >
-            <h2
-              className="
-                text-xl
-                font-bold
-                mb-5
-              "
-            >
+          <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-7">
+
+            <h2 className="mb-5 text-xl font-bold">
               Article Details
             </h2>
 
             <div className="space-y-5">
 
-              {/* TITLE */}
-
               <div>
-                <label
-                  className="
-                    block
-                    text-sm
-                    font-semibold
-                    mb-2
-                  "
-                >
+                <label className="mb-2 block text-sm font-semibold">
                   Title
                 </label>
 
                 <input
                   name="title"
-                  value={
-                    form.title
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  placeholder="Enter blog title"
-                  className="
-                    w-full
-                    border
-                    rounded-xl
-                    p-3.5
-                    outline-none
-                    focus:ring-2
-                    focus:ring-black
-                  "
+                  value={form.title}
+                  onChange={handleChange}
+                  className="w-full rounded-xl border p-3.5 outline-none focus:ring-2 focus:ring-black"
                 />
               </div>
 
-              {/* SLUG */}
-
               <div>
-                <label
-                  className="
-                    block
-                    text-sm
-                    font-semibold
-                    mb-2
-                  "
-                >
+                <label className="mb-2 block text-sm font-semibold">
                   Slug
                 </label>
 
                 <input
                   name="slug"
-                  value={
-                    form.slug
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  placeholder="blog-slug"
-                  className="
-                    w-full
-                    border
-                    rounded-xl
-                    p-3.5
-                    outline-none
-                    focus:ring-2
-                    focus:ring-black
-                  "
+                  value={form.slug}
+                  onChange={handleChange}
+                  className="w-full rounded-xl border p-3.5 outline-none focus:ring-2 focus:ring-black"
                 />
 
-                <p
-                  className="
-                    text-xs
-                    text-gray-500
-                    mt-2
-                  "
-                >
-                  Changing the slug
-                  changes the article
-                  URL.
+                <p className="mt-2 text-xs text-gray-500">
+                  Changing the slug changes the article URL.
                 </p>
               </div>
 
-              {/* EXCERPT */}
-
               <div>
-                <label
-                  className="
-                    block
-                    text-sm
-                    font-semibold
-                    mb-2
-                  "
-                >
+                <label className="mb-2 block text-sm font-semibold">
                   Short Description
                 </label>
 
                 <textarea
                   name="excerpt"
-                  value={
-                    form.excerpt
-                  }
-                  onChange={
-                    handleChange
-                  }
+                  value={form.excerpt}
+                  onChange={handleChange}
                   rows={4}
-                  placeholder="Short description of the article..."
-                  className="
-                    w-full
-                    border
-                    rounded-xl
-                    p-3.5
-                    resize-y
-                    outline-none
-                    focus:ring-2
-                    focus:ring-black
-                  "
+                  className="w-full resize-y rounded-xl border p-3.5 outline-none focus:ring-2 focus:ring-black"
                 />
               </div>
 
-              {/* CATEGORY / AUTHOR */}
+              <div>
+                <label className="mb-2 block text-sm font-semibold">
+                  Introduction
+                </label>
 
-              <div
-                className="
-                  grid
-                  grid-cols-1
-                  sm:grid-cols-2
-                  gap-5
-                "
-              >
+                <p className="mb-3 text-xs leading-5 text-gray-500">
+                  This is the 7–8 line introduction shown immediately
+                  after the article cover image.
+                </p>
+
+                <textarea
+                  name="introduction"
+                  value={form.introduction}
+                  onChange={handleChange}
+                  rows={8}
+                  placeholder="Write the introduction of your article..."
+                  className="w-full resize-y rounded-xl border p-4 leading-7 outline-none focus:ring-2 focus:ring-black"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+
                 <div>
-                  <label
-                    className="
-                      block
-                      text-sm
-                      font-semibold
-                      mb-2
-                    "
-                  >
+                  <label className="mb-2 block text-sm font-semibold">
                     Category
                   </label>
 
                   <input
                     name="category"
-                    value={
-                      form.category
-                    }
-                    onChange={
-                      handleChange
-                    }
+                    value={form.category}
+                    onChange={handleChange}
                     placeholder="AI, Tech, How-To..."
-                    className="
-                      w-full
-                      border
-                      rounded-xl
-                      p-3.5
-                      outline-none
-                      focus:ring-2
-                      focus:ring-black
-                    "
+                    className="w-full rounded-xl border p-3.5 outline-none focus:ring-2 focus:ring-black"
                   />
                 </div>
 
                 <div>
-                  <label
-                    className="
-                      block
-                      text-sm
-                      font-semibold
-                      mb-2
-                    "
-                  >
+                  <label className="mb-2 block text-sm font-semibold">
                     Author
                   </label>
 
                   <input
                     name="author"
-                    value={
-                      form.author
-                    }
-                    onChange={
-                      handleChange
-                    }
-                    className="
-                      w-full
-                      border
-                      rounded-xl
-                      p-3.5
-                      outline-none
-                      focus:ring-2
-                      focus:ring-black
-                    "
+                    value={form.author}
+                    onChange={handleChange}
+                    className="w-full rounded-xl border p-3.5 outline-none focus:ring-2 focus:ring-black"
                   />
                 </div>
+
               </div>
 
-              {/* TAGS */}
-
               <div>
-                <label
-                  className="
-                    block
-                    text-sm
-                    font-semibold
-                    mb-2
-                  "
-                >
+                <label className="mb-2 block text-sm font-semibold">
                   Tags
                 </label>
 
                 <input
                   name="tags"
-                  value={
-                    form.tags
-                  }
-                  onChange={
-                    handleChange
-                  }
+                  value={form.tags}
+                  onChange={handleChange}
                   placeholder="AI, Gemini, Google, Technology"
-                  className="
-                    w-full
-                    border
-                    rounded-xl
-                    p-3.5
-                    outline-none
-                    focus:ring-2
-                    focus:ring-black
-                  "
+                  className="w-full rounded-xl border p-3.5 outline-none focus:ring-2 focus:ring-black"
                 />
               </div>
 
-              {/* OPTIONS */}
+              <div className="flex flex-wrap gap-6 pt-2">
 
-              <div
-                className="
-                  flex
-                  flex-wrap
-                  gap-6
-                  pt-2
-                "
-              >
-                <label
-                  className="
-                    flex
-                    items-center
-                    gap-2
-                    cursor-pointer
-                  "
-                >
+                <label className="flex cursor-pointer items-center gap-2">
                   <input
                     type="checkbox"
-                    checked={
-                      form.published
-                    }
-                    onChange={(
-                      e
-                    ) =>
-                      setForm(
-                        (
-                          prev
-                        ) => ({
-                          ...prev,
-                          published:
-                            e
-                              .target
-                              .checked,
-                        })
-                      )
+                    checked={form.published}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        published:
+                          e.target.checked,
+                      }))
                     }
                   />
 
@@ -1742,33 +1555,16 @@ export default function EditBlogPage() {
                   </span>
                 </label>
 
-                <label
-                  className="
-                    flex
-                    items-center
-                    gap-2
-                    cursor-pointer
-                  "
-                >
+                <label className="flex cursor-pointer items-center gap-2">
                   <input
                     type="checkbox"
-                    checked={
-                      form.featured
-                    }
-                    onChange={(
-                      e
-                    ) =>
-                      setForm(
-                        (
-                          prev
-                        ) => ({
-                          ...prev,
-                          featured:
-                            e
-                              .target
-                              .checked,
-                        })
-                      )
+                    checked={form.featured}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        featured:
+                          e.target.checked,
+                      }))
                     }
                   />
 
@@ -1776,113 +1572,48 @@ export default function EditBlogPage() {
                     Featured
                   </span>
                 </label>
+
               </div>
+
             </div>
           </section>
 
-          {/* =================================================
-              COVER IMAGE
-          ================================================= */}
+          {/* COVER IMAGE */}
 
-          <section
-            className="
-              bg-white
-              border
-              rounded-2xl
-              p-5
-              sm:p-7
-              shadow-sm
-            "
-          >
-            <div className="mb-5">
-              <h2
-                className="
-                  text-xl
-                  font-bold
-                "
-              >
-                Cover Image
-              </h2>
+          <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-7">
 
-              <p
-                className="
-                  text-sm
-                  text-gray-500
-                  mt-1
-                "
-              >
-                Main image displayed
-                at the beginning of
-                the article.
-              </p>
-            </div>
+            <h2 className="text-xl font-bold">
+              Cover Image
+            </h2>
+
+            <p className="mt-1 text-sm text-gray-500">
+              Main image displayed at the beginning of the article.
+            </p>
 
             {form.cover_image && (
-              <div className="mb-5">
-                <div
-                  className="
-                    overflow-hidden
-                    rounded-2xl
-                    border
-                    bg-gray-50
-                  "
-                >
+              <div className="mt-5">
+
+                <div className="overflow-hidden rounded-2xl border bg-gray-50">
                   <img
-                    src={
-                      form.cover_image
-                    }
-                    alt={
-                      form.title ||
-                      "Cover image"
-                    }
-                    className="
-                      w-full
-                      max-h-[420px]
-                      object-cover
-                    "
+                    src={form.cover_image}
+                    alt={form.title || "Cover image"}
+                    className="max-h-[420px] w-full object-cover"
                   />
                 </div>
 
                 <button
                   type="button"
-                  onClick={
-                    removeCoverImage
-                  }
-                  className="
-                    mt-3
-                    px-4
-                    py-2
-                    rounded-xl
-                    border
-                    border-red-200
-                    text-red-600
-                    text-sm
-                    font-semibold
-                    hover:bg-red-50
-                  "
+                  onClick={removeCoverImage}
+                  className="mt-3 rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
                 >
-                  Remove Cover
-                  Image
+                  Remove Cover Image
                 </button>
+
               </div>
             )}
 
-            <label
-              className="
-                inline-flex
-                items-center
-                justify-center
-                px-5
-                py-3
-                rounded-xl
-                bg-black
-                text-white
-                hover:bg-gray-800
-                cursor-pointer
-                font-semibold
-                transition
-              "
-            >
+            <label className="mt-5 inline-flex cursor-pointer items-center justify-center rounded-xl bg-black px-5 py-3 font-semibold text-white transition hover:bg-gray-800">
+
               {uploadingCover
                 ? "Uploading..."
                 : form.cover_image
@@ -1892,101 +1623,40 @@ export default function EditBlogPage() {
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/gif"
-                onChange={
-                  handleCoverUpload
-                }
-                disabled={
-                  uploadingCover
-                }
+                onChange={handleCoverUpload}
+                disabled={uploadingCover}
                 className="hidden"
               />
+
             </label>
 
-            <p
-              className="
-                text-xs
-                text-gray-500
-                mt-3
-              "
-            >
-              Select an image
-              directly from your
-              computer. JPG, PNG,
-              WEBP or GIF up to
-              10MB.
-            </p>
           </section>
 
-          {/* =================================================
-              ARTICLE CONTENT
-          ================================================= */}
+          {/* ARTICLE CONTENT */}
 
-          <section
-            className="
-              bg-white
-              border
-              rounded-2xl
-              p-5
-              sm:p-7
-              shadow-sm
-            "
-          >
-            <div
-              className="
-                flex
-                flex-col
-                sm:flex-row
-                sm:items-center
-                sm:justify-between
-                gap-4
-                mb-6
-              "
-            >
+          <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-7">
+
+            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
               <div>
-                <h2
-                  className="
-                    text-xl
-                    font-bold
-                  "
-                >
+                <h2 className="text-xl font-bold">
                   Article Content
                 </h2>
 
-                <p
-                  className="
-                    text-sm
-                    text-gray-500
-                    mt-1
-                  "
-                >
-                  Edit your article
-                  section by section
-                  and place images
-                  between paragraphs.
+                <p className="mt-1 text-sm text-gray-500">
+                  Edit your article section by section.
+                  Images can be placed between sections.
                 </p>
               </div>
 
-              <div
-                className="
-                  flex
-                  flex-wrap
-                  gap-2
-                "
-              >
+              <div className="flex flex-wrap gap-2">
+
                 <button
                   type="button"
                   onClick={() =>
                     addTextBlock()
                   }
-                  className="
-                    px-4
-                    py-2.5
-                    rounded-xl
-                    bg-black
-                    text-white
-                    text-sm
-                    font-semibold
-                  "
+                  className="rounded-xl bg-black px-4 py-2.5 text-sm font-semibold text-white"
                 >
                   + Text
                 </button>
@@ -1996,115 +1666,65 @@ export default function EditBlogPage() {
                   onClick={() =>
                     addImageBlock()
                   }
-                  className="
-                    px-4
-                    py-2.5
-                    rounded-xl
-                    bg-gray-100
-                    text-gray-900
-                    text-sm
-                    font-semibold
-                  "
+                  className="rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-900"
                 >
                   + Image
                 </button>
+
+                <button
+                  type="button"
+                  onClick={addTableBlock}
+                  className="rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-900"
+                >
+                  + Table
+                </button>
+
               </div>
+
             </div>
 
             <div className="space-y-5">
 
               {contentBlocks.map(
-                (
-                  block,
-                  index
-                ) => (
+                (block, index) => (
                   <div
                     key={index}
-                    className="
-                      border
-                      rounded-2xl
-                      p-4
-                      sm:p-5
-                      bg-gray-50
-                    "
+                    className="rounded-2xl border bg-gray-50 p-4 sm:p-5"
                   >
 
-                    {/* HEADER */}
+                    {/* BLOCK HEADER */}
 
-                    <div
-                      className="
-                        flex
-                        flex-wrap
-                        items-center
-                        justify-between
-                        gap-3
-                        mb-4
-                      "
-                    >
-                      <div
-                        className="
-                          flex
-                          items-center
-                          gap-2
-                        "
-                      >
-                        <span
-                          className="
-                            w-8
-                            h-8
-                            rounded-lg
-                            bg-white
-                            border
-                            flex
-                            items-center
-                            justify-center
-                            text-sm
-                            font-bold
-                          "
-                        >
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+
+                      <div className="flex items-center gap-2">
+
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg border bg-white text-sm font-bold">
                           {index + 1}
                         </span>
 
-                        <span
-                          className="
-                            text-sm
-                            font-semibold
-                            text-gray-700
-                          "
-                        >
-                          {block.type ===
-                          "image"
+                        <span className="text-sm font-semibold text-gray-700">
+                          {block.type === "image"
                             ? "Image"
+                            : block.type === "callout"
+                            ? "Callout"
+                            : block.type === "quote"
+                            ? "Quote"
+                            : block.type === "table"
+                            ? "Table"
                             : "Article Text"}
                         </span>
+
                       </div>
 
-                      <div
-                        className="
-                          flex
-                          items-center
-                          gap-1
-                        "
-                      >
+                      <div className="flex items-center gap-1">
+
                         <button
                           type="button"
                           onClick={() =>
-                            moveBlockUp(
-                              index
-                            )
+                            moveBlockUp(index)
                           }
-                          disabled={
-                            index ===
-                            0
-                          }
-                          className="
-                            px-2.5
-                            py-1.5
-                            rounded-lg
-                            border
-                            bg-white
-                            disabled:opacity-30
-                          "
+                          disabled={index === 0}
+                          className="rounded-lg border bg-white px-2.5 py-1.5 disabled:opacity-30"
                         >
                           ↑
                         </button>
@@ -2112,23 +1732,13 @@ export default function EditBlogPage() {
                         <button
                           type="button"
                           onClick={() =>
-                            moveBlockDown(
-                              index
-                            )
+                            moveBlockDown(index)
                           }
                           disabled={
                             index ===
-                            contentBlocks.length -
-                              1
+                            contentBlocks.length - 1
                           }
-                          className="
-                            px-2.5
-                            py-1.5
-                            rounded-lg
-                            border
-                            bg-white
-                            disabled:opacity-30
-                          "
+                          className="rounded-lg border bg-white px-2.5 py-1.5 disabled:opacity-30"
                         >
                           ↓
                         </button>
@@ -2136,52 +1746,32 @@ export default function EditBlogPage() {
                         <button
                           type="button"
                           onClick={() =>
-                            deleteBlock(
-                              index
-                            )
+                            deleteBlock(index)
                           }
-                          className="
-                            px-2.5
-                            py-1.5
-                            rounded-lg
-                            border
-                            bg-white
-                            text-red-600
-                          "
+                          className="rounded-lg border bg-white px-2.5 py-1.5 text-red-600"
                         >
                           Delete
                         </button>
+
                       </div>
+
                     </div>
 
                     {/* TEXT BLOCK */}
 
-                    {block.type ===
-                      "text" && (
+                    {block.type === "text" && (
                       <div className="space-y-3">
 
                         <select
-                          value={
-                            block.headingType
-                          }
-                          onChange={(
-                            e
-                          ) =>
+                          value={block.headingType}
+                          onChange={(e) =>
                             updateTextBlockType(
                               index,
                               e.target
                                 .value as TextBlockType
                             )
                           }
-                          className="
-                            border
-                            rounded-xl
-                            px-3
-                            py-2.5
-                            bg-white
-                            text-sm
-                            font-medium
-                          "
+                          className="rounded-xl border bg-white px-3 py-2.5 text-sm font-medium"
                         >
                           <option value="paragraph">
                             Paragraph
@@ -2201,16 +1791,11 @@ export default function EditBlogPage() {
                         </select>
 
                         <textarea
-                          value={
-                            block.content
-                          }
-                          onChange={(
-                            e
-                          ) =>
+                          value={block.content}
+                          onChange={(e) =>
                             updateTextBlock(
                               index,
-                              e.target
-                                .value
+                              e.target.value
                             )
                           }
                           rows={
@@ -2219,87 +1804,43 @@ export default function EditBlogPage() {
                               ? 10
                               : 3
                           }
-                          placeholder={
-                            block.headingType ===
-                            "paragraph"
-                              ? "Write your article section here..."
-                              : "Enter heading..."
-                          }
-                          className="
-                            w-full
-                            border
-                            rounded-xl
-                            p-4
-                            bg-white
-                            resize-y
-                            outline-none
-                            focus:ring-2
-                            focus:ring-black
-                          "
+                          placeholder="Write your article section here..."
+                          className="w-full resize-y rounded-xl border bg-white p-4 leading-7 outline-none focus:ring-2 focus:ring-black"
                         />
+
                       </div>
                     )}
 
                     {/* IMAGE BLOCK */}
 
-                    {block.type ===
-                      "image" && (
+                    {block.type === "image" && (
                       <div className="space-y-4">
 
                         {block.url && (
-                          <div
-                            className="
-                              overflow-hidden
-                              rounded-xl
-                              border
-                              bg-white
-                            "
-                          >
+                          <div className="overflow-hidden rounded-xl border bg-white">
                             <img
-                              src={
-                                block.url
-                              }
+                              src={block.url}
                               alt={
                                 block.alt ||
                                 form.title
                               }
-                              className="
-                                w-full
-                                max-h-[420px]
-                                object-cover
-                              "
+                              className="max-h-[420px] w-full object-cover"
                             />
                           </div>
                         )}
 
-                        <label
-                          className="
-                            inline-flex
-                            items-center
-                            justify-center
-                            px-4
-                            py-2.5
-                            rounded-xl
-                            bg-black
-                            text-white
-                            cursor-pointer
-                            text-sm
-                            font-semibold
-                          "
-                        >
-                          {uploadingBlockIndex ===
-                          index
+                        <label className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-black px-4 py-2.5 text-sm font-semibold text-white">
+
+                          {uploadingBlockIndex === index
                             ? "Uploading..."
                             : block.url
                             ? "📷 Change Image"
-                            : "📷 Select Image From Computer"}
+                            : "📷 Select Image"}
 
                           <input
                             type="file"
                             accept="image/jpeg,image/png,image/webp,image/gif"
-                            onChange={(
-                              e
-                            ) =>
+                            onChange={(e) =>
                               handleBlockImageUpload(
                                 index,
                                 e
@@ -2311,62 +1852,489 @@ export default function EditBlogPage() {
                             }
                             className="hidden"
                           />
+
                         </label>
 
                         <input
-                          value={
-                            block.alt
-                          }
-                          onChange={(
-                            e
-                          ) =>
+                          value={block.alt}
+                          onChange={(e) =>
                             updateImageAlt(
                               index,
-                              e.target
-                                .value
+                              e.target.value
                             )
                           }
                           placeholder="Image alt text"
-                          className="
-                            w-full
-                            border
-                            rounded-xl
-                            p-3
-                            bg-white
-                            text-sm
-                          "
+                          className="w-full rounded-xl border bg-white p-3 text-sm"
                         />
+
+                      </div>
+                    )}
+
+                    {/* CALLOUT */}
+
+                    {block.type === "callout" && (
+                      <div className="rounded-xl border bg-white p-4">
+
+                        <input
+                          value={
+                            block.title || ""
+                          }
+                          onChange={(e) => {
+                            setContentBlocks(
+                              (prev) => {
+                                const updated = [
+                                  ...prev,
+                                ];
+
+                                const current =
+                                  updated[index];
+
+                                if (
+                                  current?.type ===
+                                  "callout"
+                                ) {
+                                  updated[index] = {
+                                    ...current,
+                                    title:
+                                      e.target.value,
+                                  };
+                                }
+
+                                return updated;
+                              }
+                            );
+                          }}
+                          placeholder="Callout title"
+                          className="mb-3 w-full rounded-xl border p-3 font-semibold"
+                        />
+
+                        <textarea
+                          value={block.content}
+                          onChange={(e) => {
+                            setContentBlocks(
+                              (prev) => {
+                                const updated = [
+                                  ...prev,
+                                ];
+
+                                const current =
+                                  updated[index];
+
+                                if (
+                                  current?.type ===
+                                  "callout"
+                                ) {
+                                  updated[index] = {
+                                    ...current,
+                                    content:
+                                      e.target.value,
+                                  };
+                                }
+
+                                return updated;
+                              }
+                            );
+                          }}
+                          rows={6}
+                          className="w-full rounded-xl border p-4"
+                        />
+
+                      </div>
+                    )}
+
+                    {/* QUOTE */}
+
+                    {block.type === "quote" && (
+                      <div className="rounded-xl border bg-white p-4">
+
+                        <textarea
+                          value={block.content}
+                          onChange={(e) => {
+                            setContentBlocks(
+                              (prev) => {
+                                const updated = [
+                                  ...prev,
+                                ];
+
+                                const current =
+                                  updated[index];
+
+                                if (
+                                  current?.type ===
+                                  "quote"
+                                ) {
+                                  updated[index] = {
+                                    ...current,
+                                    content:
+                                      e.target.value,
+                                  };
+                                }
+
+                                return updated;
+                              }
+                            );
+                          }}
+                          rows={5}
+                          className="w-full rounded-xl border p-4"
+                        />
+
+                        <input
+                          value={
+                            block.author || ""
+                          }
+                          onChange={(e) => {
+                            setContentBlocks(
+                              (prev) => {
+                                const updated = [
+                                  ...prev,
+                                ];
+
+                                const current =
+                                  updated[index];
+
+                                if (
+                                  current?.type ===
+                                  "quote"
+                                ) {
+                                  updated[index] = {
+                                    ...current,
+                                    author:
+                                      e.target.value,
+                                  };
+                                }
+
+                                return updated;
+                              }
+                            );
+                          }}
+                          placeholder="Author (optional)"
+                          className="mt-3 w-full rounded-xl border p-3"
+                        />
+
+                      </div>
+                    )}
+
+                    {/* LIST */}
+
+                    {(
+                      block.type === "bullet-list" ||
+                      block.type === "bullets" ||
+                      block.type === "unordered-list" ||
+                      block.type === "ordered-list" ||
+                      block.type === "numbered-list"
+                    ) && (
+                      <div className="space-y-3 rounded-xl border bg-white p-4">
+
+                        {block.items.map(
+                          (item, itemIndex) => (
+                            <div
+                              key={itemIndex}
+                              className="flex gap-2"
+                            >
+
+                              <input
+                                value={item}
+                                onChange={(e) => {
+                                  setContentBlocks(
+                                    (prev) => {
+                                      const updated =
+                                        [...prev];
+
+                                      const current =
+                                        updated[index];
+
+                                      if (
+                                        current &&
+                                        "items" in
+                                          current
+                                      ) {
+                                        const items =
+                                          [
+                                            ...current.items,
+                                          ];
+
+                                        items[
+                                          itemIndex
+                                        ] =
+                                          e.target.value;
+
+                                        updated[
+                                          index
+                                        ] = {
+                                          ...current,
+                                          items,
+                                        };
+                                      }
+
+                                      return updated;
+                                    }
+                                  );
+                                }}
+                                className="w-full rounded-xl border p-3"
+                              />
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setContentBlocks(
+                                    (prev) => {
+                                      const updated =
+                                        [...prev];
+
+                                      const current =
+                                        updated[index];
+
+                                      if (
+                                        current &&
+                                        "items" in
+                                          current
+                                      ) {
+                                        updated[
+                                          index
+                                        ] = {
+                                          ...current,
+                                          items:
+                                            current.items.filter(
+                                              (_, i) =>
+                                                i !==
+                                                itemIndex
+                                            ),
+                                        };
+                                      }
+
+                                      return updated;
+                                    }
+                                  );
+                                }}
+                                className="rounded-xl border px-3 text-red-600"
+                              >
+                                ×
+                              </button>
+
+                            </div>
+                          )
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setContentBlocks(
+                              (prev) => {
+                                const updated = [
+                                  ...prev,
+                                ];
+
+                                const current =
+                                  updated[index];
+
+                                if (
+                                  current &&
+                                  "items" in
+                                    current
+                                ) {
+                                  updated[index] = {
+                                    ...current,
+                                    items: [
+                                      ...current.items,
+                                      "",
+                                    ],
+                                  };
+                                }
+
+                                return updated;
+                              }
+                            );
+                          }}
+                          className="rounded-lg border px-3 py-2 text-sm font-semibold"
+                        >
+                          + Add Item
+                        </button>
+
+                      </div>
+                    )}
+
+                    {/* TABLE */}
+
+                    {block.type === "table" && (
+                      <div className="space-y-4 rounded-xl border bg-white p-4">
+
+                        <div className="overflow-x-auto">
+
+                          <table className="w-full border-collapse">
+
+                            <thead>
+                              <tr>
+                                {block.headers.map(
+                                  (
+                                    header,
+                                    headerIndex
+                                  ) => (
+                                    <th
+                                      key={
+                                        headerIndex
+                                      }
+                                      className="border bg-gray-100 p-2"
+                                    >
+                                      <input
+                                        value={
+                                          header
+                                        }
+                                        onChange={(
+                                          e
+                                        ) =>
+                                          updateTableHeader(
+                                            index,
+                                            headerIndex,
+                                            e
+                                              .target
+                                              .value
+                                          )
+                                        }
+                                        className="w-full rounded-lg border bg-white p-2 text-sm font-semibold"
+                                      />
+                                    </th>
+                                  )
+                                )}
+
+                                <th className="w-20 border bg-gray-100 p-2">
+                                  Actions
+                                </th>
+                              </tr>
+                            </thead>
+
+                            <tbody>
+                              {block.rows.map(
+                                (
+                                  row,
+                                  rowIndex
+                                ) => (
+                                  <tr
+                                    key={
+                                      rowIndex
+                                    }
+                                  >
+                                    {row.map(
+                                      (
+                                        cell,
+                                        cellIndex
+                                      ) => (
+                                        <td
+                                          key={
+                                            cellIndex
+                                          }
+                                          className="border p-2"
+                                        >
+                                          <input
+                                            value={
+                                              cell
+                                            }
+                                            onChange={(
+                                              e
+                                            ) =>
+                                              updateTableCell(
+                                                index,
+                                                rowIndex,
+                                                cellIndex,
+                                                e
+                                                  .target
+                                                  .value
+                                              )
+                                            }
+                                            className="w-full rounded-lg border p-2 text-sm"
+                                          />
+                                        </td>
+                                      )
+                                    )}
+
+                                    <td className="border p-2 text-center">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          deleteTableRow(
+                                            index,
+                                            rowIndex
+                                          )
+                                        }
+                                        className="rounded-lg border px-3 py-2 text-sm text-red-600"
+                                      >
+                                        Delete
+                                      </button>
+                                    </td>
+                                  </tr>
+                                )
+                              )}
+                            </tbody>
+
+                          </table>
+
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              addTableRow(index)
+                            }
+                            className="rounded-lg border px-3 py-2 text-sm font-semibold"
+                          >
+                            + Add Row
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              addTableColumn(index)
+                            }
+                            className="rounded-lg border px-3 py-2 text-sm font-semibold"
+                          >
+                            + Add Column
+                          </button>
+
+                        </div>
+
+                      </div>
+                    )}
+
+                    {/* UNKNOWN */}
+
+                    {![
+                      "text",
+                      "image",
+                      "callout",
+                      "quote",
+                      "bullet-list",
+                      "bullets",
+                      "unordered-list",
+                      "ordered-list",
+                      "numbered-list",
+                      "table",
+                    ].includes(block.type) && (
+                      <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
+
+                        <p className="text-sm font-semibold text-yellow-800">
+                          Unsupported block:{" "}
+                          {block.type}
+                        </p>
+
+                        <p className="mt-1 text-xs text-yellow-700">
+                          This content is being preserved
+                          so it is not deleted when you save.
+                        </p>
+
                       </div>
                     )}
 
                     {/* INSERT */}
 
-                    <div
-                      className="
-                        flex
-                        flex-wrap
-                        gap-2
-                        mt-5
-                        pt-4
-                        border-t
-                      "
-                    >
+                    <div className="mt-5 flex flex-wrap gap-2 border-t pt-4">
+
                       <button
                         type="button"
                         onClick={() =>
-                          addTextBlock(
-                            index
-                          )
+                          addTextBlock(index)
                         }
-                        className="
-                          px-3
-                          py-2
-                          rounded-lg
-                          bg-white
-                          border
-                          text-xs
-                          font-semibold
-                        "
+                        className="rounded-lg border bg-white px-3 py-2 text-xs font-semibold"
                       >
                         + Text After
                       </button>
@@ -2374,120 +2342,59 @@ export default function EditBlogPage() {
                       <button
                         type="button"
                         onClick={() =>
-                          addImageBlock(
-                            index
-                          )
+                          addImageBlock(index)
                         }
-                        className="
-                          px-3
-                          py-2
-                          rounded-lg
-                          bg-white
-                          border
-                          text-xs
-                          font-semibold
-                        "
+                        className="rounded-lg border bg-white px-3 py-2 text-xs font-semibold"
                       >
                         + Image After
                       </button>
+
                     </div>
+
                   </div>
                 )
               )}
+
             </div>
+
           </section>
 
-          {/* =================================================
-              DANGER ZONE
-          ================================================= */}
+          {/* DANGER ZONE */}
 
-          <section
-            className="
-              bg-white
-              border
-              border-red-200
-              rounded-2xl
-              p-5
-              sm:p-7
-              shadow-sm
-            "
-          >
-            <h2
-              className="
-                text-xl
-                font-bold
-                text-red-600
-              "
-            >
+          <section className="rounded-2xl border border-red-200 bg-white p-5 shadow-sm sm:p-7">
+
+            <h2 className="text-xl font-bold text-red-600">
               Danger Zone
             </h2>
 
-            <p
-              className="
-                text-sm
-                text-gray-500
-                mt-1
-                mb-5
-              "
-            >
-              Deleting this article
-              permanently removes it
+            <p className="mb-5 mt-1 text-sm text-gray-500">
+              Deleting this article permanently removes it
               from your blog database.
-              This action cannot be
-              undone.
             </p>
 
             <button
               type="button"
               onClick={() =>
-                setShowDeleteConfirm(
-                  true
-                )
+                setShowDeleteConfirm(true)
               }
               disabled={deleting}
-              className="
-                px-5
-                py-3
-                rounded-xl
-                bg-red-600
-                text-white
-                font-semibold
-                hover:bg-red-700
-                disabled:opacity-50
-              "
+              className="rounded-xl bg-red-600 px-5 py-3 font-semibold text-white hover:bg-red-700 disabled:opacity-50"
             >
               🗑 Delete This Blog
             </button>
+
           </section>
 
-          {/* =================================================
-              BOTTOM BUTTONS
-          ================================================= */}
+          {/* BOTTOM */}
 
-          <div
-            className="
-              flex
-              flex-col
-              sm:flex-row
-              justify-end
-              gap-3
-            "
-          >
+          <div className="flex flex-col justify-end gap-3 sm:flex-row">
+
             <button
               type="button"
               onClick={() =>
-                router.push(
-                  "/admin/blogs"
-                )
+                router.push("/admin/blogs")
               }
-              className="
-                px-6
-                py-3
-                rounded-xl
-                border
-                bg-white
-                font-semibold
-              "
+              className="rounded-xl border bg-white px-6 py-3 font-semibold"
             >
               Cancel
             </button>
@@ -2495,205 +2402,103 @@ export default function EditBlogPage() {
             <button
               type="button"
               onClick={() =>
-                setShowPreview(
-                  true
-                )
+                setShowPreview(true)
               }
-              className="
-                px-6
-                py-3
-                rounded-xl
-                border
-                font-semibold
-                bg-white
-              "
+              className="rounded-xl border bg-white px-6 py-3 font-semibold"
             >
               👁 Preview
             </button>
 
             <button
               type="button"
-              onClick={
-                updateBlog
-              }
+              onClick={updateBlog}
               disabled={
                 saving ||
                 deleting
               }
-              className="
-                px-7
-                py-3
-                rounded-xl
-                bg-black
-                text-white
-                font-semibold
-                disabled:opacity-50
-              "
+              className="rounded-xl bg-black px-7 py-3 font-semibold text-white disabled:opacity-50"
             >
               {saving
                 ? "Saving..."
                 : "Save Changes"}
             </button>
+
           </div>
+
         </div>
       </main>
 
       {/* =====================================================
-          PREVIEW MODAL
+          PREVIEW
       ===================================================== */}
 
       {showPreview && (
-        <div
-          className="
-            fixed
-            inset-0
-            z-50
-            bg-black/60
-            p-3
-            sm:p-6
-            overflow-y-auto
-          "
-        >
-          <div
-            className="
-              max-w-4xl
-              mx-auto
-              bg-white
-              rounded-2xl
-              min-h-full
-              shadow-2xl
-              overflow-hidden
-            "
-          >
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-3 sm:p-6">
 
-            {/* PREVIEW HEADER */}
+          <div className="mx-auto min-h-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl">
 
-            <div
-              className="
-                sticky
-                top-0
-                z-10
-                bg-white
-                border-b
-                px-5
-                py-4
-                flex
-                items-center
-                justify-between
-                gap-3
-              "
-            >
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b bg-white px-5 py-4">
+
               <div>
-                <div
-                  className="
-                    text-xs
-                    font-semibold
-                    text-gray-500
-                    uppercase
-                    tracking-wide
-                  "
-                >
+
+                <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Article Preview
                 </div>
 
-                <div
-                  className="
-                    font-bold
-                    text-gray-900
-                  "
-                >
+                <div className="font-bold text-gray-900">
                   {form.title ||
                     "Untitled Blog"}
                 </div>
+
               </div>
 
               <button
                 type="button"
                 onClick={() =>
-                  setShowPreview(
-                    false
-                  )
+                  setShowPreview(false)
                 }
-                className="
-                  w-10
-                  h-10
-                  rounded-full
-                  bg-gray-100
-                  hover:bg-gray-200
-                  font-bold
-                  text-lg
-                "
+                className="h-10 w-10 rounded-full bg-gray-100 text-lg font-bold hover:bg-gray-200"
               >
                 ×
               </button>
+
             </div>
 
-            {/* ARTICLE */}
+            <article className="px-5 py-8 sm:px-10">
 
-            <article
-              className="
-                px-5
-                sm:px-10
-                py-8
-              "
-            >
               {form.category && (
-                <div
-                  className="
-                    text-sm
-                    font-bold
-                    text-gray-500
-                    mb-3
-                  "
-                >
+                <div className="mb-3 text-sm font-bold text-gray-500">
                   {form.category}
                 </div>
               )}
 
-              <h1
-                className="
-                  text-3xl
-                  sm:text-5xl
-                  font-bold
-                  leading-tight
-                  text-gray-900
-                  mb-5
-                "
-              >
+              <h1 className="mb-5 text-3xl font-bold leading-tight text-gray-900 sm:text-5xl">
                 {form.title ||
                   "Untitled Blog"}
               </h1>
 
               {form.excerpt && (
-                <p
-                  className="
-                    text-lg
-                    sm:text-xl
-                    leading-8
-                    text-gray-600
-                    mb-7
-                  "
-                >
+                <p className="mb-7 text-lg leading-8 text-gray-600 sm:text-xl">
                   {form.excerpt}
                 </p>
               )}
 
               {form.cover_image && (
                 <img
-                  src={
-                    form.cover_image
-                  }
-                  alt={
-                    form.title
-                  }
-                  className="
-                    w-full
-                    max-h-[520px]
-                    object-cover
-                    rounded-2xl
-                    mb-10
-                  "
+                  src={form.cover_image}
+                  alt={form.title}
+                  className="mb-8 max-h-[520px] w-full rounded-2xl object-cover"
                 />
+              )}
+
+              {form.introduction && (
+                <div className="mb-10">
+
+                  <p className="whitespace-pre-line text-lg leading-8 text-gray-700 sm:text-xl">
+                    {form.introduction}
+                  </p>
+
+                </div>
               )}
 
               <div>
@@ -2703,170 +2508,78 @@ export default function EditBlogPage() {
               </div>
 
               {form.author && (
-                <div
-                  className="
-                    mt-12
-                    pt-6
-                    border-t
-                    text-sm
-                    text-gray-500
-                  "
-                >
+                <div className="mt-12 border-t pt-6 text-sm text-gray-500">
                   Written by{" "}
                   <strong>
                     {form.author}
                   </strong>
                 </div>
               )}
+
             </article>
+
           </div>
+
         </div>
       )}
 
       {/* =====================================================
-          DELETE CONFIRMATION
+          DELETE MODAL
       ===================================================== */}
 
       {showDeleteConfirm && (
-        <div
-          className="
-            fixed
-            inset-0
-            z-[60]
-            bg-black/60
-            flex
-            items-center
-            justify-center
-            p-4
-          "
-        >
-          <div
-            className="
-              w-full
-              max-w-md
-              bg-white
-              rounded-2xl
-              shadow-2xl
-              p-6
-            "
-          >
-            <div
-              className="
-                w-12
-                h-12
-                rounded-full
-                bg-red-100
-                flex
-                items-center
-                justify-center
-                text-xl
-                mb-4
-              "
-            >
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-xl">
               🗑
             </div>
 
-            <h2
-              className="
-                text-xl
-                font-bold
-                text-gray-900
-              "
-            >
+            <h2 className="text-xl font-bold text-gray-900">
               Delete this blog?
             </h2>
 
-            <p
-              className="
-                text-sm
-                text-gray-600
-                mt-2
-                leading-6
-              "
-            >
-              You are about to
-              permanently delete:
+            <p className="mt-2 text-sm leading-6 text-gray-600">
+              You are about to permanently delete:
             </p>
 
-            <div
-              className="
-                mt-3
-                p-3
-                rounded-xl
-                bg-gray-50
-                border
-                font-semibold
-                text-gray-900
-              "
-            >
+            <div className="mt-3 rounded-xl border bg-gray-50 p-3 font-semibold text-gray-900">
               {form.title}
             </div>
 
-            <p
-              className="
-                text-sm
-                text-red-600
-                mt-4
-                font-medium
-              "
-            >
-              This action cannot be
-              undone.
+            <p className="mt-4 text-sm font-medium text-red-600">
+              This action cannot be undone.
             </p>
 
-            <div
-              className="
-                flex
-                flex-col-reverse
-                sm:flex-row
-                justify-end
-                gap-3
-                mt-6
-              "
-            >
+            <div className="mt-6 flex flex-col-reverse justify-end gap-3 sm:flex-row">
+
               <button
                 type="button"
                 onClick={() =>
-                  setShowDeleteConfirm(
-                    false
-                  )
+                  setShowDeleteConfirm(false)
                 }
                 disabled={deleting}
-                className="
-                  px-5
-                  py-3
-                  rounded-xl
-                  border
-                  bg-white
-                  font-semibold
-                "
+                className="rounded-xl border bg-white px-5 py-3 font-semibold"
               >
                 Cancel
               </button>
 
               <button
                 type="button"
-                onClick={
-                  deleteBlog
-                }
+                onClick={deleteBlog}
                 disabled={deleting}
-                className="
-                  px-5
-                  py-3
-                  rounded-xl
-                  bg-red-600
-                  text-white
-                  font-semibold
-                  hover:bg-red-700
-                  disabled:opacity-50
-                "
+                className="rounded-xl bg-red-600 px-5 py-3 font-semibold text-white hover:bg-red-700 disabled:opacity-50"
               >
                 {deleting
                   ? "Deleting..."
                   : "Yes, Delete Blog"}
               </button>
+
             </div>
+
           </div>
+
         </div>
       )}
     </>

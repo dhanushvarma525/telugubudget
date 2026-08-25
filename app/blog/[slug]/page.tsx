@@ -1,7 +1,5 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
 import { supabase } from "@/lib/supabase";
 
 type Blog = {
@@ -77,7 +75,10 @@ function getString(
   for (const key of keys) {
     const value = object[key];
 
-    if (typeof value === "string" && value.trim()) {
+    if (
+      typeof value === "string" &&
+      value.trim()
+    ) {
       return value;
     }
   }
@@ -133,38 +134,32 @@ async function getRelatedBlogs(
 ): Promise<Blog[]> {
   let related: Blog[] = [];
 
-  /*
-   * First try same category.
-   */
-
   if (blog.category) {
     const { data } = await supabase
       .from("blogs")
-      .select(
-        `
-          id,
-          title,
-          slug,
-          excerpt,
-          cover_image,
-          cover_image_alt,
-          category,
-          author,
-          tags,
-          published,
-          featured,
-          reading_time,
-          created_at,
-          updated_at,
-          content_blocks,
-          faqs,
-          introduction,
-          content,
-          views,
-          seo_title,
-          seo_description
-        `
-      )
+      .select(`
+        id,
+        title,
+        slug,
+        excerpt,
+        cover_image,
+        cover_image_alt,
+        category,
+        author,
+        tags,
+        published,
+        featured,
+        reading_time,
+        created_at,
+        updated_at,
+        content_blocks,
+        faqs,
+        introduction,
+        content,
+        views,
+        seo_title,
+        seo_description
+      `)
       .eq("published", true)
       .eq("category", blog.category)
       .neq("id", blog.id)
@@ -178,11 +173,6 @@ async function getRelatedBlogs(
     }
   }
 
-  /*
-   * If there aren't enough related articles,
-   * fill with latest articles.
-   */
-
   if (related.length < 6) {
     const existingIds = [
       blog.id,
@@ -191,31 +181,29 @@ async function getRelatedBlogs(
 
     const { data } = await supabase
       .from("blogs")
-      .select(
-        `
-          id,
-          title,
-          slug,
-          excerpt,
-          cover_image,
-          cover_image_alt,
-          category,
-          author,
-          tags,
-          published,
-          featured,
-          reading_time,
-          created_at,
-          updated_at,
-          content_blocks,
-          faqs,
-          introduction,
-          content,
-          views,
-          seo_title,
-          seo_description
-        `
-      )
+      .select(`
+        id,
+        title,
+        slug,
+        excerpt,
+        cover_image,
+        cover_image_alt,
+        category,
+        author,
+        tags,
+        published,
+        featured,
+        reading_time,
+        created_at,
+        updated_at,
+        content_blocks,
+        faqs,
+        introduction,
+        content,
+        views,
+        seo_title,
+        seo_description
+      `)
       .eq("published", true)
       .order("created_at", {
         ascending: false,
@@ -223,7 +211,9 @@ async function getRelatedBlogs(
       .limit(12);
 
     if (data) {
-      const additional = (data as Blog[]).filter(
+      const additional = (
+        data as Blog[]
+      ).filter(
         (item) =>
           !existingIds.includes(item.id)
       );
@@ -313,16 +303,14 @@ function RenderBlock({
   block: unknown;
   index: number;
 }) {
-  /*
-   * Sometimes content blocks can accidentally contain
-   * strings instead of objects.
-   */
-
   if (typeof block === "string") {
     return (
       <p
         key={index}
         className="my-6 whitespace-pre-line"
+        style={{
+          color: "#3f3f46",
+        }}
       >
         {block}
       </p>
@@ -333,22 +321,15 @@ function RenderBlock({
     return null;
   }
 
-  /*
-   * Block type.
-   */
+  const type = getString(block, [
+    "type",
+    "block_type",
+    "kind",
+  ]).toLowerCase();
 
-  const type =
-    getString(block, [
-      "type",
-      "block_type",
-      "kind",
-    ]).toLowerCase();
-
-  /*
-   * =====================================================
-   * TEXT / PARAGRAPH
-   * =====================================================
-   */
+  /* =====================================================
+     TEXT
+  ===================================================== */
 
   if (
     type === "text" ||
@@ -368,10 +349,6 @@ function RenderBlock({
       return null;
     }
 
-    /*
-     * If the editor stored HTML, render it.
-     */
-
     if (
       text.includes("<p") ||
       text.includes("<strong") ||
@@ -382,6 +359,9 @@ function RenderBlock({
         <div
           key={index}
           className="my-6"
+          style={{
+            color: "#3f3f46",
+          }}
           dangerouslySetInnerHTML={{
             __html: text,
           }}
@@ -393,17 +373,18 @@ function RenderBlock({
       <p
         key={index}
         className="my-6 whitespace-pre-line"
+        style={{
+          color: "#3f3f46",
+        }}
       >
         {text}
       </p>
     );
   }
 
-  /*
-   * =====================================================
-   * HEADING
-   * =====================================================
-   */
+  /* =====================================================
+     HEADING
+  ===================================================== */
 
   if (
     type === "heading" ||
@@ -425,20 +406,24 @@ function RenderBlock({
     return (
       <h2
         key={index}
-        className="mt-14 mb-5 text-2xl font-black leading-tight tracking-tight text-zinc-950 sm:text-3xl"
+        className="mt-14 mb-5 text-2xl font-black leading-tight tracking-tight sm:text-3xl"
+        style={{
+          color: "#09090b",
+        }}
       >
         {heading}
       </h2>
     );
   }
 
-  /*
-   * =====================================================
-   * H3
-   * =====================================================
-   */
+  /* =====================================================
+     H3
+  ===================================================== */
 
-  if (type === "h3" || type === "subheading") {
+  if (
+    type === "h3" ||
+    type === "subheading"
+  ) {
     const heading = getString(block, [
       "text",
       "content",
@@ -454,18 +439,19 @@ function RenderBlock({
     return (
       <h3
         key={index}
-        className="mt-10 mb-4 text-xl font-extrabold leading-tight text-zinc-950 sm:text-2xl"
+        className="mt-10 mb-4 text-xl font-extrabold leading-tight sm:text-2xl"
+        style={{
+          color: "#09090b",
+        }}
       >
         {heading}
       </h3>
     );
   }
 
-  /*
-   * =====================================================
-   * IMAGE
-   * =====================================================
-   */
+  /* =====================================================
+     IMAGE
+  ===================================================== */
 
   if (
     type === "image" ||
@@ -513,7 +499,12 @@ function RenderBlock({
         </div>
 
         {caption && (
-          <figcaption className="mt-3 text-center text-sm leading-6 text-zinc-500">
+          <figcaption
+            className="mt-3 text-center text-sm leading-6"
+            style={{
+              color: "#71717a",
+            }}
+          >
             {caption}
           </figcaption>
         )}
@@ -521,11 +512,9 @@ function RenderBlock({
     );
   }
 
-  /*
-   * =====================================================
-   * BULLET LIST
-   * =====================================================
-   */
+  /* =====================================================
+     BULLET LIST
+  ===================================================== */
 
   if (
     type === "bullet-list" ||
@@ -547,41 +536,47 @@ function RenderBlock({
     return (
       <ul
         key={index}
-        className="my-7 list-disc space-y-3 pl-6 text-[1.08rem] leading-8 text-zinc-700"
+        className="my-7 list-disc space-y-3 pl-6 text-[1.08rem] leading-8"
+        style={{
+          color: "#3f3f46",
+        }}
       >
-        {items.map((item, itemIndex) => {
-          if (typeof item === "string") {
-            return (
-              <li key={itemIndex}>
-                {item}
-              </li>
-            );
-          }
+        {items.map(
+          (item, itemIndex) => {
+            if (
+              typeof item ===
+              "string"
+            ) {
+              return (
+                <li key={itemIndex}>
+                  {item}
+                </li>
+              );
+            }
 
-          if (isObject(item)) {
-            return (
-              <li key={itemIndex}>
-                {getString(item, [
-                  "text",
-                  "content",
-                  "value",
-                  "title",
-                ])}
-              </li>
-            );
-          }
+            if (isObject(item)) {
+              return (
+                <li key={itemIndex}>
+                  {getString(item, [
+                    "text",
+                    "content",
+                    "value",
+                    "title",
+                  ])}
+                </li>
+              );
+            }
 
-          return null;
-        })}
+            return null;
+          }
+        )}
       </ul>
     );
   }
 
-  /*
-   * =====================================================
-   * ORDERED LIST
-   * =====================================================
-   */
+  /* =====================================================
+     ORDERED LIST
+  ===================================================== */
 
   if (
     type === "ordered-list" ||
@@ -602,41 +597,47 @@ function RenderBlock({
     return (
       <ol
         key={index}
-        className="my-7 list-decimal space-y-3 pl-6 text-[1.08rem] leading-8 text-zinc-700"
+        className="my-7 list-decimal space-y-3 pl-6 text-[1.08rem] leading-8"
+        style={{
+          color: "#3f3f46",
+        }}
       >
-        {items.map((item, itemIndex) => {
-          if (typeof item === "string") {
-            return (
-              <li key={itemIndex}>
-                {item}
-              </li>
-            );
-          }
+        {items.map(
+          (item, itemIndex) => {
+            if (
+              typeof item ===
+              "string"
+            ) {
+              return (
+                <li key={itemIndex}>
+                  {item}
+                </li>
+              );
+            }
 
-          if (isObject(item)) {
-            return (
-              <li key={itemIndex}>
-                {getString(item, [
-                  "text",
-                  "content",
-                  "value",
-                  "title",
-                ])}
-              </li>
-            );
-          }
+            if (isObject(item)) {
+              return (
+                <li key={itemIndex}>
+                  {getString(item, [
+                    "text",
+                    "content",
+                    "value",
+                    "title",
+                  ])}
+                </li>
+              );
+            }
 
-          return null;
-        })}
+            return null;
+          }
+        )}
       </ol>
     );
   }
 
-  /*
-   * =====================================================
-   * QUOTE
-   * =====================================================
-   */
+  /* =====================================================
+     QUOTE
+  ===================================================== */
 
   if (
     type === "quote" ||
@@ -664,12 +665,22 @@ function RenderBlock({
         key={index}
         className="my-10 rounded-r-2xl border-l-4 border-zinc-900 bg-zinc-50 px-6 py-5"
       >
-        <p className="text-lg font-medium italic leading-8 text-zinc-700">
+        <p
+          className="text-lg font-medium italic leading-8"
+          style={{
+            color: "#52525b",
+          }}
+        >
           {text}
         </p>
 
         {author && (
-          <footer className="mt-3 text-sm font-semibold text-zinc-500">
+          <footer
+            className="mt-3 text-sm font-semibold"
+            style={{
+              color: "#71717a",
+            }}
+          >
             — {author}
           </footer>
         )}
@@ -677,11 +688,9 @@ function RenderBlock({
     );
   }
 
-  /*
-   * =====================================================
-   * CALLOUT
-   * =====================================================
-   */
+  /* =====================================================
+     CALLOUT
+  ===================================================== */
 
   if (
     type === "callout" ||
@@ -712,13 +721,23 @@ function RenderBlock({
         className="my-9 rounded-2xl border border-zinc-200 bg-zinc-50 p-6"
       >
         {title && (
-          <h3 className="mb-2 text-base font-extrabold text-zinc-950">
+          <h3
+            className="mb-2 text-base font-extrabold"
+            style={{
+              color: "#09090b",
+            }}
+          >
             {title}
           </h3>
         )}
 
         {text && (
-          <p className="whitespace-pre-line text-[1rem] leading-7 text-zinc-700">
+          <p
+            className="whitespace-pre-line text-[1rem] leading-7"
+            style={{
+              color: "#3f3f46",
+            }}
+          >
             {text}
           </p>
         )}
@@ -726,11 +745,9 @@ function RenderBlock({
     );
   }
 
-  /*
-   * =====================================================
-   * TABLE
-   * =====================================================
-   */
+  /* =====================================================
+     TABLE
+  ===================================================== */
 
   if (type === "table") {
     const headers = getArray(block, [
@@ -760,10 +777,17 @@ function RenderBlock({
             <thead className="bg-zinc-100">
               <tr>
                 {headers.map(
-                  (header, headerIndex) => (
+                  (
+                    header,
+                    headerIndex
+                  ) => (
                     <th
                       key={headerIndex}
-                      className="border-b border-zinc-200 px-5 py-4 text-left font-bold text-zinc-900"
+                      className="border-b border-zinc-200 px-5 py-4 text-left font-bold"
+                      style={{
+                        color:
+                          "#18181b",
+                      }}
                     >
                       {typeof header ===
                       "string"
@@ -789,7 +813,10 @@ function RenderBlock({
 
           <tbody>
             {rows.map(
-              (row, rowIndex) => {
+              (
+                row,
+                rowIndex
+              ) => {
                 const cells =
                   Array.isArray(row)
                     ? row
@@ -817,7 +844,11 @@ function RenderBlock({
                           key={
                             cellIndex
                           }
-                          className="px-5 py-4 align-top leading-6 text-zinc-700"
+                          className="px-5 py-4 align-top leading-6"
+                          style={{
+                            color:
+                              "#3f3f46",
+                          }}
                         >
                           {typeof cell ===
                           "string"
@@ -847,11 +878,9 @@ function RenderBlock({
     );
   }
 
-  /*
-   * =====================================================
-   * HTML BLOCK
-   * =====================================================
-   */
+  /* =====================================================
+     HTML
+  ===================================================== */
 
   if (
     type === "html" ||
@@ -878,25 +907,29 @@ function RenderBlock({
     );
   }
 
-  /*
-   * =====================================================
-   * UNKNOWN BLOCK FALLBACK
-   * =====================================================
-   */
+  /* =====================================================
+     FALLBACK
+  ===================================================== */
 
-  const fallbackText = getString(block, [
-    "text",
-    "content",
-    "body",
-    "description",
-    "value",
-  ]);
+  const fallbackText = getString(
+    block,
+    [
+      "text",
+      "content",
+      "body",
+      "description",
+      "value",
+    ]
+  );
 
   if (fallbackText) {
     return (
       <p
         key={index}
         className="my-6 whitespace-pre-line"
+        style={{
+          color: "#3f3f46",
+        }}
       >
         {fallbackText}
       </p>
@@ -915,12 +948,15 @@ function RenderFAQs({
 }: {
   faqs: unknown;
 }) {
-  if (!Array.isArray(faqs) || faqs.length === 0) {
+  if (
+    !Array.isArray(faqs) ||
+    faqs.length === 0
+  ) {
     return null;
   }
 
-  const validFaqs = faqs.filter(
-    (faq) => {
+  const validFaqs =
+    faqs.filter((faq) => {
       if (!isObject(faq)) {
         return false;
       }
@@ -935,21 +971,35 @@ function RenderFAQs({
           "content",
         ])
       );
-    }
-  );
+    });
 
   if (validFaqs.length === 0) {
     return null;
   }
 
   return (
-    <section className="mt-16 border-t border-zinc-200 pt-12">
+    <section
+      className="mt-16 border-t border-zinc-200 pt-12"
+      style={{
+        color: "#09090b",
+      }}
+    >
       <div className="mb-8">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
+        <p
+          className="text-xs font-bold uppercase tracking-[0.18em]"
+          style={{
+            color: "#71717a",
+          }}
+        >
           FAQ
         </p>
 
-        <h2 className="mt-2 text-2xl font-black tracking-tight text-zinc-950 sm:text-3xl">
+        <h2
+          className="mt-2 text-2xl font-black tracking-tight sm:text-3xl"
+          style={{
+            color: "#09090b",
+          }}
+        >
           Frequently Asked Questions
         </h2>
       </div>
@@ -978,19 +1028,35 @@ function RenderFAQs({
                 key={index}
                 className="group rounded-2xl border border-zinc-200 bg-white"
               >
-                <summary className="cursor-pointer list-none px-5 py-5 font-bold text-zinc-950 sm:px-6">
+                <summary className="cursor-pointer list-none px-5 py-5 font-bold sm:px-6">
                   <div className="flex items-center justify-between gap-5">
-                    <span>
+                    <span
+                      style={{
+                        color:
+                          "#09090b",
+                      }}
+                    >
                       {question}
                     </span>
 
-                    <span className="shrink-0 text-xl text-zinc-400 transition group-open:rotate-45">
+                    <span
+                      className="shrink-0 text-xl transition group-open:rotate-45"
+                      style={{
+                        color:
+                          "#a1a1aa",
+                      }}
+                    >
                       +
                     </span>
                   </div>
                 </summary>
 
-                <div className="border-t border-zinc-100 px-5 py-5 text-[1rem] leading-7 text-zinc-600 sm:px-6">
+                <div
+                  className="border-t border-zinc-100 px-5 py-5 text-[1rem] leading-7 sm:px-6"
+                  style={{
+                    color: "#52525b",
+                  }}
+                >
                   {answer}
                 </div>
               </details>
@@ -1029,29 +1095,54 @@ function RelatedBlogCard({
           />
         </div>
       ) : (
-        <div className="flex aspect-[16/9] items-center justify-center bg-zinc-100 text-sm font-semibold text-zinc-400">
+        <div
+          className="flex aspect-[16/9] items-center justify-center bg-zinc-100 text-sm font-semibold"
+          style={{
+            color: "#a1a1aa",
+          }}
+        >
           AnantaGo
         </div>
       )}
 
       <div className="p-5">
         {blog.category && (
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">
+          <p
+            className="text-xs font-bold uppercase tracking-[0.14em]"
+            style={{
+              color: "#71717a",
+            }}
+          >
             {blog.category}
           </p>
         )}
 
-        <h3 className="mt-2 line-clamp-2 text-lg font-extrabold leading-tight tracking-tight text-zinc-950">
+        <h3
+          className="mt-2 line-clamp-2 text-lg font-extrabold leading-tight tracking-tight"
+          style={{
+            color: "#09090b",
+          }}
+        >
           {blog.title}
         </h3>
 
         {blog.excerpt && (
-          <p className="mt-3 line-clamp-3 text-sm leading-6 text-zinc-500">
+          <p
+            className="mt-3 line-clamp-3 text-sm leading-6"
+            style={{
+              color: "#71717a",
+            }}
+          >
             {blog.excerpt}
           </p>
         )}
 
-        <div className="mt-4 text-xs font-semibold text-zinc-400">
+        <div
+          className="mt-4 text-xs font-semibold"
+          style={{
+            color: "#a1a1aa",
+          }}
+        >
           {formatDate(blog.created_at)}
         </div>
       </div>
@@ -1077,19 +1168,20 @@ export default async function BlogArticlePage({
   const relatedBlogs =
     await getRelatedBlogs(blog);
 
-  /*
-   * Normalize content blocks.
-   */
+  /* =====================================================
+     NORMALIZE CONTENT BLOCKS
+  ===================================================== */
 
   let contentBlocks: unknown[] = [];
 
-  if (Array.isArray(blog.content_blocks)) {
-    contentBlocks = blog.content_blocks;
+  if (
+    Array.isArray(
+      blog.content_blocks
+    )
+  ) {
+    contentBlocks =
+      blog.content_blocks;
   }
-
-  /*
-   * Some databases may return JSON as a string.
-   */
 
   if (
     typeof blog.content_blocks ===
@@ -1111,269 +1203,375 @@ export default async function BlogArticlePage({
   }
 
   return (
-    <>
-      <Header />
+    <main
+      className="min-h-screen"
+      style={{
+        backgroundColor:
+          "#ffffff",
+        color: "#09090b",
+      }}
+    >
+      {/* =================================================
+          ARTICLE HEADER
+      ================================================= */}
 
-      <main className="bg-white text-zinc-950">
+      <header
+        className="border-b border-zinc-200"
+        style={{
+          backgroundColor:
+            "#ffffff",
+        }}
+      >
+        <div className="mx-auto max-w-5xl px-5 pb-10 pt-12 sm:px-6 sm:pb-14 sm:pt-16 lg:px-8 lg:pt-20">
+          {blog.category && (
+            <Link
+              href={`/${getCategorySlug(
+                blog.category
+              )}`}
+              className="inline-flex rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition hover:opacity-80"
+              style={{
+                backgroundColor:
+                  "#09090b",
+                color: "#ffffff",
+              }}
+            >
+              {blog.category}
+            </Link>
+          )}
 
-        {/* =================================================
-            ARTICLE HEADER
-        ================================================= */}
+          <h1
+            className="mt-6 max-w-4xl text-4xl font-black leading-[1.05] tracking-[-0.04em] sm:text-5xl lg:text-6xl"
+            style={{
+              color: "#09090b",
+            }}
+          >
+            {blog.title}
+          </h1>
 
-        <header className="border-b border-zinc-200">
-          <div className="mx-auto max-w-5xl px-5 pb-10 pt-12 sm:px-6 sm:pb-14 sm:pt-16 lg:px-8 lg:pt-20">
+          {blog.excerpt && (
+            <p
+              className="mt-6 max-w-3xl text-lg leading-8 sm:text-xl sm:leading-9"
+              style={{
+                color: "#52525b",
+              }}
+            >
+              {blog.excerpt}
+            </p>
+          )}
 
-            {blog.category && (
-              <Link
-                href={`/${getCategorySlug(
-                  blog.category
-                )}`}
-                className="inline-flex rounded-full bg-zinc-950 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white transition hover:bg-zinc-800"
-              >
-                {blog.category}
-              </Link>
-            )}
+          <div
+            className="mt-7 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm"
+            style={{
+              color: "#71717a",
+            }}
+          >
+            <span
+              className="font-semibold"
+              style={{
+                color: "#18181b",
+              }}
+            >
+              {blog.author ||
+                "AnantaGo Editorial"}
+            </span>
 
-            <h1 className="mt-6 max-w-4xl text-4xl font-black leading-[1.05] tracking-[-0.04em] text-zinc-950 sm:text-5xl lg:text-6xl">
-              {blog.title}
-            </h1>
+            <span
+              style={{
+                color: "#d4d4d8",
+              }}
+            >
+              •
+            </span>
 
-            {blog.excerpt && (
-              <p className="mt-6 max-w-3xl text-lg leading-8 text-zinc-600 sm:text-xl sm:leading-9">
-                {blog.excerpt}
-              </p>
-            )}
-
-            <div className="mt-7 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-zinc-500">
-              <span className="font-semibold text-zinc-900">
-                {blog.author ||
-                  "AnantaGo Editorial"}
-              </span>
-
-              <span className="text-zinc-300">
-                •
-              </span>
-
-              <time dateTime={blog.created_at}>
-                {formatDate(
-                  blog.created_at
-                )}
-              </time>
-
-              {blog.reading_time && (
-                <>
-                  <span className="text-zinc-300">
-                    •
-                  </span>
-
-                  <span>
-                    {blog.reading_time} min read
-                  </span>
-                </>
+            <time dateTime={blog.created_at}>
+              {formatDate(
+                blog.created_at
               )}
-            </div>
-          </div>
-        </header>
+            </time>
 
+            {blog.reading_time && (
+              <>
+                <span
+                  style={{
+                    color:
+                      "#d4d4d8",
+                  }}
+                >
+                  •
+                </span>
+
+                <span>
+                  {blog.reading_time}{" "}
+                  min read
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* =================================================
+          COVER IMAGE
+      ================================================= */}
+
+      {blog.cover_image && (
+        <section className="mx-auto max-w-6xl px-5 pt-8 sm:px-6 sm:pt-10 lg:px-8">
+          <div className="overflow-hidden rounded-2xl bg-zinc-100 sm:rounded-3xl">
+            <img
+              src={blog.cover_image}
+              alt={
+                blog.cover_image_alt ||
+                blog.title
+              }
+              className="block h-auto max-h-[650px] w-full object-cover"
+            />
+          </div>
+        </section>
+      )}
+
+      {/* =================================================
+          ARTICLE
+      ================================================= */}
+
+      <article
+        className="mx-auto max-w-3xl px-5 py-10 sm:px-6 sm:py-14 lg:px-8 lg:py-16"
+        style={{
+          color: "#3f3f46",
+        }}
+      >
         {/* =================================================
-            COVER IMAGE
+            INTRODUCTION
         ================================================= */}
 
-        {blog.cover_image && (
-          <section className="mx-auto max-w-6xl px-5 pt-8 sm:px-6 sm:pt-10 lg:px-8">
-            <div className="overflow-hidden rounded-2xl bg-zinc-100 sm:rounded-3xl">
-              <img
-                src={blog.cover_image}
-                alt={
-                  blog.cover_image_alt ||
-                  blog.title
-                }
-                className="block h-auto max-h-[650px] w-full object-cover"
-              />
-            </div>
-          </section>
+        {blog.introduction && (
+          <div
+            className="mb-10 text-[1.08rem] leading-8 sm:text-[1.12rem] sm:leading-8"
+            style={{
+              color: "#3f3f46",
+            }}
+          >
+            <p className="whitespace-pre-line">
+              {blog.introduction}
+            </p>
+          </div>
         )}
 
         {/* =================================================
-            ARTICLE
+            CONTENT BLOCKS
         ================================================= */}
 
-        <article className="mx-auto max-w-3xl px-5 py-10 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
+        {contentBlocks.length > 0 && (
+          <div
+            className="article-content"
+            style={{
+              color: "#3f3f46",
+            }}
+          >
+            {contentBlocks.map(
+              (block, index) => (
+                <RenderBlock
+                  key={index}
+                  block={block}
+                  index={index}
+                />
+              )
+            )}
+          </div>
+        )}
 
-          {/* =================================================
-              INTRODUCTION
-          ================================================= */}
+        {/* =================================================
+            OLD CONTENT FALLBACK
+        ================================================= */}
 
-          {blog.introduction && (
-            <div className="mb-10 text-[1.08rem] leading-8 text-zinc-700 sm:text-[1.12rem] sm:leading-8">
-              <p className="whitespace-pre-line">
-                {blog.introduction}
-              </p>
-            </div>
+        {contentBlocks.length === 0 &&
+          blog.content && (
+            <div
+              className="article-content"
+              style={{
+                color: "#3f3f46",
+              }}
+              dangerouslySetInnerHTML={{
+                __html: blog.content,
+              }}
+            />
           )}
 
-          {/* =================================================
-              NEW BLOCK CONTENT
-          ================================================= */}
+        {/* =================================================
+            FAQ
+        ================================================= */}
 
-          {contentBlocks.length > 0 && (
-            <div className="article-content">
-              {contentBlocks.map(
-                (block, index) => (
-                  <RenderBlock
-                    key={index}
-                    block={block}
-                    index={index}
+        <RenderFAQs
+          faqs={blog.faqs}
+        />
+
+        {/* =================================================
+            TAGS
+        ================================================= */}
+
+        {blog.tags &&
+          blog.tags.length > 0 && (
+            <div className="mt-16 border-t border-zinc-200 pt-8">
+              <p
+                className="mb-4 text-xs font-bold uppercase tracking-[0.16em]"
+                style={{
+                  color: "#71717a",
+                }}
+              >
+                Topics
+              </p>
+
+              <div className="flex flex-wrap gap-2">
+                {blog.tags.map(
+                  (tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-medium"
+                      style={{
+                        color:
+                          "#52525b",
+                      }}
+                    >
+                      {tag}
+                    </span>
+                  )
+                )}
+              </div>
+            </div>
+          )}
+      </article>
+
+      {/* =================================================
+          RELATED ARTICLES
+      ================================================= */}
+
+      {relatedBlogs.length > 0 && (
+        <section
+          className="border-t border-zinc-200"
+          style={{
+            backgroundColor:
+              "#fafafa",
+          }}
+        >
+          <div className="mx-auto max-w-6xl px-5 py-14 sm:px-6 sm:py-16 lg:px-8">
+            <div className="mb-8 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p
+                  className="text-xs font-bold uppercase tracking-[0.18em]"
+                  style={{
+                    color: "#71717a",
+                  }}
+                >
+                  Keep Reading
+                </p>
+
+                <h2
+                  className="mt-2 text-2xl font-black tracking-tight sm:text-3xl"
+                  style={{
+                    color: "#09090b",
+                  }}
+                >
+                  More from AnantaGo
+                </h2>
+              </div>
+
+              <Link
+                href="/"
+                className="text-sm font-bold"
+                style={{
+                  color: "#52525b",
+                }}
+              >
+                Explore more →
+              </Link>
+            </div>
+
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {relatedBlogs.map(
+                (relatedBlog) => (
+                  <RelatedBlogCard
+                    key={
+                      relatedBlog.id
+                    }
+                    blog={
+                      relatedBlog
+                    }
                   />
                 )
               )}
             </div>
-          )}
-
-          {/* =================================================
-              OLD CONTENT FALLBACK
-          ================================================= */}
-
-          {contentBlocks.length === 0 &&
-            blog.content && (
-              <div
-                className="article-content"
-                dangerouslySetInnerHTML={{
-                  __html: blog.content,
-                }}
-              />
-            )}
-
-          {/* =================================================
-              FAQ
-          ================================================= */}
-
-          <RenderFAQs
-            faqs={blog.faqs}
-          />
-
-          {/* =================================================
-              TAGS
-          ================================================= */}
-
-          {blog.tags &&
-            blog.tags.length > 0 && (
-              <div className="mt-16 border-t border-zinc-200 pt-8">
-
-                <p className="mb-4 text-xs font-bold uppercase tracking-[0.16em] text-zinc-500">
-                  Topics
-                </p>
-
-                <div className="flex flex-wrap gap-2">
-                  {blog.tags.map(
-                    (tag) => (
-                      <span
-                        key={tag}
-                        className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-700"
-                      >
-                        {tag}
-                      </span>
-                    )
-                  )}
-                </div>
-
-              </div>
-            )}
-
-        </article>
-
-        {/* =================================================
-            RELATED ARTICLES
-        ================================================= */}
-
-        {relatedBlogs.length > 0 && (
-          <section className="border-t border-zinc-200 bg-zinc-50">
-            <div className="mx-auto max-w-6xl px-5 py-14 sm:px-6 sm:py-16 lg:px-8">
-
-              <div className="mb-8 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
-                    Keep Reading
-                  </p>
-
-                  <h2 className="mt-2 text-2xl font-black tracking-tight text-zinc-950 sm:text-3xl">
-                    More from AnantaGo
-                  </h2>
-                </div>
-
-                <Link
-                  href="/"
-                  className="text-sm font-bold text-zinc-700 hover:text-zinc-950"
-                >
-                  Explore more →
-                </Link>
-              </div>
-
-              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {relatedBlogs.map(
-                  (relatedBlog) => (
-                    <RelatedBlogCard
-                      key={
-                        relatedBlog.id
-                      }
-                      blog={
-                        relatedBlog
-                      }
-                    />
-                  )
-                )}
-              </div>
-
-            </div>
-          </section>
-        )}
-
-        {/* =================================================
-            BOTTOM CTA
-        ================================================= */}
-
-        <section className="border-t border-zinc-200 bg-zinc-950 text-white">
-          <div className="mx-auto max-w-5xl px-5 py-16 sm:px-6 lg:px-8">
-
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-400">
-              AnantaGo
-            </p>
-
-            <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">
-              Technology, made easier.
-            </h2>
-
-            <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-400">
-              Useful AI and technology stories,
-              practical guides and clear explanations
-              for the digital world.
-            </p>
-
-            <Link
-              href="/"
-              className="mt-7 inline-flex items-center rounded-xl bg-white px-5 py-3 text-sm font-bold text-zinc-950 transition hover:bg-zinc-200"
-            >
-              Explore AnantaGo
-              <span className="ml-2">
-                →
-              </span>
-            </Link>
-
           </div>
         </section>
+      )}
 
-      </main>
+      {/* =================================================
+          BOTTOM CTA
+      ================================================= */}
 
-      <Footer />
+      <section
+        className="border-t border-zinc-800"
+        style={{
+          backgroundColor:
+            "#09090b",
+          color: "#ffffff",
+        }}
+      >
+        <div className="mx-auto max-w-5xl px-5 py-16 sm:px-6 lg:px-8">
+          <p
+            className="text-xs font-bold uppercase tracking-[0.2em]"
+            style={{
+              color: "#a1a1aa",
+            }}
+          >
+            AnantaGo
+          </p>
+
+          <h2
+            className="mt-4 text-3xl font-black tracking-tight sm:text-4xl"
+            style={{
+              color: "#ffffff",
+              fontWeight: 900,
+            }}
+          >
+            Technology, made easier.
+          </h2>
+
+          <p
+            className="mt-4 max-w-2xl text-base leading-7"
+            style={{
+              color: "#a1a1aa",
+            }}
+          >
+            Useful AI and technology
+            stories, practical guides
+            and clear explanations for
+            the digital world.
+          </p>
+
+          <Link
+            href="/"
+            className="mt-7 inline-flex items-center rounded-xl px-5 py-3 text-sm font-bold transition hover:opacity-90"
+            style={{
+              backgroundColor:
+                "#ffffff",
+              color: "#09090b",
+            }}
+          >
+            Explore AnantaGo
+
+            <span className="ml-2">
+              →
+            </span>
+          </Link>
+        </div>
+      </section>
 
       {/* =================================================
           ARTICLE STYLES
       ================================================= */}
 
       <style>{`
-
         .article-content {
-          color: #3f3f46;
+          color: #3f3f46 !important;
           font-size: 1.08rem;
           line-height: 1.9;
           overflow-wrap: break-word;
@@ -1381,12 +1579,13 @@ export default async function BlogArticlePage({
 
         .article-content p {
           margin: 1.35rem 0;
+          color: #3f3f46 !important;
         }
 
         .article-content h2 {
           margin-top: 3.75rem;
           margin-bottom: 1.25rem;
-          color: #09090b;
+          color: #09090b !important;
           font-size: 2rem;
           line-height: 1.2;
           font-weight: 850;
@@ -1396,7 +1595,7 @@ export default async function BlogArticlePage({
         .article-content h3 {
           margin-top: 2.75rem;
           margin-bottom: 1rem;
-          color: #09090b;
+          color: #09090b !important;
           font-size: 1.45rem;
           line-height: 1.3;
           font-weight: 800;
@@ -1404,7 +1603,7 @@ export default async function BlogArticlePage({
         }
 
         .article-content strong {
-          color: #09090b;
+          color: #09090b !important;
           font-weight: 750;
         }
 
@@ -1413,7 +1612,7 @@ export default async function BlogArticlePage({
         }
 
         .article-content a {
-          color: #18181b;
+          color: #18181b !important;
           font-weight: 650;
           text-decoration: underline;
           text-decoration-thickness: 1px;
@@ -1421,24 +1620,27 @@ export default async function BlogArticlePage({
         }
 
         .article-content a:hover {
-          color: #52525b;
+          color: #52525b !important;
         }
 
         .article-content ul {
           margin: 1.5rem 0;
           padding-left: 1.6rem;
           list-style: disc;
+          color: #3f3f46 !important;
         }
 
         .article-content ol {
           margin: 1.5rem 0;
           padding-left: 1.6rem;
           list-style: decimal;
+          color: #3f3f46 !important;
         }
 
         .article-content li {
           margin: 0.55rem 0;
           padding-left: 0.3rem;
+          color: #3f3f46 !important;
         }
 
         .article-content blockquote {
@@ -1447,7 +1649,7 @@ export default async function BlogArticlePage({
           border-radius: 0 1rem 1rem 0;
           background: #f4f4f5;
           padding: 1.25rem 1.5rem;
-          color: #52525b;
+          color: #52525b !important;
           font-style: italic;
         }
 
@@ -1455,9 +1657,9 @@ export default async function BlogArticlePage({
           margin: 2rem 0;
           overflow-x: auto;
           border-radius: 1rem;
-          background: #18181b;
+          background: #18181b !important;
           padding: 1.25rem;
-          color: #f4f4f5;
+          color: #f4f4f5 !important;
           font-family:
             ui-monospace,
             SFMono-Regular,
@@ -1473,6 +1675,7 @@ export default async function BlogArticlePage({
           border-radius: 0.35rem;
           background: #f4f4f5;
           padding: 0.15rem 0.35rem;
+          color: #18181b !important;
           font-family:
             ui-monospace,
             SFMono-Regular,
@@ -1484,7 +1687,8 @@ export default async function BlogArticlePage({
         }
 
         .article-content pre code {
-          background: transparent;
+          background: transparent !important;
+          color: #f4f4f5 !important;
           padding: 0;
         }
 
@@ -1507,7 +1711,7 @@ export default async function BlogArticlePage({
         .article-content figcaption {
           margin-top: 0.75rem;
           text-align: center;
-          color: #71717a;
+          color: #71717a !important;
           font-size: 0.8rem;
           line-height: 1.5;
         }
@@ -1530,8 +1734,12 @@ export default async function BlogArticlePage({
 
         .article-content th {
           background: #f4f4f5;
-          color: #18181b;
+          color: #18181b !important;
           font-weight: 700;
+        }
+
+        .article-content td {
+          color: #3f3f46 !important;
         }
 
         .article-content tr:nth-child(even) td {
@@ -1554,7 +1762,6 @@ export default async function BlogArticlePage({
         }
 
         @media (max-width: 640px) {
-
           .article-content {
             font-size: 1rem;
             line-height: 1.8;
@@ -1580,10 +1787,8 @@ export default async function BlogArticlePage({
             overflow-x: auto;
             white-space: nowrap;
           }
-
         }
-
       `}</style>
-    </>
+    </main>
   );
 }
