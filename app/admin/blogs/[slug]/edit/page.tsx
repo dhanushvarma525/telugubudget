@@ -1,13 +1,21 @@
 "use client";
 
-import { useEffect, useState, type ChangeEvent } from "react";
+import {
+  useEffect,
+  useState,
+  type ChangeEvent,
+} from "react";
 import { useParams, useRouter } from "next/navigation";
 
 /* =========================================================
    TYPES
 ========================================================= */
 
-type TextBlockType = "paragraph" | "h1" | "h2" | "h3";
+type TextBlockType =
+  | "paragraph"
+  | "h1"
+  | "h2"
+  | "h3";
 
 type TextBlock = {
   type: "text";
@@ -33,13 +41,15 @@ type QuoteBlock = {
   author?: string;
 };
 
+type ListBlockType =
+  | "bullet-list"
+  | "bullets"
+  | "unordered-list"
+  | "ordered-list"
+  | "numbered-list";
+
 type ListBlock = {
-  type:
-    | "bullet-list"
-    | "bullets"
-    | "unordered-list"
-    | "ordered-list"
-    | "numbered-list";
+  type: ListBlockType;
   items: string[];
 };
 
@@ -51,7 +61,7 @@ type TableBlock = {
 
 type UnknownBlock = {
   type: string;
-  [key: string]: any;
+  [key: string]: unknown;
 };
 
 type ContentBlock =
@@ -94,7 +104,9 @@ export default function EditBlogPage() {
      STATE
   ======================================================= */
 
-  const [blogId, setBlogId] = useState<string | number | null>(null);
+  const [blogId, setBlogId] = useState<
+    string | number | null
+  >(null);
 
   const [form, setForm] = useState({
     title: "",
@@ -109,25 +121,30 @@ export default function EditBlogPage() {
     featured: false,
   });
 
-  const [contentBlocks, setContentBlocks] = useState<ContentBlock[]>([
-    {
-      type: "text",
-      content: "",
-      headingType: "paragraph",
-    },
-  ]);
+  const [contentBlocks, setContentBlocks] =
+    useState<ContentBlock[]>([
+      {
+        type: "text",
+        content: "",
+        headingType: "paragraph",
+      },
+    ]);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const [uploadingCover, setUploadingCover] = useState(false);
-  const [uploadingBlockIndex, setUploadingBlockIndex] = useState<
-    number | null
-  >(null);
+  const [uploadingCover, setUploadingCover] =
+    useState(false);
 
-  const [showPreview, setShowPreview] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [uploadingBlockIndex, setUploadingBlockIndex] =
+    useState<number | null>(null);
+
+  const [showPreview, setShowPreview] =
+    useState(false);
+
+  const [showDeleteConfirm, setShowDeleteConfirm] =
+    useState(false);
 
   /* =======================================================
      LOAD
@@ -136,157 +153,280 @@ export default function EditBlogPage() {
   useEffect(() => {
     if (!slug) return;
 
-    loadBlog();
+    void loadBlog();
   }, [slug]);
+
+  /* =======================================================
+     TYPE HELPERS
+  ======================================================= */
+
+  function isListType(type: string): type is ListBlockType {
+    return (
+      type === "bullet-list" ||
+      type === "bullets" ||
+      type === "unordered-list" ||
+      type === "ordered-list" ||
+      type === "numbered-list"
+    );
+  }
+
+  function isTextBlock(
+    block: ContentBlock
+  ): block is TextBlock {
+    return block.type === "text";
+  }
+
+  function isImageBlock(
+    block: ContentBlock
+  ): block is ImageBlock {
+    return block.type === "image";
+  }
+
+  function isCalloutBlock(
+    block: ContentBlock
+  ): block is CalloutBlock {
+    return block.type === "callout";
+  }
+
+  function isQuoteBlock(
+    block: ContentBlock
+  ): block is QuoteBlock {
+    return block.type === "quote";
+  }
+
+  function isListBlock(
+    block: ContentBlock
+  ): block is ListBlock {
+    return isListType(block.type);
+  }
+
+  function isTableBlock(
+    block: ContentBlock
+  ): block is TableBlock {
+    return block.type === "table";
+  }
 
   /* =======================================================
      NORMALIZE BLOCK
   ======================================================= */
 
-  function normalizeBlock(block: any): ContentBlock | null {
-    if (!block || typeof block !== "object") {
+  function normalizeBlock(
+    block: unknown
+  ): ContentBlock | null {
+    if (
+      !block ||
+      typeof block !== "object"
+    ) {
       return null;
     }
 
+    const source = block as Record<
+      string,
+      unknown
+    >;
+
+    const rawType =
+      typeof source.type === "string"
+        ? source.type
+        : "";
+
     /* IMAGE */
 
-    if (block.type === "image") {
+    if (rawType === "image") {
       return {
         type: "image",
         url:
-          typeof block.url === "string"
-            ? block.url
-            : typeof block.src === "string"
-            ? block.src
+          typeof source.url === "string"
+            ? source.url
+            : typeof source.src === "string"
+            ? source.src
             : "",
-        alt: typeof block.alt === "string" ? block.alt : "",
+        alt:
+          typeof source.alt === "string"
+            ? source.alt
+            : "",
       };
     }
 
     /* TEXT */
 
     if (
-      block.type === "text" ||
-      block.type === "paragraph" ||
-      block.type === "p"
+      rawType === "text" ||
+      rawType === "paragraph" ||
+      rawType === "p"
     ) {
+      const rawHeading =
+        source.headingType;
+
+      const headingType: TextBlockType =
+        rawHeading === "h1" ||
+        rawHeading === "h2" ||
+        rawHeading === "h3"
+          ? rawHeading
+          : "paragraph";
+
       return {
         type: "text",
         content:
-          typeof block.content === "string"
-            ? block.content
-            : typeof block.text === "string"
-            ? block.text
+          typeof source.content === "string"
+            ? source.content
+            : typeof source.text === "string"
+            ? source.text
             : "",
-        headingType:
-          block.headingType === "h1" ||
-          block.headingType === "h2" ||
-          block.headingType === "h3"
-            ? block.headingType
-            : "paragraph",
+        headingType,
       };
     }
 
     /* HEADINGS */
 
     if (
-      block.type === "h1" ||
-      block.type === "h2" ||
-      block.type === "h3"
+      rawType === "h1" ||
+      rawType === "h2" ||
+      rawType === "h3"
     ) {
       return {
         type: "text",
         content:
-          typeof block.content === "string"
-            ? block.content
-            : typeof block.text === "string"
-            ? block.text
+          typeof source.content === "string"
+            ? source.content
+            : typeof source.text === "string"
+            ? source.text
             : "",
-        headingType: block.type,
+        headingType: rawType,
       };
     }
 
     /* CALLOUT */
 
-    if (block.type === "callout") {
+    if (rawType === "callout") {
       return {
         type: "callout",
-        title: typeof block.title === "string" ? block.title : "",
+        title:
+          typeof source.title === "string"
+            ? source.title
+            : "",
         content:
-          typeof block.content === "string"
-            ? block.content
-            : typeof block.text === "string"
-            ? block.text
+          typeof source.content === "string"
+            ? source.content
+            : typeof source.text === "string"
+            ? source.text
             : "",
       };
     }
 
     /* QUOTE */
 
-    if (block.type === "quote" || block.type === "blockquote") {
+    if (
+      rawType === "quote" ||
+      rawType === "blockquote"
+    ) {
       return {
         type: "quote",
         content:
-          typeof block.content === "string"
-            ? block.content
-            : typeof block.text === "string"
-            ? block.text
+          typeof source.content === "string"
+            ? source.content
+            : typeof source.text === "string"
+            ? source.text
             : "",
-        author: typeof block.author === "string" ? block.author : "",
+        author:
+          typeof source.author === "string"
+            ? source.author
+            : "",
       };
     }
 
     /* LIST */
 
-    if (
-      block.type === "bullet-list" ||
-      block.type === "bullets" ||
-      block.type === "unordered-list" ||
-      block.type === "ordered-list" ||
-      block.type === "numbered-list"
-    ) {
-      const items = Array.isArray(block.items)
-        ? block.items
-            .map((item: any) => {
-              if (typeof item === "string") {
-                return item;
-              }
+    if (isListType(rawType)) {
+      const rawItems = source.items;
 
-              if (typeof item?.text === "string") {
-                return item.text;
-              }
+      const items: string[] =
+        Array.isArray(rawItems)
+          ? rawItems
+              .map((item: unknown) => {
+                if (
+                  typeof item === "string"
+                ) {
+                  return item;
+                }
 
-              return "";
-            })
-            .filter(Boolean)
-        : [];
+                if (
+                  item &&
+                  typeof item === "object"
+                ) {
+                  const itemObject =
+                    item as Record<
+                      string,
+                      unknown
+                    >;
+
+                  if (
+                    typeof itemObject.text ===
+                    "string"
+                  ) {
+                    return itemObject.text;
+                  }
+                }
+
+                return "";
+              })
+              .filter(
+                (item: string) =>
+                  item.length > 0
+              )
+          : [];
 
       return {
-        type: block.type,
+        type: rawType,
         items,
       };
     }
 
     /* TABLE */
 
-    if (block.type === "table") {
+    if (rawType === "table") {
+      const rawHeaders =
+        source.headers;
+
+      const rawRows =
+        source.rows;
+
+      const headers: string[] =
+        Array.isArray(rawHeaders)
+          ? rawHeaders.map(
+              (header: unknown) =>
+                String(header)
+            )
+          : [];
+
+      const rows: string[][] =
+        Array.isArray(rawRows)
+          ? rawRows.map(
+              (row: unknown): string[] => {
+                if (!Array.isArray(row)) {
+                  return [];
+                }
+
+                return row.map(
+                  (cell: unknown) =>
+                    String(cell)
+                );
+              }
+            )
+          : [];
+
       return {
         type: "table",
-        headers: Array.isArray(block.headers)
-          ? block.headers.map(String)
-          : [],
-        rows: Array.isArray(block.rows)
-          ? block.rows.map((row: any) =>
-              Array.isArray(row) ? row.map(String) : []
-            )
-          : [],
+        headers,
+        rows,
       };
     }
 
     /* UNKNOWN */
 
     return {
-      ...block,
+      ...(source as UnknownBlock),
+      type: rawType || "unknown",
     };
   }
 
@@ -298,16 +438,40 @@ export default function EditBlogPage() {
     try {
       setLoading(true);
 
-      const response = await fetch(`/api/blogs/${slug}`, {
-        cache: "no-store",
-      });
+      const response = await fetch(
+        `/api/blogs/${slug}`,
+        {
+          cache: "no-store",
+        }
+      );
 
       if (!response.ok) {
-        throw new Error("Failed to load blog");
+        throw new Error(
+          "Failed to load blog"
+        );
       }
 
-      const result = await response.json();
-      const blog = result?.blog;
+      const result: unknown =
+        await response.json();
+
+      const resultObject =
+        result &&
+        typeof result === "object"
+          ? (result as Record<
+              string,
+              unknown
+            >)
+          : {};
+
+      const blog =
+        resultObject.blog &&
+        typeof resultObject.blog ===
+          "object"
+          ? (resultObject.blog as Record<
+              string,
+              unknown
+            >)
+          : null;
 
       if (!blog) {
         alert("Blog not found");
@@ -315,42 +479,112 @@ export default function EditBlogPage() {
         return;
       }
 
-      setBlogId(blog.id);
+      setBlogId(
+        blog.id as string | number
+      );
+
+      const rawTags = blog.tags;
+
+      let tags = "";
+
+      if (Array.isArray(rawTags)) {
+        tags = rawTags
+          .map(String)
+          .join(", ");
+      } else if (
+        typeof rawTags === "string"
+      ) {
+        tags = rawTags;
+      }
 
       setForm({
-        title: blog.title || "",
-        slug: blog.slug || "",
-        excerpt: blog.excerpt || "",
-        introduction: blog.introduction || "",
-        category: blog.category || "",
-        author: blog.author || "AnantaGo",
-        tags: Array.isArray(blog.tags)
-          ? blog.tags.join(", ")
-          : blog.tags || "",
-        cover_image: blog.cover_image || "",
-        published: blog.published !== false,
-        featured: blog.featured === true,
+        title:
+          typeof blog.title === "string"
+            ? blog.title
+            : "",
+
+        slug:
+          typeof blog.slug === "string"
+            ? blog.slug
+            : "",
+
+        excerpt:
+          typeof blog.excerpt === "string"
+            ? blog.excerpt
+            : "",
+
+        introduction:
+          typeof blog.introduction ===
+          "string"
+            ? blog.introduction
+            : "",
+
+        category:
+          typeof blog.category ===
+          "string"
+            ? blog.category
+            : "",
+
+        author:
+          typeof blog.author === "string"
+            ? blog.author
+            : "AnantaGo",
+
+        tags,
+
+        cover_image:
+          typeof blog.cover_image ===
+          "string"
+            ? blog.cover_image
+            : "",
+
+        published:
+          blog.published !== false,
+
+        featured:
+          blog.featured === true,
       });
 
+      const rawBlocks =
+        blog.content_blocks;
+
       if (
-        Array.isArray(blog.content_blocks) &&
-        blog.content_blocks.length > 0
+        Array.isArray(rawBlocks) &&
+        rawBlocks.length > 0
       ) {
-        const normalized = blog.content_blocks
-          .map(normalizeBlock)
-          .filter(Boolean) as ContentBlock[];
+        const normalized: ContentBlock[] =
+          rawBlocks
+            .map((block: unknown) =>
+              normalizeBlock(block)
+            )
+            .filter(
+              (
+                block: ContentBlock | null
+              ): block is ContentBlock =>
+                block !== null
+            );
 
         if (normalized.length > 0) {
-          setContentBlocks(normalized);
+          setContentBlocks(
+            normalized
+          );
         }
-      } else if (
-        typeof blog.content === "string" &&
-        blog.content.trim()
+
+        return;
+      }
+
+      const legacyContent =
+        blog.content;
+
+      if (
+        typeof legacyContent ===
+          "string" &&
+        legacyContent.trim()
       ) {
         setContentBlocks([
           {
             type: "text",
-            content: blog.content,
+            content: legacyContent,
             headingType: "paragraph",
           },
         ]);
@@ -364,8 +598,14 @@ export default function EditBlogPage() {
         ]);
       }
     } catch (error) {
-      console.error("LOAD BLOG ERROR:", error);
-      alert("Failed to load blog.");
+      console.error(
+        "LOAD BLOG ERROR:",
+        error
+      );
+
+      alert(
+        "Failed to load blog."
+      );
     } finally {
       setLoading(false);
     }
@@ -375,52 +615,104 @@ export default function EditBlogPage() {
      IMAGE UPLOAD
   ======================================================= */
 
-  async function uploadImage(file: File): Promise<string | null> {
+  async function uploadImage(
+    file: File
+  ): Promise<string | null> {
     try {
-      if (!file) return null;
-
-      if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-        alert("Only JPG, PNG, WEBP and GIF images are allowed.");
+      if (!file) {
         return null;
       }
 
-      if (file.size > MAX_IMAGE_SIZE) {
-        alert("Image must be 10MB or smaller.");
+      if (
+        !ALLOWED_IMAGE_TYPES.includes(
+          file.type
+        )
+      ) {
+        alert(
+          "Only JPG, PNG, WEBP and GIF images are allowed."
+        );
+
         return null;
       }
 
-      const formData = new FormData();
+      if (
+        file.size > MAX_IMAGE_SIZE
+      ) {
+        alert(
+          "Image must be 10MB or smaller."
+        );
 
-      formData.append("file", file);
-      formData.append("folder", "articles");
+        return null;
+      }
 
-      const response = await fetch(
-        "/api/blogs/blog-images/upload",
-        {
-          method: "POST",
-          body: formData,
-        }
+      const formData =
+        new FormData();
+
+      formData.append(
+        "file",
+        file
       );
 
-      const result = await response.json();
+      formData.append(
+        "folder",
+        "articles"
+      );
+
+      const response =
+        await fetch(
+          "/api/blogs/blog-images/upload",
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
+
+      const result: unknown =
+        await response.json();
+
+      const data =
+        result &&
+        typeof result === "object"
+          ? (result as Record<
+              string,
+              unknown
+            >)
+          : {};
 
       if (!response.ok) {
         throw new Error(
-          result?.message ||
-            result?.error ||
-            "Image upload failed."
+          typeof data.message ===
+            "string"
+            ? data.message
+            : typeof data.error ===
+              "string"
+            ? data.error
+            : "Image upload failed."
         );
       }
 
-      if (!result.success || !result.url) {
-        throw new Error("Image URL was not returned.");
+      if (
+        data.success !== true ||
+        typeof data.url !==
+          "string"
+      ) {
+        throw new Error(
+          "Image URL was not returned."
+        );
       }
 
-      return result.url;
-    } catch (error: any) {
-      console.error("IMAGE UPLOAD ERROR:", error);
+      return data.url;
+    } catch (error: unknown) {
+      console.error(
+        "IMAGE UPLOAD ERROR:",
+        error
+      );
 
-      alert(error?.message || "Image upload failed.");
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Image upload failed."
+      );
 
       return null;
     }
@@ -433,14 +725,16 @@ export default function EditBlogPage() {
   async function handleCoverUpload(
     e: ChangeEvent<HTMLInputElement>
   ) {
-    const file = e.target.files?.[0];
+    const file =
+      e.target.files?.[0];
 
     if (!file) return;
 
     try {
       setUploadingCover(true);
 
-      const url = await uploadImage(file);
+      const url =
+        await uploadImage(file);
 
       if (url) {
         setForm((prev) => ({
@@ -469,32 +763,47 @@ export default function EditBlogPage() {
     index: number,
     e: ChangeEvent<HTMLInputElement>
   ) {
-    const file = e.target.files?.[0];
+    const file =
+      e.target.files?.[0];
 
     if (!file) return;
 
     try {
-      setUploadingBlockIndex(index);
+      setUploadingBlockIndex(
+        index
+      );
 
-      const url = await uploadImage(file);
+      const url =
+        await uploadImage(file);
 
       if (url) {
-        setContentBlocks((prev) => {
-          const updated = [...prev];
-          const block = updated[index];
+        setContentBlocks(
+          (prev) => {
+            const updated =
+              [...prev];
 
-          if (block?.type === "image") {
-            updated[index] = {
-              ...block,
-              url,
-            };
+            const block =
+              updated[index];
+
+            if (
+              block &&
+              isImageBlock(block)
+            ) {
+              updated[index] = {
+                ...block,
+                url,
+              };
+            }
+
+            return updated;
           }
-
-          return updated;
-        });
+        );
       }
     } finally {
-      setUploadingBlockIndex(null);
+      setUploadingBlockIndex(
+        null
+      );
+
       e.target.value = "";
     }
   }
@@ -505,10 +814,15 @@ export default function EditBlogPage() {
 
   function handleChange(
     e: ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+      HTMLInputElement |
+        HTMLTextAreaElement |
+        HTMLSelectElement
     >
   ) {
-    const { name, value } = e.target;
+    const {
+      name,
+      value,
+    } = e.target;
 
     setForm((prev) => ({
       ...prev,
@@ -520,61 +834,94 @@ export default function EditBlogPage() {
      SLUG
   ======================================================= */
 
-  function generateSlug(title: string) {
+  function generateSlug(
+    title: string
+  ) {
     return title
       .toLowerCase()
       .trim()
-      .replace(/[^a-z0-9\s-]/g, "")
-      .replace(/\s+/g, "-")
-      .replace(/-+/g, "-");
+      .replace(
+        /[^a-z0-9\s-]/g,
+        ""
+      )
+      .replace(
+        /\s+/g,
+        "-"
+      )
+      .replace(
+        /-+/g,
+        "-"
+      );
   }
 
   /* =======================================================
      ADD TEXT
   ======================================================= */
 
-  function addTextBlock(afterIndex?: number) {
+  function addTextBlock(
+    afterIndex?: number
+  ) {
     const block: TextBlock = {
       type: "text",
       content: "",
       headingType: "paragraph",
     };
 
-    setContentBlocks((prev) => {
-      if (afterIndex === undefined) {
-        return [...prev, block];
+    setContentBlocks(
+      (prev) => {
+        if (
+          afterIndex === undefined
+        ) {
+          return [...prev, block];
+        }
+
+        const updated =
+          [...prev];
+
+        updated.splice(
+          afterIndex + 1,
+          0,
+          block
+        );
+
+        return updated;
       }
-
-      const updated = [...prev];
-
-      updated.splice(afterIndex + 1, 0, block);
-
-      return updated;
-    });
+    );
   }
 
   /* =======================================================
      ADD IMAGE
   ======================================================= */
 
-  function addImageBlock(afterIndex?: number) {
+  function addImageBlock(
+    afterIndex?: number
+  ) {
     const block: ImageBlock = {
       type: "image",
       url: "",
       alt: "",
     };
 
-    setContentBlocks((prev) => {
-      if (afterIndex === undefined) {
-        return [...prev, block];
+    setContentBlocks(
+      (prev) => {
+        if (
+          afterIndex === undefined
+        ) {
+          return [...prev, block];
+        }
+
+        const updated =
+          [...prev];
+
+        updated.splice(
+          afterIndex + 1,
+          0,
+          block
+        );
+
+        return updated;
       }
-
-      const updated = [...prev];
-
-      updated.splice(afterIndex + 1, 0, block);
-
-      return updated;
-    });
+    );
   }
 
   /* =======================================================
@@ -584,11 +931,19 @@ export default function EditBlogPage() {
   function addTableBlock() {
     const block: TableBlock = {
       type: "table",
-      headers: ["Feature", "Details"],
+      headers: [
+        "Feature",
+        "Details",
+      ],
       rows: [["", ""]],
     };
 
-    setContentBlocks((prev) => [...prev, block]);
+    setContentBlocks(
+      (prev) => [
+        ...prev,
+        block,
+      ]
+    );
   }
 
   /* =======================================================
@@ -599,38 +954,54 @@ export default function EditBlogPage() {
     index: number,
     value: string
   ) {
-    setContentBlocks((prev) => {
-      const updated = [...prev];
-      const block = updated[index];
+    setContentBlocks(
+      (prev) => {
+        const updated =
+          [...prev];
 
-      if (block?.type === "text") {
-        updated[index] = {
-          ...block,
-          content: value,
-        };
+        const block =
+          updated[index];
+
+        if (
+          block &&
+          isTextBlock(block)
+        ) {
+          updated[index] = {
+            ...block,
+            content: value,
+          };
+        }
+
+        return updated;
       }
-
-      return updated;
-    });
+    );
   }
 
   function updateTextBlockType(
     index: number,
     headingType: TextBlockType
   ) {
-    setContentBlocks((prev) => {
-      const updated = [...prev];
-      const block = updated[index];
+    setContentBlocks(
+      (prev) => {
+        const updated =
+          [...prev];
 
-      if (block?.type === "text") {
-        updated[index] = {
-          ...block,
-          headingType,
-        };
+        const block =
+          updated[index];
+
+        if (
+          block &&
+          isTextBlock(block)
+        ) {
+          updated[index] = {
+            ...block,
+            headingType,
+          };
+        }
+
+        return updated;
       }
-
-      return updated;
-    });
+    );
   }
 
   /* =======================================================
@@ -641,79 +1012,315 @@ export default function EditBlogPage() {
     index: number,
     value: string
   ) {
-    setContentBlocks((prev) => {
-      const updated = [...prev];
-      const block = updated[index];
+    setContentBlocks(
+      (prev) => {
+        const updated =
+          [...prev];
 
-      if (block?.type === "image") {
-        updated[index] = {
-          ...block,
-          alt: value,
-        };
+        const block =
+          updated[index];
+
+        if (
+          block &&
+          isImageBlock(block)
+        ) {
+          updated[index] = {
+            ...block,
+            alt: value,
+          };
+        }
+
+        return updated;
       }
+    );
+  }
 
-      return updated;
-    });
+  /* =======================================================
+     UPDATE CALLOUT
+  ======================================================= */
+
+  function updateCallout(
+    index: number,
+    field: "title" | "content",
+    value: string
+  ) {
+    setContentBlocks(
+      (prev) => {
+        const updated =
+          [...prev];
+
+        const block =
+          updated[index];
+
+        if (
+          block &&
+          isCalloutBlock(block)
+        ) {
+          updated[index] = {
+            ...block,
+            [field]: value,
+          };
+        }
+
+        return updated;
+      }
+    );
+  }
+
+  /* =======================================================
+     UPDATE QUOTE
+  ======================================================= */
+
+  function updateQuote(
+    index: number,
+    field: "content" | "author",
+    value: string
+  ) {
+    setContentBlocks(
+      (prev) => {
+        const updated =
+          [...prev];
+
+        const block =
+          updated[index];
+
+        if (
+          block &&
+          isQuoteBlock(block)
+        ) {
+          updated[index] = {
+            ...block,
+            [field]: value,
+          };
+        }
+
+        return updated;
+      }
+    );
+  }
+
+  /* =======================================================
+     UPDATE LIST ITEM
+  ======================================================= */
+
+  function updateListItem(
+    blockIndex: number,
+    itemIndex: number,
+    value: string
+  ) {
+    setContentBlocks(
+      (prev) => {
+        const updated =
+          [...prev];
+
+        const block =
+          updated[blockIndex];
+
+        if (
+          block &&
+          isListBlock(block)
+        ) {
+          const items =
+            [...block.items];
+
+          items[itemIndex] =
+            value;
+
+          updated[
+            blockIndex
+          ] = {
+            ...block,
+            items,
+          };
+        }
+
+        return updated;
+      }
+    );
+  }
+
+  function deleteListItem(
+    blockIndex: number,
+    itemIndex: number
+  ) {
+    setContentBlocks(
+      (prev) => {
+        const updated =
+          [...prev];
+
+        const block =
+          updated[blockIndex];
+
+        if (
+          block &&
+          isListBlock(block)
+        ) {
+          updated[
+            blockIndex
+          ] = {
+            ...block,
+            items:
+              block.items.filter(
+                (
+                  _item: string,
+                  i: number
+                ) =>
+                  i !==
+                  itemIndex
+              ),
+          };
+        }
+
+        return updated;
+      }
+    );
+  }
+
+  function addListItem(
+    blockIndex: number
+  ) {
+    setContentBlocks(
+      (prev) => {
+        const updated =
+          [...prev];
+
+        const block =
+          updated[blockIndex];
+
+        if (
+          block &&
+          isListBlock(block)
+        ) {
+          updated[
+            blockIndex
+          ] = {
+            ...block,
+            items: [
+              ...block.items,
+              "",
+            ],
+          };
+        }
+
+        return updated;
+      }
+    );
   }
 
   /* =======================================================
      DELETE BLOCK
   ======================================================= */
 
-  function deleteBlock(index: number) {
-    setContentBlocks((prev) => {
-      const updated = prev.filter(
-        (_, i) => i !== index
-      );
+  function deleteBlock(
+    index: number
+  ) {
+    setContentBlocks(
+      (prev) => {
+        const updated =
+          prev.filter(
+            (
+              _block: ContentBlock,
+              i: number
+            ) => i !== index
+          );
 
-      if (updated.length === 0) {
-        return [
-          {
-            type: "text",
-            content: "",
-            headingType: "paragraph",
-          },
-        ];
+        if (
+          updated.length === 0
+        ) {
+          return [
+            {
+              type: "text",
+              content: "",
+              headingType:
+                "paragraph",
+            },
+          ];
+        }
+
+        return updated;
       }
-
-      return updated;
-    });
+    );
   }
 
   /* =======================================================
      MOVE BLOCK
   ======================================================= */
 
-  function moveBlockUp(index: number) {
-    if (index === 0) return;
+  function moveBlockUp(
+    index: number
+  ) {
+    if (index === 0) {
+      return;
+    }
 
-    setContentBlocks((prev) => {
-      const updated = [...prev];
+    setContentBlocks(
+      (prev) => {
+        const updated =
+          [...prev];
 
-      [updated[index - 1], updated[index]] = [
-        updated[index],
-        updated[index - 1],
-      ];
+        const current =
+          updated[index];
 
-      return updated;
-    });
+        const previous =
+          updated[index - 1];
+
+        if (
+          !current ||
+          !previous
+        ) {
+          return prev;
+        }
+
+        updated[
+          index - 1
+        ] = current;
+
+        updated[index] =
+          previous;
+
+        return updated;
+      }
+    );
   }
 
-  function moveBlockDown(index: number) {
-    setContentBlocks((prev) => {
-      if (index >= prev.length - 1) {
-        return prev;
+  function moveBlockDown(
+    index: number
+  ) {
+    setContentBlocks(
+      (prev) => {
+        if (
+          index >=
+          prev.length - 1
+        ) {
+          return prev;
+        }
+
+        const updated =
+          [...prev];
+
+        const current =
+          updated[index];
+
+        const next =
+          updated[index + 1];
+
+        if (
+          !current ||
+          !next
+        ) {
+          return prev;
+        }
+
+        updated[index] =
+          next;
+
+        updated[
+          index + 1
+        ] = current;
+
+        return updated;
       }
-
-      const updated = [...prev];
-
-      [updated[index], updated[index + 1]] = [
-        updated[index + 1],
-        updated[index],
-      ];
-
-      return updated;
-    });
+    );
   }
 
   /* =======================================================
@@ -725,25 +1332,38 @@ export default function EditBlogPage() {
     headerIndex: number,
     value: string
   ) {
-    setContentBlocks((prev) => {
-      const updated = [...prev];
-      const block = updated[blockIndex];
+    setContentBlocks(
+      (prev) => {
+        const updated =
+          [...prev];
 
-      if (block?.type !== "table") {
-        return prev;
+        const block =
+          updated[blockIndex];
+
+        if (
+          !block ||
+          !isTableBlock(block)
+        ) {
+          return prev;
+        }
+
+        const headers =
+          [...block.headers];
+
+        headers[
+          headerIndex
+        ] = value;
+
+        updated[
+          blockIndex
+        ] = {
+          ...block,
+          headers,
+        };
+
+        return updated;
       }
-
-      const headers = [...block.headers];
-
-      headers[headerIndex] = value;
-
-      updated[blockIndex] = {
-        ...block,
-        headers,
-      };
-
-      return updated;
-    });
+    );
   }
 
   function updateTableCell(
@@ -752,137 +1372,235 @@ export default function EditBlogPage() {
     cellIndex: number,
     value: string
   ) {
-    setContentBlocks((prev) => {
-      const updated = [...prev];
-      const block = updated[blockIndex];
+    setContentBlocks(
+      (prev) => {
+        const updated =
+          [...prev];
 
-      if (block?.type !== "table") {
-        return prev;
+        const block =
+          updated[blockIndex];
+
+        if (
+          !block ||
+          !isTableBlock(block)
+        ) {
+          return prev;
+        }
+
+        const rows: string[][] =
+          block.rows.map(
+            (
+              row: string[]
+            ): string[] =>
+              [...row]
+          );
+
+        if (
+          !rows[rowIndex]
+        ) {
+          return prev;
+        }
+
+        rows[rowIndex][
+          cellIndex
+        ] = value;
+
+        updated[
+          blockIndex
+        ] = {
+          ...block,
+          rows,
+        };
+
+        return updated;
       }
-
-      const rows = block.rows.map((row) => [...row]);
-
-      if (!rows[rowIndex]) {
-        return prev;
-      }
-
-      rows[rowIndex][cellIndex] = value;
-
-      updated[blockIndex] = {
-        ...block,
-        rows,
-      };
-
-      return updated;
-    });
+    );
   }
 
-  function addTableColumn(blockIndex: number) {
-    setContentBlocks((prev) => {
-      const updated = [...prev];
-      const block = updated[blockIndex];
+  function addTableColumn(
+    blockIndex: number
+  ) {
+    setContentBlocks(
+      (prev) => {
+        const updated =
+          [...prev];
 
-      if (block?.type !== "table") {
-        return prev;
+        const block =
+          updated[blockIndex];
+
+        if (
+          !block ||
+          !isTableBlock(block)
+        ) {
+          return prev;
+        }
+
+        updated[
+          blockIndex
+        ] = {
+          ...block,
+          headers: [
+            ...block.headers,
+            "New Column",
+          ],
+          rows:
+            block.rows.map(
+              (
+                row: string[]
+              ): string[] => [
+                ...row,
+                "",
+              ]
+            ),
+        };
+
+        return updated;
       }
-
-      updated[blockIndex] = {
-        ...block,
-        headers: [...block.headers, "New Column"],
-        rows: block.rows.map((row) => [...row, ""]),
-      };
-
-      return updated;
-    });
+    );
   }
 
-  function addTableRow(blockIndex: number) {
-    setContentBlocks((prev) => {
-      const updated = [...prev];
-      const block = updated[blockIndex];
+  function addTableRow(
+    blockIndex: number
+  ) {
+    setContentBlocks(
+      (prev) => {
+        const updated =
+          [...prev];
 
-      if (block?.type !== "table") {
-        return prev;
+        const block =
+          updated[blockIndex];
+
+        if (
+          !block ||
+          !isTableBlock(block)
+        ) {
+          return prev;
+        }
+
+        const newRow: string[] =
+          block.headers.map(
+            (): string => ""
+          );
+
+        updated[
+          blockIndex
+        ] = {
+          ...block,
+          rows: [
+            ...block.rows,
+            newRow,
+          ],
+        };
+
+        return updated;
       }
-
-      updated[blockIndex] = {
-        ...block,
-        rows: [
-          ...block.rows,
-          block.headers.map(() => ""),
-        ],
-      };
-
-      return updated;
-    });
+    );
   }
 
   function deleteTableRow(
     blockIndex: number,
     rowIndex: number
   ) {
-    setContentBlocks((prev) => {
-      const updated = [...prev];
-      const block = updated[blockIndex];
+    setContentBlocks(
+      (prev) => {
+        const updated =
+          [...prev];
 
-      if (block?.type !== "table") {
-        return prev;
+        const block =
+          updated[blockIndex];
+
+        if (
+          !block ||
+          !isTableBlock(block)
+        ) {
+          return prev;
+        }
+
+        updated[
+          blockIndex
+        ] = {
+          ...block,
+          rows:
+            block.rows.filter(
+              (
+                _row: string[],
+                rowNumber: number
+              ) =>
+                rowNumber !==
+                rowIndex
+            ),
+        };
+
+        return updated;
       }
-
-      updated[blockIndex] = {
-        ...block,
-        rows: block.rows.filter(
-          (_, index) => index !== rowIndex
-        ),
-      };
-
-      return updated;
-    });
+    );
   }
 
   /* =======================================================
      CLEAN BLOCKS
   ======================================================= */
 
-  function getCleanBlocks() {
-    return contentBlocks.filter((block) => {
-      if (block.type === "text") {
-        return Boolean(block.content?.trim());
-      }
+  function getCleanBlocks(): ContentBlock[] {
+    return contentBlocks.filter(
+      (
+        block: ContentBlock
+      ): boolean => {
+        if (
+          isTextBlock(block)
+        ) {
+          return Boolean(
+            block.content.trim()
+          );
+        }
 
-      if (block.type === "image") {
-        return Boolean(block.url?.trim());
-      }
+        if (
+          isImageBlock(block)
+        ) {
+          return Boolean(
+            block.url.trim()
+          );
+        }
 
-      if (
-        block.type === "callout" ||
-        block.type === "quote"
-      ) {
-        return Boolean(block.content?.trim());
-      }
+        if (
+          isCalloutBlock(block) ||
+          isQuoteBlock(block)
+        ) {
+          return Boolean(
+            block.content.trim()
+          );
+        }
 
-      if (
-        block.type === "bullet-list" ||
-        block.type === "bullets" ||
-        block.type === "unordered-list" ||
-        block.type === "ordered-list" ||
-        block.type === "numbered-list"
-      ) {
-        return (
-          Array.isArray(block.items) &&
-          block.items.some((item) => item.trim())
-        );
-      }
+        if (
+          isListBlock(block)
+        ) {
+          return (
+            block.items.length >
+              0 &&
+            block.items.some(
+              (
+                item: string
+              ) =>
+                Boolean(
+                  item.trim()
+                )
+            )
+          );
+        }
 
-      if (block.type === "table") {
-        return (
-          block.headers.length > 0 &&
-          block.rows.length > 0
-        );
-      }
+        if (
+          isTableBlock(block)
+        ) {
+          return (
+            block.headers.length >
+              0 &&
+            block.rows.length >
+              0
+          );
+        }
 
-      return true;
-    });
+        return true;
+      }
+    );
   }
 
   /* =======================================================
@@ -891,44 +1609,62 @@ export default function EditBlogPage() {
 
   function getPlainText(
     blocks: ContentBlock[]
-  ) {
+  ): string {
     return blocks
-      .map((block) => {
-        if (block.type === "text") {
-          return block.content;
-        }
+      .map(
+        (
+          block: ContentBlock
+        ): string => {
+          if (
+            isTextBlock(block)
+          ) {
+            return block.content;
+          }
 
-        if (
-          block.type === "callout" ||
-          block.type === "quote"
-        ) {
-          return block.content || "";
-        }
+          if (
+            isCalloutBlock(
+              block
+            ) ||
+            isQuoteBlock(block)
+          ) {
+            return block.content;
+          }
 
-        if (
-          block.type === "bullet-list" ||
-          block.type === "bullets" ||
-          block.type === "unordered-list" ||
-          block.type === "ordered-list" ||
-          block.type === "numbered-list"
-        ) {
-          return Array.isArray(block.items)
-            ? block.items.join("\n")
-            : "";
-        }
+          if (
+            isListBlock(block)
+          ) {
+            return block.items.join(
+              "\n"
+            );
+          }
 
-        if (block.type === "table") {
-          return [
-            block.headers.join(" | "),
-            ...block.rows.map((row) =>
-              row.join(" | ")
-            ),
-          ].join("\n");
-        }
+          if (
+            isTableBlock(block)
+          ) {
+            return [
+              block.headers.join(
+                " | "
+              ),
+              ...block.rows.map(
+                (
+                  row: string[]
+                ) =>
+                  row.join(
+                    " | "
+                  )
+              ),
+            ].join("\n");
+          }
 
-        return "";
-      })
-      .filter(Boolean)
+          return "";
+        }
+      )
+      .filter(
+        (
+          text: string
+        ): boolean =>
+          Boolean(text)
+      )
       .join("\n\n");
   }
 
@@ -941,14 +1677,21 @@ export default function EditBlogPage() {
   ): BlogImage[] {
     return blocks
       .filter(
-        (block): block is ImageBlock =>
-          block.type === "image" &&
+        (
+          block: ContentBlock
+        ): block is ImageBlock =>
+          isImageBlock(block) &&
           Boolean(block.url)
       )
-      .map((block, index) => ({
-        url: block.url,
-        position: index + 1,
-      }));
+      .map(
+        (
+          block: ImageBlock,
+          index: number
+        ): BlogImage => ({
+          url: block.url,
+          position: index + 1,
+        })
+      );
   }
 
   /* =======================================================
@@ -957,59 +1700,86 @@ export default function EditBlogPage() {
 
   async function updateBlog() {
     if (!blogId) {
-      alert("Blog ID is missing.");
+      alert(
+        "Blog ID is missing."
+      );
       return;
     }
 
-    if (!form.title.trim()) {
-      alert("Please enter a blog title.");
+    if (
+      !form.title.trim()
+    ) {
+      alert(
+        "Please enter a blog title."
+      );
       return;
     }
 
-    const cleanBlocks = getCleanBlocks();
+    const cleanBlocks =
+      getCleanBlocks();
 
     const hasText =
-      Boolean(form.introduction.trim()) ||
+      Boolean(
+        form.introduction.trim()
+      ) ||
       cleanBlocks.some(
-        (block) =>
-          block.type === "text" &&
-          Boolean(block.content?.trim())
+        (
+          block: ContentBlock
+        ): boolean =>
+          isTextBlock(block) &&
+          Boolean(
+            block.content.trim()
+          )
       );
 
     if (!hasText) {
-      alert("Please write some blog content.");
+      alert(
+        "Please write some blog content."
+      );
       return;
     }
 
     try {
       setSaving(true);
 
-      const plainText = getPlainText(cleanBlocks);
+      const plainText =
+        getPlainText(
+          cleanBlocks
+        );
 
       const additionalImages =
-        getAdditionalImages(cleanBlocks);
+        getAdditionalImages(
+          cleanBlocks
+        );
 
       const finalSlug =
         form.slug.trim() ||
-        generateSlug(form.title);
+        generateSlug(
+          form.title
+        );
 
       const payload = {
         id: blogId,
 
-        title: form.title.trim(),
+        title:
+          form.title.trim(),
 
         slug: finalSlug,
 
-        excerpt: form.excerpt.trim(),
+        excerpt:
+          form.excerpt.trim(),
 
         introduction:
           form.introduction.trim(),
 
-        content: plainText,
+        content:
+          plainText,
 
-        cover_image: form.cover_image,
+        cover_image:
+          form.cover_image,
 
-        content_blocks: cleanBlocks,
+        content_blocks:
+          cleanBlocks,
 
         additional_images:
           additionalImages,
@@ -1020,51 +1790,88 @@ export default function EditBlogPage() {
         author:
           form.author.trim(),
 
-        tags: form.tags
-          .split(",")
-          .map((tag) => tag.trim())
-          .filter(Boolean),
+        tags:
+          form.tags
+            .split(",")
+            .map(
+              (
+                tag: string
+              ) =>
+                tag.trim()
+            )
+            .filter(
+              (
+                tag: string
+              ) =>
+                Boolean(tag)
+            ),
 
-        published: form.published,
+        published:
+          form.published,
 
-        featured: form.featured,
+        featured:
+          form.featured,
       };
 
-      const response = await fetch(
-        `/api/blogs/${slug}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
+      const response =
+        await fetch(
+          `/api/blogs/${slug}`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            body:
+              JSON.stringify(
+                payload
+              ),
+          }
+        );
 
-      const data = await response.json();
+      const data: unknown =
+        await response.json();
+
+      const result =
+        data &&
+        typeof data === "object"
+          ? (data as Record<
+              string,
+              unknown
+            >)
+          : {};
 
       if (!response.ok) {
         throw new Error(
-          data?.message ||
-            data?.error ||
-            "Failed to update blog"
+          typeof result.message ===
+            "string"
+            ? result.message
+            : typeof result.error ===
+              "string"
+            ? result.error
+            : "Failed to update blog"
         );
       }
 
-      alert("Blog updated successfully!");
+      alert(
+        "Blog updated successfully!"
+      );
 
-      router.push("/admin/blogs");
+      router.push(
+        "/admin/blogs"
+      );
+
       router.refresh();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(
         "UPDATE BLOG ERROR:",
         error
       );
 
       alert(
-        error?.message ||
-          "Something went wrong while updating the blog."
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while updating the blog."
       );
     } finally {
       setSaving(false);
@@ -1077,62 +1884,89 @@ export default function EditBlogPage() {
 
   async function deleteBlog() {
     if (!blogId || !slug) {
-      alert("Blog information is missing.");
+      alert(
+        "Blog information is missing."
+      );
       return;
     }
 
     try {
       setDeleting(true);
 
-      const response = await fetch(
-        `/api/blogs/${slug}`,
-        {
-          method: "DELETE",
-        }
-      );
+      const response =
+        await fetch(
+          `/api/blogs/${slug}`,
+          {
+            method: "DELETE",
+          }
+        );
 
-      const data = await response.json();
+      const data: unknown =
+        await response.json();
+
+      const result =
+        data &&
+        typeof data === "object"
+          ? (data as Record<
+              string,
+              unknown
+            >)
+          : {};
 
       if (!response.ok) {
         throw new Error(
-          data?.message ||
-            data?.error ||
-            "Failed to delete blog"
+          typeof result.message ===
+            "string"
+            ? result.message
+            : typeof result.error ===
+              "string"
+            ? result.error
+            : "Failed to delete blog"
         );
       }
 
-      alert("Blog deleted successfully.");
+      alert(
+        "Blog deleted successfully."
+      );
 
-      router.push("/admin/blogs");
+      router.push(
+        "/admin/blogs"
+      );
+
       router.refresh();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(
         "DELETE BLOG ERROR:",
         error
       );
 
       alert(
-        error?.message ||
-          "Failed to delete blog."
+        error instanceof Error
+          ? error.message
+          : "Failed to delete blog."
       );
     } finally {
       setDeleting(false);
-      setShowDeleteConfirm(false);
+      setShowDeleteConfirm(
+        false
+      );
     }
   }
 
   /* =======================================================
-     PREVIEW BLOCK
+     PREVIEW
   ======================================================= */
 
   function renderPreviewBlock(
     block: ContentBlock,
     index: number
   ) {
-    /* IMAGE */
-
-    if (block.type === "image") {
-      if (!block.url) return null;
+    if (
+      isImageBlock(block)
+    ) {
+      if (!block.url) {
+        return null;
+      }
 
       return (
         <figure
@@ -1157,10 +1991,13 @@ export default function EditBlogPage() {
       );
     }
 
-    /* TEXT */
-
-    if (block.type === "text") {
-      if (block.headingType === "h1") {
+    if (
+      isTextBlock(block)
+    ) {
+      if (
+        block.headingType ===
+        "h1"
+      ) {
         return (
           <h1
             key={index}
@@ -1171,7 +2008,10 @@ export default function EditBlogPage() {
         );
       }
 
-      if (block.headingType === "h2") {
+      if (
+        block.headingType ===
+        "h2"
+      ) {
         return (
           <h2
             key={index}
@@ -1182,7 +2022,10 @@ export default function EditBlogPage() {
         );
       }
 
-      if (block.headingType === "h3") {
+      if (
+        block.headingType ===
+        "h3"
+      ) {
         return (
           <h3
             key={index}
@@ -1203,9 +2046,9 @@ export default function EditBlogPage() {
       );
     }
 
-    /* CALLOUT */
-
-    if (block.type === "callout") {
+    if (
+      isCalloutBlock(block)
+    ) {
       return (
         <div
           key={index}
@@ -1224,9 +2067,9 @@ export default function EditBlogPage() {
       );
     }
 
-    /* QUOTE */
-
-    if (block.type === "quote") {
+    if (
+      isQuoteBlock(block)
+    ) {
       return (
         <blockquote
           key={index}
@@ -1243,21 +2086,50 @@ export default function EditBlogPage() {
       );
     }
 
-    /* LIST */
-
     if (
-      block.type === "bullet-list" ||
-      block.type === "bullets" ||
-      block.type === "unordered-list"
+      isListBlock(block)
     ) {
+      const ordered =
+        block.type ===
+          "ordered-list" ||
+        block.type ===
+          "numbered-list";
+
+      if (ordered) {
+        return (
+          <ol
+            key={index}
+            className="my-6 list-decimal space-y-2 pl-7 text-lg leading-8 text-zinc-700"
+          >
+            {block.items.map(
+              (
+                item: string,
+                itemIndex: number
+              ) => (
+                <li
+                  key={itemIndex}
+                >
+                  {item}
+                </li>
+              )
+            )}
+          </ol>
+        );
+      }
+
       return (
         <ul
           key={index}
           className="my-6 list-disc space-y-2 pl-7 text-lg leading-8 text-zinc-700"
         >
           {block.items.map(
-            (item, itemIndex) => (
-              <li key={itemIndex}>
+            (
+              item: string,
+              itemIndex: number
+            ) => (
+              <li
+                key={itemIndex}
+              >
                 {item}
               </li>
             )
@@ -1267,41 +2139,27 @@ export default function EditBlogPage() {
     }
 
     if (
-      block.type === "ordered-list" ||
-      block.type === "numbered-list"
+      isTableBlock(block)
     ) {
-      return (
-        <ol
-          key={index}
-          className="my-6 list-decimal space-y-2 pl-7 text-lg leading-8 text-zinc-700"
-        >
-          {block.items.map(
-            (item, itemIndex) => (
-              <li key={itemIndex}>
-                {item}
-              </li>
-            )
-          )}
-        </ol>
-      );
-    }
-
-    /* TABLE */
-
-    if (block.type === "table") {
       return (
         <div
           key={index}
           className="my-8 overflow-x-auto rounded-xl border"
         >
           <table className="w-full border-collapse text-sm">
-            {block.headers.length > 0 && (
+            {block.headers.length >
+              0 && (
               <thead>
                 <tr>
                   {block.headers.map(
-                    (header, headerIndex) => (
+                    (
+                      header: string,
+                      headerIndex: number
+                    ) => (
                       <th
-                        key={headerIndex}
+                        key={
+                          headerIndex
+                        }
                         className="border-b bg-zinc-100 px-4 py-3 text-left font-bold"
                       >
                         {header}
@@ -1314,12 +2172,22 @@ export default function EditBlogPage() {
 
             <tbody>
               {block.rows.map(
-                (row, rowIndex) => (
-                  <tr key={rowIndex}>
+                (
+                  row: string[],
+                  rowIndex: number
+                ) => (
+                  <tr
+                    key={rowIndex}
+                  >
                     {row.map(
-                      (cell, cellIndex) => (
+                      (
+                        cell: string,
+                        cellIndex: number
+                      ) => (
                         <td
-                          key={cellIndex}
+                          key={
+                            cellIndex
+                          }
                           className="border-b px-4 py-3"
                         >
                           {cell}
@@ -1363,24 +2231,25 @@ export default function EditBlogPage() {
         {/* HEADER */}
 
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-
           <div>
             <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
               ✏️ Edit Blog
             </h1>
 
             <p className="mt-1 text-sm text-gray-500">
-              Update your article, preview it,
-              publish it or delete it.
+              Update your article,
+              preview it, publish it
+              or delete it.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
-
             <button
               type="button"
               onClick={() =>
-                router.push("/admin/blogs")
+                router.push(
+                  "/admin/blogs"
+                )
               }
               className="rounded-xl border border-gray-300 bg-white px-5 py-3 font-semibold text-gray-900 hover:bg-gray-50"
             >
@@ -1410,7 +2279,6 @@ export default function EditBlogPage() {
                 ? "Saving..."
                 : "Save Changes"}
             </button>
-
           </div>
         </div>
 
@@ -1419,7 +2287,6 @@ export default function EditBlogPage() {
           {/* ARTICLE DETAILS */}
 
           <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-7">
-
             <h2 className="mb-5 text-xl font-bold">
               Article Details
             </h2>
@@ -1433,8 +2300,12 @@ export default function EditBlogPage() {
 
                 <input
                   name="title"
-                  value={form.title}
-                  onChange={handleChange}
+                  value={
+                    form.title
+                  }
+                  onChange={
+                    handleChange
+                  }
                   className="w-full rounded-xl border p-3.5 outline-none focus:ring-2 focus:ring-black"
                 />
               </div>
@@ -1446,13 +2317,19 @@ export default function EditBlogPage() {
 
                 <input
                   name="slug"
-                  value={form.slug}
-                  onChange={handleChange}
+                  value={
+                    form.slug
+                  }
+                  onChange={
+                    handleChange
+                  }
                   className="w-full rounded-xl border p-3.5 outline-none focus:ring-2 focus:ring-black"
                 />
 
                 <p className="mt-2 text-xs text-gray-500">
-                  Changing the slug changes the article URL.
+                  Changing the slug
+                  changes the article
+                  URL.
                 </p>
               </div>
 
@@ -1463,8 +2340,12 @@ export default function EditBlogPage() {
 
                 <textarea
                   name="excerpt"
-                  value={form.excerpt}
-                  onChange={handleChange}
+                  value={
+                    form.excerpt
+                  }
+                  onChange={
+                    handleChange
+                  }
                   rows={4}
                   className="w-full resize-y rounded-xl border p-3.5 outline-none focus:ring-2 focus:ring-black"
                 />
@@ -1476,14 +2357,21 @@ export default function EditBlogPage() {
                 </label>
 
                 <p className="mb-3 text-xs leading-5 text-gray-500">
-                  This is the 7–8 line introduction shown immediately
-                  after the article cover image.
+                  This is the 7–8
+                  line introduction
+                  shown immediately
+                  after the article
+                  cover image.
                 </p>
 
                 <textarea
                   name="introduction"
-                  value={form.introduction}
-                  onChange={handleChange}
+                  value={
+                    form.introduction
+                  }
+                  onChange={
+                    handleChange
+                  }
                   rows={8}
                   placeholder="Write the introduction of your article..."
                   className="w-full resize-y rounded-xl border p-4 leading-7 outline-none focus:ring-2 focus:ring-black"
@@ -1499,8 +2387,12 @@ export default function EditBlogPage() {
 
                   <input
                     name="category"
-                    value={form.category}
-                    onChange={handleChange}
+                    value={
+                      form.category
+                    }
+                    onChange={
+                      handleChange
+                    }
                     placeholder="AI, Tech, How-To..."
                     className="w-full rounded-xl border p-3.5 outline-none focus:ring-2 focus:ring-black"
                   />
@@ -1513,8 +2405,12 @@ export default function EditBlogPage() {
 
                   <input
                     name="author"
-                    value={form.author}
-                    onChange={handleChange}
+                    value={
+                      form.author
+                    }
+                    onChange={
+                      handleChange
+                    }
                     className="w-full rounded-xl border p-3.5 outline-none focus:ring-2 focus:ring-black"
                   />
                 </div>
@@ -1528,8 +2424,12 @@ export default function EditBlogPage() {
 
                 <input
                   name="tags"
-                  value={form.tags}
-                  onChange={handleChange}
+                  value={
+                    form.tags
+                  }
+                  onChange={
+                    handleChange
+                  }
                   placeholder="AI, Gemini, Google, Technology"
                   className="w-full rounded-xl border p-3.5 outline-none focus:ring-2 focus:ring-black"
                 />
@@ -1540,13 +2440,18 @@ export default function EditBlogPage() {
                 <label className="flex cursor-pointer items-center gap-2">
                   <input
                     type="checkbox"
-                    checked={form.published}
+                    checked={
+                      form.published
+                    }
                     onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        published:
-                          e.target.checked,
-                      }))
+                      setForm(
+                        (prev) => ({
+                          ...prev,
+                          published:
+                            e.target
+                              .checked,
+                        })
+                      )
                     }
                   />
 
@@ -1558,13 +2463,18 @@ export default function EditBlogPage() {
                 <label className="flex cursor-pointer items-center gap-2">
                   <input
                     type="checkbox"
-                    checked={form.featured}
+                    checked={
+                      form.featured
+                    }
                     onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        featured:
-                          e.target.checked,
-                      }))
+                      setForm(
+                        (prev) => ({
+                          ...prev,
+                          featured:
+                            e.target
+                              .checked,
+                        })
+                      )
                     }
                   />
 
@@ -1587,7 +2497,9 @@ export default function EditBlogPage() {
             </h2>
 
             <p className="mt-1 text-sm text-gray-500">
-              Main image displayed at the beginning of the article.
+              Main image displayed
+              at the beginning of
+              the article.
             </p>
 
             {form.cover_image && (
@@ -1595,15 +2507,22 @@ export default function EditBlogPage() {
 
                 <div className="overflow-hidden rounded-2xl border bg-gray-50">
                   <img
-                    src={form.cover_image}
-                    alt={form.title || "Cover image"}
+                    src={
+                      form.cover_image
+                    }
+                    alt={
+                      form.title ||
+                      "Cover image"
+                    }
                     className="max-h-[420px] w-full object-cover"
                   />
                 </div>
 
                 <button
                   type="button"
-                  onClick={removeCoverImage}
+                  onClick={
+                    removeCoverImage
+                  }
                   className="mt-3 rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
                 >
                   Remove Cover Image
@@ -1623,8 +2542,12 @@ export default function EditBlogPage() {
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/gif"
-                onChange={handleCoverUpload}
-                disabled={uploadingCover}
+                onChange={
+                  handleCoverUpload
+                }
+                disabled={
+                  uploadingCover
+                }
                 className="hidden"
               />
 
@@ -1644,8 +2567,11 @@ export default function EditBlogPage() {
                 </h2>
 
                 <p className="mt-1 text-sm text-gray-500">
-                  Edit your article section by section.
-                  Images can be placed between sections.
+                  Edit your article
+                  section by section.
+                  Images can be
+                  placed between
+                  sections.
                 </p>
               </div>
 
@@ -1673,7 +2599,9 @@ export default function EditBlogPage() {
 
                 <button
                   type="button"
-                  onClick={addTableBlock}
+                  onClick={
+                    addTableBlock
+                  }
                   className="rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-900"
                 >
                   + Table
@@ -1686,13 +2614,14 @@ export default function EditBlogPage() {
             <div className="space-y-5">
 
               {contentBlocks.map(
-                (block, index) => (
+                (
+                  block: ContentBlock,
+                  index: number
+                ) => (
                   <div
                     key={index}
                     className="rounded-2xl border bg-gray-50 p-4 sm:p-5"
                   >
-
-                    {/* BLOCK HEADER */}
 
                     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
 
@@ -1703,14 +2632,22 @@ export default function EditBlogPage() {
                         </span>
 
                         <span className="text-sm font-semibold text-gray-700">
-                          {block.type === "image"
+                          {block.type ===
+                          "image"
                             ? "Image"
-                            : block.type === "callout"
+                            : block.type ===
+                              "callout"
                             ? "Callout"
-                            : block.type === "quote"
+                            : block.type ===
+                              "quote"
                             ? "Quote"
-                            : block.type === "table"
+                            : block.type ===
+                              "table"
                             ? "Table"
+                            : isListType(
+                                block.type
+                              )
+                            ? "List"
                             : "Article Text"}
                         </span>
 
@@ -1721,9 +2658,14 @@ export default function EditBlogPage() {
                         <button
                           type="button"
                           onClick={() =>
-                            moveBlockUp(index)
+                            moveBlockUp(
+                              index
+                            )
                           }
-                          disabled={index === 0}
+                          disabled={
+                            index ===
+                            0
+                          }
                           className="rounded-lg border bg-white px-2.5 py-1.5 disabled:opacity-30"
                         >
                           ↑
@@ -1732,11 +2674,14 @@ export default function EditBlogPage() {
                         <button
                           type="button"
                           onClick={() =>
-                            moveBlockDown(index)
+                            moveBlockDown(
+                              index
+                            )
                           }
                           disabled={
                             index ===
-                            contentBlocks.length - 1
+                            contentBlocks.length -
+                              1
                           }
                           className="rounded-lg border bg-white px-2.5 py-1.5 disabled:opacity-30"
                         >
@@ -1746,7 +2691,9 @@ export default function EditBlogPage() {
                         <button
                           type="button"
                           onClick={() =>
-                            deleteBlock(index)
+                            deleteBlock(
+                              index
+                            )
                           }
                           className="rounded-lg border bg-white px-2.5 py-1.5 text-red-600"
                         >
@@ -1754,16 +2701,19 @@ export default function EditBlogPage() {
                         </button>
 
                       </div>
-
                     </div>
 
-                    {/* TEXT BLOCK */}
+                    {/* TEXT */}
 
-                    {block.type === "text" && (
+                    {isTextBlock(
+                      block
+                    ) && (
                       <div className="space-y-3">
 
                         <select
-                          value={block.headingType}
+                          value={
+                            block.headingType
+                          }
                           onChange={(e) =>
                             updateTextBlockType(
                               index,
@@ -1791,11 +2741,14 @@ export default function EditBlogPage() {
                         </select>
 
                         <textarea
-                          value={block.content}
+                          value={
+                            block.content
+                          }
                           onChange={(e) =>
                             updateTextBlock(
                               index,
-                              e.target.value
+                              e.target
+                                .value
                             )
                           }
                           rows={
@@ -1811,15 +2764,19 @@ export default function EditBlogPage() {
                       </div>
                     )}
 
-                    {/* IMAGE BLOCK */}
+                    {/* IMAGE */}
 
-                    {block.type === "image" && (
+                    {isImageBlock(
+                      block
+                    ) && (
                       <div className="space-y-4">
 
                         {block.url && (
                           <div className="overflow-hidden rounded-xl border bg-white">
                             <img
-                              src={block.url}
+                              src={
+                                block.url
+                              }
                               alt={
                                 block.alt ||
                                 form.title
@@ -1831,7 +2788,8 @@ export default function EditBlogPage() {
 
                         <label className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-black px-4 py-2.5 text-sm font-semibold text-white">
 
-                          {uploadingBlockIndex === index
+                          {uploadingBlockIndex ===
+                          index
                             ? "Uploading..."
                             : block.url
                             ? "📷 Change Image"
@@ -1840,7 +2798,9 @@ export default function EditBlogPage() {
                           <input
                             type="file"
                             accept="image/jpeg,image/png,image/webp,image/gif"
-                            onChange={(e) =>
+                            onChange={(
+                              e
+                            ) =>
                               handleBlockImageUpload(
                                 index,
                                 e
@@ -1856,11 +2816,14 @@ export default function EditBlogPage() {
                         </label>
 
                         <input
-                          value={block.alt}
+                          value={
+                            block.alt
+                          }
                           onChange={(e) =>
                             updateImageAlt(
                               index,
-                              e.target.value
+                              e.target
+                                .value
                             )
                           }
                           placeholder="Image alt text"
@@ -1872,69 +2835,40 @@ export default function EditBlogPage() {
 
                     {/* CALLOUT */}
 
-                    {block.type === "callout" && (
+                    {isCalloutBlock(
+                      block
+                    ) && (
                       <div className="rounded-xl border bg-white p-4">
 
                         <input
                           value={
-                            block.title || ""
+                            block.title ||
+                            ""
                           }
-                          onChange={(e) => {
-                            setContentBlocks(
-                              (prev) => {
-                                const updated = [
-                                  ...prev,
-                                ];
-
-                                const current =
-                                  updated[index];
-
-                                if (
-                                  current?.type ===
-                                  "callout"
-                                ) {
-                                  updated[index] = {
-                                    ...current,
-                                    title:
-                                      e.target.value,
-                                  };
-                                }
-
-                                return updated;
-                              }
-                            );
-                          }}
+                          onChange={(e) =>
+                            updateCallout(
+                              index,
+                              "title",
+                              e.target
+                                .value
+                            )
+                          }
                           placeholder="Callout title"
                           className="mb-3 w-full rounded-xl border p-3 font-semibold"
                         />
 
                         <textarea
-                          value={block.content}
-                          onChange={(e) => {
-                            setContentBlocks(
-                              (prev) => {
-                                const updated = [
-                                  ...prev,
-                                ];
-
-                                const current =
-                                  updated[index];
-
-                                if (
-                                  current?.type ===
-                                  "callout"
-                                ) {
-                                  updated[index] = {
-                                    ...current,
-                                    content:
-                                      e.target.value,
-                                  };
-                                }
-
-                                return updated;
-                              }
-                            );
-                          }}
+                          value={
+                            block.content
+                          }
+                          onChange={(e) =>
+                            updateCallout(
+                              index,
+                              "content",
+                              e.target
+                                .value
+                            )
+                          }
                           rows={6}
                           className="w-full rounded-xl border p-4"
                         />
@@ -1944,69 +2878,40 @@ export default function EditBlogPage() {
 
                     {/* QUOTE */}
 
-                    {block.type === "quote" && (
+                    {isQuoteBlock(
+                      block
+                    ) && (
                       <div className="rounded-xl border bg-white p-4">
 
                         <textarea
-                          value={block.content}
-                          onChange={(e) => {
-                            setContentBlocks(
-                              (prev) => {
-                                const updated = [
-                                  ...prev,
-                                ];
-
-                                const current =
-                                  updated[index];
-
-                                if (
-                                  current?.type ===
-                                  "quote"
-                                ) {
-                                  updated[index] = {
-                                    ...current,
-                                    content:
-                                      e.target.value,
-                                  };
-                                }
-
-                                return updated;
-                              }
-                            );
-                          }}
+                          value={
+                            block.content
+                          }
+                          onChange={(e) =>
+                            updateQuote(
+                              index,
+                              "content",
+                              e.target
+                                .value
+                            )
+                          }
                           rows={5}
                           className="w-full rounded-xl border p-4"
                         />
 
                         <input
                           value={
-                            block.author || ""
+                            block.author ||
+                            ""
                           }
-                          onChange={(e) => {
-                            setContentBlocks(
-                              (prev) => {
-                                const updated = [
-                                  ...prev,
-                                ];
-
-                                const current =
-                                  updated[index];
-
-                                if (
-                                  current?.type ===
-                                  "quote"
-                                ) {
-                                  updated[index] = {
-                                    ...current,
-                                    author:
-                                      e.target.value,
-                                  };
-                                }
-
-                                return updated;
-                              }
-                            );
-                          }}
+                          onChange={(e) =>
+                            updateQuote(
+                              index,
+                              "author",
+                              e.target
+                                .value
+                            )
+                          }
                           placeholder="Author (optional)"
                           className="mt-3 w-full rounded-xl border p-3"
                         />
@@ -2016,96 +2921,49 @@ export default function EditBlogPage() {
 
                     {/* LIST */}
 
-                    {(
-                      block.type === "bullet-list" ||
-                      block.type === "bullets" ||
-                      block.type === "unordered-list" ||
-                      block.type === "ordered-list" ||
-                      block.type === "numbered-list"
+                    {isListBlock(
+                      block
                     ) && (
                       <div className="space-y-3 rounded-xl border bg-white p-4">
 
                         {block.items.map(
-                          (item, itemIndex) => (
+                          (
+                            item: string,
+                            itemIndex: number
+                          ) => (
                             <div
-                              key={itemIndex}
+                              key={
+                                itemIndex
+                              }
                               className="flex gap-2"
                             >
 
                               <input
-                                value={item}
-                                onChange={(e) => {
-                                  setContentBlocks(
-                                    (prev) => {
-                                      const updated =
-                                        [...prev];
-
-                                      const current =
-                                        updated[index];
-
-                                      if (
-                                        current &&
-                                        "items" in
-                                          current
-                                      ) {
-                                        const items =
-                                          [
-                                            ...current.items,
-                                          ];
-
-                                        items[
-                                          itemIndex
-                                        ] =
-                                          e.target.value;
-
-                                        updated[
-                                          index
-                                        ] = {
-                                          ...current,
-                                          items,
-                                        };
-                                      }
-
-                                      return updated;
-                                    }
-                                  );
-                                }}
+                                value={
+                                  item
+                                }
+                                onChange={(
+                                  e
+                                ) =>
+                                  updateListItem(
+                                    index,
+                                    itemIndex,
+                                    e
+                                      .target
+                                      .value
+                                  )
+                                }
                                 className="w-full rounded-xl border p-3"
                               />
 
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setContentBlocks(
-                                    (prev) => {
-                                      const updated =
-                                        [...prev];
-
-                                      const current =
-                                        updated[index];
-
-                                      if (
-                                        current &&
-                                        "items" in
-                                          current
-                                      ) {
-                                        updated[
-                                          index
-                                        ] = {
-                                          ...current,
-                                          items:
-                                            current.items.filter(
-                                              (_, i) =>
-                                                i !==
-                                                itemIndex
-                                            ),
-                                        };
-                                      }
-
-                                      return updated;
-                                    }
-                                  );
-                                }}
+                                onClick={() =>
+                                  deleteListItem(
+                                    index,
+                                    itemIndex
+                                  )
+                                }
                                 className="rounded-xl border px-3 text-red-600"
                               >
                                 ×
@@ -2117,34 +2975,11 @@ export default function EditBlogPage() {
 
                         <button
                           type="button"
-                          onClick={() => {
-                            setContentBlocks(
-                              (prev) => {
-                                const updated = [
-                                  ...prev,
-                                ];
-
-                                const current =
-                                  updated[index];
-
-                                if (
-                                  current &&
-                                  "items" in
-                                    current
-                                ) {
-                                  updated[index] = {
-                                    ...current,
-                                    items: [
-                                      ...current.items,
-                                      "",
-                                    ],
-                                  };
-                                }
-
-                                return updated;
-                              }
-                            );
-                          }}
+                          onClick={() =>
+                            addListItem(
+                              index
+                            )
+                          }
                           className="rounded-lg border px-3 py-2 text-sm font-semibold"
                         >
                           + Add Item
@@ -2155,7 +2990,9 @@ export default function EditBlogPage() {
 
                     {/* TABLE */}
 
-                    {block.type === "table" && (
+                    {isTableBlock(
+                      block
+                    ) && (
                       <div className="space-y-4 rounded-xl border bg-white p-4">
 
                         <div className="overflow-x-auto">
@@ -2164,10 +3001,11 @@ export default function EditBlogPage() {
 
                             <thead>
                               <tr>
+
                                 {block.headers.map(
                                   (
-                                    header,
-                                    headerIndex
+                                    header: string,
+                                    headerIndex: number
                                   ) => (
                                     <th
                                       key={
@@ -2199,24 +3037,27 @@ export default function EditBlogPage() {
                                 <th className="w-20 border bg-gray-100 p-2">
                                   Actions
                                 </th>
+
                               </tr>
                             </thead>
 
                             <tbody>
+
                               {block.rows.map(
                                 (
-                                  row,
-                                  rowIndex
+                                  row: string[],
+                                  rowIndex: number
                                 ) => (
                                   <tr
                                     key={
                                       rowIndex
                                     }
                                   >
+
                                     {row.map(
                                       (
-                                        cell,
-                                        cellIndex
+                                        cell: string,
+                                        cellIndex: number
                                       ) => (
                                         <td
                                           key={
@@ -2247,6 +3088,7 @@ export default function EditBlogPage() {
                                     )}
 
                                     <td className="border p-2 text-center">
+
                                       <button
                                         type="button"
                                         onClick={() =>
@@ -2259,10 +3101,13 @@ export default function EditBlogPage() {
                                       >
                                         Delete
                                       </button>
+
                                     </td>
+
                                   </tr>
                                 )
                               )}
+
                             </tbody>
 
                           </table>
@@ -2274,7 +3119,9 @@ export default function EditBlogPage() {
                           <button
                             type="button"
                             onClick={() =>
-                              addTableRow(index)
+                              addTableRow(
+                                index
+                              )
                             }
                             className="rounded-lg border px-3 py-2 text-sm font-semibold"
                           >
@@ -2284,7 +3131,9 @@ export default function EditBlogPage() {
                           <button
                             type="button"
                             onClick={() =>
-                              addTableColumn(index)
+                              addTableColumn(
+                                index
+                              )
                             }
                             className="rounded-lg border px-3 py-2 text-sm font-semibold"
                           >
@@ -2309,17 +3158,25 @@ export default function EditBlogPage() {
                       "ordered-list",
                       "numbered-list",
                       "table",
-                    ].includes(block.type) && (
+                    ].includes(
+                      block.type
+                    ) && (
                       <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
 
                         <p className="text-sm font-semibold text-yellow-800">
                           Unsupported block:{" "}
-                          {block.type}
+                          {
+                            block.type
+                          }
                         </p>
 
                         <p className="mt-1 text-xs text-yellow-700">
-                          This content is being preserved
-                          so it is not deleted when you save.
+                          This content
+                          is being
+                          preserved so
+                          it is not
+                          deleted when
+                          you save.
                         </p>
 
                       </div>
@@ -2332,7 +3189,9 @@ export default function EditBlogPage() {
                       <button
                         type="button"
                         onClick={() =>
-                          addTextBlock(index)
+                          addTextBlock(
+                            index
+                          )
                         }
                         className="rounded-lg border bg-white px-3 py-2 text-xs font-semibold"
                       >
@@ -2342,7 +3201,9 @@ export default function EditBlogPage() {
                       <button
                         type="button"
                         onClick={() =>
-                          addImageBlock(index)
+                          addImageBlock(
+                            index
+                          )
                         }
                         className="rounded-lg border bg-white px-3 py-2 text-xs font-semibold"
                       >
@@ -2356,7 +3217,6 @@ export default function EditBlogPage() {
               )}
 
             </div>
-
           </section>
 
           {/* DANGER ZONE */}
@@ -2368,16 +3228,22 @@ export default function EditBlogPage() {
             </h2>
 
             <p className="mb-5 mt-1 text-sm text-gray-500">
-              Deleting this article permanently removes it
-              from your blog database.
+              Deleting this article
+              permanently removes
+              it from your blog
+              database.
             </p>
 
             <button
               type="button"
               onClick={() =>
-                setShowDeleteConfirm(true)
+                setShowDeleteConfirm(
+                  true
+                )
               }
-              disabled={deleting}
+              disabled={
+                deleting
+              }
               className="rounded-xl bg-red-600 px-5 py-3 font-semibold text-white hover:bg-red-700 disabled:opacity-50"
             >
               🗑 Delete This Blog
@@ -2392,7 +3258,9 @@ export default function EditBlogPage() {
             <button
               type="button"
               onClick={() =>
-                router.push("/admin/blogs")
+                router.push(
+                  "/admin/blogs"
+                )
               }
               className="rounded-xl border bg-white px-6 py-3 font-semibold"
             >
@@ -2455,7 +3323,9 @@ export default function EditBlogPage() {
               <button
                 type="button"
                 onClick={() =>
-                  setShowPreview(false)
+                  setShowPreview(
+                    false
+                  )
                 }
                 className="h-10 w-10 rounded-full bg-gray-100 text-lg font-bold hover:bg-gray-200"
               >
@@ -2468,7 +3338,9 @@ export default function EditBlogPage() {
 
               {form.category && (
                 <div className="mb-3 text-sm font-bold text-gray-500">
-                  {form.category}
+                  {
+                    form.category
+                  }
                 </div>
               )}
 
@@ -2479,14 +3351,20 @@ export default function EditBlogPage() {
 
               {form.excerpt && (
                 <p className="mb-7 text-lg leading-8 text-gray-600 sm:text-xl">
-                  {form.excerpt}
+                  {
+                    form.excerpt
+                  }
                 </p>
               )}
 
               {form.cover_image && (
                 <img
-                  src={form.cover_image}
-                  alt={form.title}
+                  src={
+                    form.cover_image
+                  }
+                  alt={
+                    form.title
+                  }
                   className="mb-8 max-h-[520px] w-full rounded-2xl object-cover"
                 />
               )}
@@ -2495,7 +3373,9 @@ export default function EditBlogPage() {
                 <div className="mb-10">
 
                   <p className="whitespace-pre-line text-lg leading-8 text-gray-700 sm:text-xl">
-                    {form.introduction}
+                    {
+                      form.introduction
+                    }
                   </p>
 
                 </div>
@@ -2503,7 +3383,14 @@ export default function EditBlogPage() {
 
               <div>
                 {contentBlocks.map(
-                  renderPreviewBlock
+                  (
+                    block: ContentBlock,
+                    index: number
+                  ) =>
+                    renderPreviewBlock(
+                      block,
+                      index
+                    )
                 )}
               </div>
 
@@ -2511,7 +3398,9 @@ export default function EditBlogPage() {
                 <div className="mt-12 border-t pt-6 text-sm text-gray-500">
                   Written by{" "}
                   <strong>
-                    {form.author}
+                    {
+                      form.author
+                    }
                   </strong>
                 </div>
               )}
@@ -2541,7 +3430,8 @@ export default function EditBlogPage() {
             </h2>
 
             <p className="mt-2 text-sm leading-6 text-gray-600">
-              You are about to permanently delete:
+              You are about to
+              permanently delete:
             </p>
 
             <div className="mt-3 rounded-xl border bg-gray-50 p-3 font-semibold text-gray-900">
@@ -2549,7 +3439,8 @@ export default function EditBlogPage() {
             </div>
 
             <p className="mt-4 text-sm font-medium text-red-600">
-              This action cannot be undone.
+              This action cannot
+              be undone.
             </p>
 
             <div className="mt-6 flex flex-col-reverse justify-end gap-3 sm:flex-row">
@@ -2557,9 +3448,13 @@ export default function EditBlogPage() {
               <button
                 type="button"
                 onClick={() =>
-                  setShowDeleteConfirm(false)
+                  setShowDeleteConfirm(
+                    false
+                  )
                 }
-                disabled={deleting}
+                disabled={
+                  deleting
+                }
                 className="rounded-xl border bg-white px-5 py-3 font-semibold"
               >
                 Cancel
@@ -2567,8 +3462,12 @@ export default function EditBlogPage() {
 
               <button
                 type="button"
-                onClick={deleteBlog}
-                disabled={deleting}
+                onClick={
+                  deleteBlog
+                }
+                disabled={
+                  deleting
+                }
                 className="rounded-xl bg-red-600 px-5 py-3 font-semibold text-white hover:bg-red-700 disabled:opacity-50"
               >
                 {deleting
