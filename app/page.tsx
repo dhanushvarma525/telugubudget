@@ -34,7 +34,7 @@ const categories = [
 ];
 
 type Blog = {
-  id: number;
+  id: number | string;
   title: string;
   slug: string;
   excerpt: string | null;
@@ -46,6 +46,7 @@ type Blog = {
   published: boolean;
   reading_time?: number | null;
   created_at: string;
+  published_at?: string | null;
 };
 
 async function getBlogs(): Promise<Blog[]> {
@@ -72,15 +73,21 @@ async function getBlogs(): Promise<Blog[]> {
 
     const data = await response.json();
 
-    const articles = Array.isArray(data?.blogs)
+    const articles: Blog[] = Array.isArray(data?.blogs)
       ? data.blogs
       : [];
 
-    return articles.sort(
-      (a: Blog, b: Blog) =>
-        new Date(b.created_at).getTime() -
-        new Date(a.created_at).getTime()
-    );
+    return articles.sort((a, b) => {
+      const dateA = new Date(
+        a.published_at || a.created_at
+      ).getTime();
+
+      const dateB = new Date(
+        b.published_at || b.created_at
+      ).getTime();
+
+      return dateB - dateA;
+    });
   } catch (error) {
     console.error(
       "HOME BLOG FETCH ERROR:",
@@ -102,10 +109,22 @@ function formatDate(dateString: string) {
 export default async function HomePage() {
   const blogs = await getBlogs();
 
+  /*
+   * ==========================================================
+   * FEATURED ARTICLE
+   * ==========================================================
+   */
+
   const featuredArticle =
     blogs.find((blog) => blog.featured) ||
     blogs[0] ||
     null;
+
+  /*
+   * ==========================================================
+   * LATEST 6 ARTICLES
+   * ==========================================================
+   */
 
   const latestArticles = blogs
     .filter(
@@ -114,7 +133,11 @@ export default async function HomePage() {
     )
     .slice(0, 6);
 
-  const hasMoreArticles = blogs.length > 7;
+  const hasMoreArticles =
+    blogs.filter(
+      (blog) =>
+        blog.id !== featuredArticle?.id
+    ).length > 6;
 
   return (
     <main className="bg-white text-zinc-950">
@@ -171,30 +194,24 @@ export default async function HomePage() {
                 explanations of the digital world.
               </p>
 
-              {/* HERO BUTTONS */}
-
               <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-
-                {/* WHITE BUTTON - BLACK TEXT */}
 
                 <Link
                   href="/ai"
-                  className="inline-flex h-12 items-center justify-center rounded-xl bg-white px-6 text-sm font-bold !text-black shadow-lg transition hover:bg-zinc-200 hover:!text-black [&>*]:!text-black"
+                  className="inline-flex h-12 items-center justify-center rounded-xl bg-white px-6 text-sm font-bold !text-black shadow-lg transition hover:bg-zinc-200 hover:!text-black"
                 >
                   Explore AI
-                  <span className="ml-2" aria-hidden="true">
+                  <span className="ml-2">
                     →
                   </span>
                 </Link>
 
-                {/* DARK BUTTON - WHITE TEXT */}
-
                 <Link
                   href="/tech"
-                  className="inline-flex h-12 items-center justify-center rounded-xl border border-white/25 bg-white/10 px-6 text-sm font-bold !text-white backdrop-blur-sm transition hover:bg-white/20 hover:!text-white [&>*]:!text-white"
+                  className="inline-flex h-12 items-center justify-center rounded-xl border border-white/25 bg-white/10 px-6 text-sm font-bold !text-white backdrop-blur-sm transition hover:bg-white/20 hover:!text-white"
                 >
                   Latest Tech
-                  <span className="ml-2" aria-hidden="true">
+                  <span className="ml-2">
                     →
                   </span>
                 </Link>
@@ -296,10 +313,10 @@ export default async function HomePage() {
             </div>
 
             <Link
-              href="/"
+              href="/blog"
               className="hidden text-sm font-bold !text-zinc-500 transition hover:!text-zinc-950 sm:block"
             >
-              AnantaGo
+              View all
             </Link>
 
           </div>
@@ -335,7 +352,8 @@ export default async function HomePage() {
 
                   <span>
                     {formatDate(
-                      featuredArticle.created_at
+                      featuredArticle.published_at ||
+                        featuredArticle.created_at
                     )}
                   </span>
 
@@ -355,8 +373,9 @@ export default async function HomePage() {
 
                 <div className="mt-7">
 
-                  <span className="inline-flex h-11 items-center rounded-xl bg-zinc-950 px-5 text-sm font-bold !text-white transition group-hover:bg-zinc-800 [&>*]:!text-white">
+                  <span className="inline-flex h-11 items-center rounded-xl bg-zinc-950 px-5 text-sm font-bold !text-white transition group-hover:bg-zinc-800">
                     Read the story
+
                     <span className="ml-2 transition-transform group-hover:translate-x-1">
                       →
                     </span>
@@ -396,6 +415,8 @@ export default async function HomePage() {
 
       {/* =====================================================
           LATEST STORIES
+          EXACTLY 6 ARTICLES
+          3 CARDS PER ROW EVERYWHERE
       ====================================================== */}
 
       <section className="border-y border-zinc-200 bg-zinc-50">
@@ -416,12 +437,9 @@ export default async function HomePage() {
 
             </div>
 
-            {blogs.length > 0 && (
+            {latestArticles.length > 0 && (
               <p className="hidden text-sm font-medium text-zinc-500 sm:block">
-                {blogs.length} published{" "}
-                {blogs.length === 1
-                  ? "article"
-                  : "articles"}
+                Latest 6 articles
               </p>
             )}
 
@@ -430,104 +448,120 @@ export default async function HomePage() {
           {latestArticles.length > 0 ? (
             <>
 
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {/* =================================================
+                  3 CARDS PER ROW
+              ================================================== */}
 
-                {latestArticles.map(
-                  (article) => (
-                    <article
-                      key={article.id}
-                      className="group overflow-hidden rounded-2xl border border-zinc-200 bg-white transition duration-300 hover:-translate-y-1 hover:shadow-xl"
+              <div className="grid grid-cols-3 gap-3 sm:gap-5 lg:gap-6">
+
+                {latestArticles.map((article) => (
+
+                  <article
+                    key={article.id}
+                    className="group overflow-hidden rounded-xl border border-zinc-200 bg-white transition duration-300 hover:-translate-y-1 hover:shadow-xl sm:rounded-2xl"
+                  >
+
+                    <Link
+                      href={`/blog/${article.slug}`}
+                      className="block"
                     >
 
-                      <Link
-                        href={`/blog/${article.slug}`}
-                        className="block"
-                      >
+                      {/* IMAGE */}
 
-                        <div className="relative aspect-[16/10] overflow-hidden bg-zinc-100">
+                      <div className="relative aspect-[16/10] overflow-hidden bg-zinc-100">
 
-                          {article.cover_image ? (
-                            <img
-                              src={article.cover_image}
-                              alt={
-                                article.cover_image_alt ||
-                                article.title
-                              }
-                              className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                            />
-                          ) : (
-                            <div className="flex h-full items-center justify-center text-sm font-medium text-zinc-400">
-                              AnantaGo
-                            </div>
-                          )}
+                        {article.cover_image ? (
+                          <img
+                            src={article.cover_image}
+                            alt={
+                              article.cover_image_alt ||
+                              article.title
+                            }
+                            loading="lazy"
+                            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className="flex h-full items-center justify-center text-[9px] font-medium text-zinc-400 sm:text-xs">
+                            AnantaGo
+                          </div>
+                        )}
 
-                        </div>
+                      </div>
 
-                        <div className="p-6">
+                      {/* CONTENT */}
 
-                          {article.category && (
-                            <span className="text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">
-                              {article.category}
-                            </span>
-                          )}
+                      <div className="p-3 sm:p-5 lg:p-6">
 
-                          <h3 className="mt-3 text-2xl font-black leading-tight tracking-tight text-zinc-950">
-                            {article.title}
-                          </h3>
+                        {article.category && (
+                          <span className="text-[8px] font-bold uppercase tracking-[0.1em] text-zinc-500 sm:text-[10px] lg:text-xs">
+                            {article.category}
+                          </span>
+                        )}
 
-                          {article.excerpt && (
-                            <p className="mt-4 line-clamp-3 leading-7 text-zinc-600">
-                              {article.excerpt}
-                            </p>
-                          )}
+                        <h3 className="mt-1.5 text-sm font-black leading-tight tracking-tight text-zinc-950 sm:mt-2 sm:text-lg lg:text-2xl">
+                          {article.title}
+                        </h3>
 
-                          <div className="mt-5 flex flex-wrap items-center gap-3 text-xs font-medium text-zinc-400">
+                        {article.excerpt && (
+                          <p className="mt-3 hidden line-clamp-3 text-sm leading-6 text-zinc-600 lg:block">
+                            {article.excerpt}
+                          </p>
+                        )}
 
-                            <span>
-                              {formatDate(
+                        <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[8px] font-medium text-zinc-400 sm:mt-4 sm:text-[10px] lg:mt-5 lg:text-xs">
+
+                          <span>
+                            {formatDate(
+                              article.published_at ||
                                 article.created_at
-                              )}
-                            </span>
-
-                            {article.reading_time && (
-                              <>
-                                <span>
-                                  •
-                                </span>
-
-                                <span>
-                                  {article.reading_time} min read
-                                </span>
-                              </>
                             )}
+                          </span>
 
-                          </div>
+                          {article.reading_time && (
+                            <>
+                              <span>
+                                •
+                              </span>
 
-                          <div className="mt-6 text-sm font-bold !text-zinc-950">
-                            Read more
-                            <span className="ml-1 inline-block transition-transform group-hover:translate-x-1">
-                              →
-                            </span>
-                          </div>
+                              <span>
+                                {article.reading_time} min read
+                              </span>
+                            </>
+                          )}
 
                         </div>
 
-                      </Link>
+                        <div className="mt-3 text-[9px] font-bold !text-zinc-950 sm:mt-5 sm:text-xs lg:mt-6 lg:text-sm">
 
-                    </article>
-                  )
-                )}
+                          Read more
+
+                          <span className="ml-1 inline-block transition-transform group-hover:translate-x-1">
+                            →
+                          </span>
+
+                        </div>
+
+                      </div>
+
+                    </Link>
+
+                  </article>
+
+                ))}
 
               </div>
+
+              {/* VIEW ALL */}
 
               {hasMoreArticles && (
                 <div className="mt-10 text-center">
 
                   <Link
-                    href="/search"
+                    href="/blog"
                     className="inline-flex h-12 items-center justify-center rounded-xl border border-zinc-300 bg-white px-6 text-sm font-bold !text-zinc-950 transition hover:border-zinc-950 hover:bg-zinc-950 hover:!text-white"
                   >
                     View all articles
+
                     <span className="ml-2">
                       →
                     </span>
@@ -582,6 +616,7 @@ export default async function HomePage() {
 
           {categories.map(
             (category, index) => (
+
               <Link
                 key={category.href}
                 href={category.href}
@@ -621,6 +656,7 @@ export default async function HomePage() {
                 </span>
 
               </Link>
+
             )
           )}
 
@@ -655,9 +691,10 @@ export default async function HomePage() {
 
             <Link
               href="/about"
-              className="inline-flex h-11 items-center rounded-xl border border-white/20 px-5 text-sm font-bold !text-white transition hover:bg-white hover:!text-black [&>*]:!text-white hover:[&>*]:!text-black"
+              className="inline-flex h-11 items-center rounded-xl border border-white/20 px-5 text-sm font-bold !text-white transition hover:bg-white hover:!text-black"
             >
               Learn about AnantaGo
+
               <span className="ml-2">
                 →
               </span>
