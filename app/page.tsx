@@ -1,34 +1,41 @@
 import Link from "next/link";
+import FeaturedSlider from "../components/FeaturedSlider";
 
 const categories = [
   {
     name: "AI",
-    description: "AI news, tools, models and practical insights.",
+    description:
+      "AI news, tools, models and practical insights.",
     href: "/ai",
   },
   {
     name: "Tech",
-    description: "Technology news, trends and useful developments.",
+    description:
+      "Technology news, trends and useful developments.",
     href: "/tech",
   },
   {
     name: "How-To",
-    description: "Simple guides that help you get things done.",
+    description:
+      "Simple guides that help you get things done.",
     href: "/how-to",
   },
   {
     name: "Apps",
-    description: "Useful apps, software and digital tools.",
+    description:
+      "Useful apps, software and digital tools.",
     href: "/apps",
   },
   {
     name: "Security",
-    description: "Privacy, cybersecurity, scams and online safety.",
+    description:
+      "Privacy, cybersecurity, scams and online safety.",
     href: "/security",
   },
   {
     name: "Explained",
-    description: "Complex technology explained in simple language.",
+    description:
+      "Complex technology explained in simple language.",
     href: "/explained",
   },
 ];
@@ -98,7 +105,9 @@ async function getBlogs(): Promise<Blog[]> {
   }
 }
 
-function formatDate(dateString: string) {
+function formatDate(dateString?: string | null) {
+  if (!dateString) return "";
+
   return new Intl.DateTimeFormat("en-IN", {
     day: "numeric",
     month: "short",
@@ -106,38 +115,179 @@ function formatDate(dateString: string) {
   }).format(new Date(dateString));
 }
 
+function ArticleCard({
+  article,
+}: {
+  article: Blog;
+}) {
+  return (
+    <article className="group overflow-hidden rounded-xl border border-zinc-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-zinc-300 hover:shadow-lg">
+      <Link
+        href={`/blog/${article.slug}`}
+        className="block"
+      >
+        <div className="relative aspect-[16/10] overflow-hidden bg-zinc-100">
+          {article.cover_image ? (
+            <img
+              src={article.cover_image}
+              alt={
+                article.cover_image_alt ||
+                article.title
+              }
+              loading="lazy"
+              className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-xs font-medium text-zinc-400">
+              AnantaGo
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 sm:p-5">
+          {article.category && (
+            <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-zinc-500 sm:text-[10px]">
+              {article.category}
+            </span>
+          )}
+
+          <h3 className="mt-2 line-clamp-2 text-base font-black leading-tight tracking-tight text-zinc-950 sm:text-lg">
+            {article.title}
+          </h3>
+
+          {article.excerpt && (
+            <p className="mt-2 line-clamp-2 text-xs leading-5 text-zinc-600 sm:text-sm sm:leading-6">
+              {article.excerpt}
+            </p>
+          )}
+
+          <div className="mt-4 flex flex-wrap items-center gap-1.5 text-[9px] font-medium text-zinc-400 sm:text-[10px]">
+            <span>
+              {formatDate(
+                article.published_at ||
+                  article.created_at
+              )}
+            </span>
+
+            {article.reading_time && (
+              <>
+                <span>•</span>
+
+                <span>
+                  {article.reading_time} min read
+                </span>
+              </>
+            )}
+          </div>
+
+          <div className="mt-4 text-xs font-bold text-zinc-950 sm:text-sm">
+            Read more
+            <span className="ml-1 inline-block transition-transform group-hover:translate-x-1">
+              →
+            </span>
+          </div>
+        </div>
+      </Link>
+    </article>
+  );
+}
+
+function CategorySection({
+  category,
+  articles,
+}: {
+  category: (typeof categories)[number];
+  articles: Blog[];
+}) {
+  if (!articles.length) return null;
+
+  return (
+    <section className="border-t border-zinc-200">
+      <div className="mx-auto max-w-[1280px] px-5 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
+        <div className="mb-6 flex items-end justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-zinc-950" />
+
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">
+                {category.name}
+              </p>
+            </div>
+
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-zinc-950 sm:text-3xl">
+              Latest {category.name}
+            </h2>
+          </div>
+
+          <Link
+            href={category.href}
+            className="text-xs font-bold text-zinc-500 transition hover:text-zinc-950 sm:text-sm"
+          >
+            View all →
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3 sm:gap-5 lg:gap-6">
+          {articles.map((article) => (
+            <ArticleCard
+              key={article.id}
+              article={article}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default async function HomePage() {
   const blogs = await getBlogs();
 
   /*
    * ==========================================================
-   * FEATURED ARTICLE
+   * FEATURED
+   * Latest 5 featured articles
    * ==========================================================
    */
 
-  const featuredArticle =
-    blogs.find((blog) => blog.featured) ||
-    blogs[0] ||
-    null;
+  const featuredBlogs = blogs
+    .filter((blog) => blog.featured)
+    .slice(0, 5);
 
   /*
    * ==========================================================
-   * LATEST 6 ARTICLES
+   * LATEST
+   * Keep the latest section separate from featured stories
    * ==========================================================
    */
 
   const latestArticles = blogs
     .filter(
       (blog) =>
-        blog.id !== featuredArticle?.id
+        !featuredBlogs.some(
+          (featured) =>
+            featured.id === blog.id
+        )
     )
     .slice(0, 6);
 
-  const hasMoreArticles =
-    blogs.filter(
-      (blog) =>
-        blog.id !== featuredArticle?.id
-    ).length > 6;
+  /*
+   * ==========================================================
+   * CATEGORY ARTICLES
+   * ==========================================================
+   */
+
+  const categoryArticles: Record<string, Blog[]> = {};
+
+  categories.forEach((category) => {
+    categoryArticles[category.name] = blogs
+      .filter(
+        (blog) =>
+          blog.category?.toLowerCase() ===
+          category.name.toLowerCase()
+      )
+      .slice(0, 3);
+  });
 
   return (
     <main className="bg-white text-zinc-950">
@@ -147,40 +297,35 @@ export default async function HomePage() {
       ====================================================== */}
 
       <section className="relative overflow-hidden bg-[#0b0b0d] text-white">
+        <div className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full bg-white/[0.035] blur-3xl" />
 
-        <div className="pointer-events-none absolute -right-40 -top-40 h-[500px] w-[500px] rounded-full bg-white/[0.04] blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-32 -left-32 h-80 w-80 rounded-full bg-white/[0.025] blur-3xl" />
 
-        <div className="pointer-events-none absolute -bottom-40 -left-40 h-[400px] w-[400px] rounded-full bg-white/[0.025] blur-3xl" />
-
-        <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
-
-          <div className="grid min-h-[570px] items-center gap-12 py-16 sm:py-20 lg:grid-cols-[1.08fr_0.92fr] lg:gap-16 lg:py-24">
+        <div className="relative mx-auto max-w-[1280px] px-5 sm:px-6 lg:px-8">
+          <div className="grid min-h-[520px] items-center gap-10 py-16 lg:grid-cols-[1.1fr_0.9fr] lg:py-20">
 
             {/* LEFT */}
 
-            <div className="max-w-3xl">
-
-              <div className="inline-flex items-center rounded-full border border-white/15 bg-white/[0.06] px-4 py-2">
-
-                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-300 sm:text-xs">
+            <div className="max-w-3xl animate-home-fade-up">
+              <div className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.06] px-3.5 py-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-300">
                   AI
                 </span>
 
-                <span className="mx-3 h-1 w-1 rounded-full bg-zinc-500" />
+                <span className="mx-2.5 h-1 w-1 rounded-full bg-zinc-500" />
 
-                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-300 sm:text-xs">
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-300">
                   TECH
                 </span>
 
-                <span className="mx-3 h-1 w-1 rounded-full bg-zinc-500" />
+                <span className="mx-2.5 h-1 w-1 rounded-full bg-zinc-500" />
 
-                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-300 sm:text-xs">
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-300">
                   DIGITAL LIFE
                 </span>
-
               </div>
 
-              <h1 className="mt-7 text-5xl font-black leading-[0.96] tracking-[-0.055em] text-white sm:text-6xl lg:text-8xl">
+              <h1 className="mt-6 text-5xl font-black leading-[0.96] tracking-[-0.05em] text-white sm:text-6xl lg:text-7xl">
                 Technology,
                 <br />
                 <span className="text-zinc-400">
@@ -188,524 +333,250 @@ export default async function HomePage() {
                 </span>
               </h1>
 
-              <p className="mt-7 max-w-2xl text-base leading-7 text-zinc-300 sm:text-lg sm:leading-8 lg:text-xl">
+              <p className="mt-6 max-w-2xl text-base leading-7 text-zinc-300 sm:text-lg">
                 Useful technology stories, AI updates,
                 practical how-to guides and simple
                 explanations of the digital world.
               </p>
 
-              <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-
+              <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                 <Link
                   href="/ai"
-                  className="inline-flex h-12 items-center justify-center rounded-xl bg-white px-6 text-sm font-bold !text-black shadow-lg transition hover:bg-zinc-200 hover:!text-black"
+                  className="inline-flex h-11 items-center justify-center rounded-lg bg-white px-5 text-sm font-bold text-black transition hover:bg-zinc-200"
                 >
                   Explore AI
-                  <span className="ml-2">
-                    →
-                  </span>
+                  <span className="ml-2">→</span>
                 </Link>
 
                 <Link
-                  href="/tech"
-                  className="inline-flex h-12 items-center justify-center rounded-xl border border-white/25 bg-white/10 px-6 text-sm font-bold !text-white backdrop-blur-sm transition hover:bg-white/20 hover:!text-white"
+                  href="/blog"
+                  className="inline-flex h-11 items-center justify-center rounded-lg border border-white/20 bg-white/[0.06] px-5 text-sm font-bold text-white transition hover:bg-white/10"
                 >
-                  Latest Tech
-                  <span className="ml-2">
-                    →
-                  </span>
+                  Latest Articles
+                  <span className="ml-2">→</span>
                 </Link>
-
               </div>
-
             </div>
 
             {/* RIGHT VISUAL */}
 
-            <div className="hidden lg:block">
+            <div className="hidden justify-end lg:flex animate-home-fade-in">
+              <div className="relative w-full max-w-[390px]">
+                <div className="absolute inset-8 rounded-full bg-white/[0.04] blur-3xl" />
 
-              <div className="relative mx-auto aspect-square max-w-[430px]">
-
-                <div className="absolute inset-12 rounded-full bg-white/[0.045] blur-3xl" />
-
-                <div className="absolute inset-0 rounded-[2rem] border border-white/10 bg-white/[0.04] p-3 shadow-2xl">
-
-                  <div className="flex h-full flex-col justify-between overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#111114] p-7">
-
+                <div className="relative rounded-3xl border border-white/10 bg-white/[0.035] p-2 shadow-2xl">
+                  <div className="rounded-2xl border border-white/10 bg-[#111114] p-7">
                     <div className="flex items-center justify-between">
-
-                      <span className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
                         ANANTAGO
                       </span>
 
-                      <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-zinc-300">
+                      <span className="rounded-full border border-white/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-zinc-400">
                         Digital
                       </span>
-
                     </div>
 
-                    <div>
+                    <div className="my-12">
+                      <div className="mb-4 h-px w-12 bg-white/30" />
 
-                      <div className="mb-5 h-px w-16 bg-white/30" />
-
-                      <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
                         Understand
                       </p>
 
-                      <h2 className="mt-3 text-4xl font-black leading-[1.05] tracking-[-0.04em] text-white">
+                      <h2 className="mt-3 text-3xl font-black leading-tight tracking-tight text-white">
                         What matters
                         <br />
                         in technology.
                       </h2>
 
-                      <p className="mt-5 max-w-xs text-sm leading-6 text-zinc-400">
+                      <p className="mt-4 max-w-xs text-sm leading-6 text-zinc-500">
                         Clear stories. Useful guides.
                         Better digital decisions.
                       </p>
-
                     </div>
 
-                    <div className="flex items-center justify-between border-t border-white/10 pt-5">
-
-                      <span className="text-xs text-zinc-500">
+                    <div className="flex items-center justify-between border-t border-white/10 pt-4">
+                      <span className="text-[10px] text-zinc-500">
                         AI & Technology
                       </span>
 
-                      <span className="text-sm font-bold text-white">
+                      <span className="text-sm text-white">
                         →
                       </span>
-
                     </div>
-
                   </div>
-
                 </div>
-
               </div>
-
             </div>
 
           </div>
-
         </div>
-
       </section>
 
       {/* =====================================================
-          FEATURED STORY
+          FEATURED
       ====================================================== */}
 
-      {featuredArticle && (
-        <section className="mx-auto max-w-7xl px-5 py-14 sm:py-16 lg:px-8 lg:py-20">
-
-          <div className="mb-7 flex items-end justify-between gap-5">
-
-            <div>
-
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-                Featured story
-              </p>
-
-              <h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">
-                The story to know
-              </h2>
-
-            </div>
-
-            <Link
-              href="/blog"
-              className="hidden text-sm font-bold !text-zinc-500 transition hover:!text-zinc-950 sm:block"
-            >
-              View all
-            </Link>
-
-          </div>
-
-          <Link
-            href={`/blog/${featuredArticle.slug}`}
-            className="group block overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-2xl"
-          >
-
-            <div className="grid lg:grid-cols-2">
-
-              {/* TEXT */}
-
-              <div className="flex flex-col justify-center p-7 sm:p-10 lg:p-12 xl:p-14">
-
-                {featuredArticle.category && (
-                  <span className="w-fit rounded-full bg-zinc-950 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] !text-white">
-                    {featuredArticle.category}
-                  </span>
-                )}
-
-                <h3 className="mt-5 text-3xl font-black leading-[1.08] tracking-[-0.035em] sm:text-4xl xl:text-5xl">
-                  {featuredArticle.title}
-                </h3>
-
-                {featuredArticle.excerpt && (
-                  <p className="mt-5 max-w-xl text-base leading-7 text-zinc-600 sm:text-lg sm:leading-8">
-                    {featuredArticle.excerpt}
-                  </p>
-                )}
-
-                <div className="mt-6 flex flex-wrap items-center gap-3 text-sm text-zinc-500">
-
-                  <span>
-                    {formatDate(
-                      featuredArticle.published_at ||
-                        featuredArticle.created_at
-                    )}
-                  </span>
-
-                  {featuredArticle.reading_time && (
-                    <>
-                      <span className="text-zinc-300">
-                        •
-                      </span>
-
-                      <span>
-                        {featuredArticle.reading_time} min read
-                      </span>
-                    </>
-                  )}
-
-                </div>
-
-                <div className="mt-7">
-
-                  <span className="inline-flex h-11 items-center rounded-xl bg-zinc-950 px-5 text-sm font-bold !text-white transition group-hover:bg-zinc-800">
-                    Read the story
-
-                    <span className="ml-2 transition-transform group-hover:translate-x-1">
-                      →
-                    </span>
-                  </span>
-
-                </div>
-
-              </div>
-
-              {/* IMAGE */}
-
-              <div className="relative h-[280px] overflow-hidden bg-zinc-100 sm:h-[380px] lg:h-[520px]">
-
-                {featuredArticle.cover_image ? (
-                  <img
-                    src={featuredArticle.cover_image}
-                    alt={
-                      featuredArticle.cover_image_alt ||
-                      featuredArticle.title
-                    }
-                    className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105"
-                  />
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center bg-zinc-100 text-sm font-semibold text-zinc-400">
-                    AnantaGo
-                  </div>
-                )}
-
-              </div>
-
-            </div>
-
-          </Link>
-
-        </section>
+      {featuredBlogs.length > 0 && (
+        <FeaturedSlider blogs={featuredBlogs} />
       )}
 
       {/* =====================================================
           LATEST STORIES
-          EXACTLY 6 ARTICLES
-          3 CARDS PER ROW EVERYWHERE
       ====================================================== */}
 
       <section className="border-y border-zinc-200 bg-zinc-50">
-
-        <div className="mx-auto max-w-7xl px-5 py-14 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
-
-          <div className="mb-9 flex items-end justify-between gap-6">
-
+        <div className="mx-auto max-w-[1280px] px-5 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
+          <div className="mb-7 flex items-end justify-between gap-5">
             <div>
+              <div className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-zinc-950" />
 
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-                Latest
-              </p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">
+                  Latest
+                </p>
+              </div>
 
-              <h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">
+              <h2 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">
                 Latest stories
               </h2>
-
             </div>
 
-            {latestArticles.length > 0 && (
-              <p className="hidden text-sm font-medium text-zinc-500 sm:block">
-                Latest 6 articles
-              </p>
-            )}
-
+            <Link
+              href="/blog"
+              className="text-xs font-bold text-zinc-500 transition hover:text-zinc-950 sm:text-sm"
+            >
+              View all →
+            </Link>
           </div>
 
           {latestArticles.length > 0 ? (
-            <>
-
-              {/* =================================================
-                  3 CARDS PER ROW
-              ================================================== */}
-
-              <div className="grid grid-cols-3 gap-3 sm:gap-5 lg:gap-6">
-
-                {latestArticles.map((article) => (
-
-                  <article
-                    key={article.id}
-                    className="group overflow-hidden rounded-xl border border-zinc-200 bg-white transition duration-300 hover:-translate-y-1 hover:shadow-xl sm:rounded-2xl"
-                  >
-
-                    <Link
-                      href={`/blog/${article.slug}`}
-                      className="block"
-                    >
-
-                      {/* IMAGE */}
-
-                      <div className="relative aspect-[16/10] overflow-hidden bg-zinc-100">
-
-                        {article.cover_image ? (
-                          <img
-                            src={article.cover_image}
-                            alt={
-                              article.cover_image_alt ||
-                              article.title
-                            }
-                            loading="lazy"
-                            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                          />
-                        ) : (
-                          <div className="flex h-full items-center justify-center text-[9px] font-medium text-zinc-400 sm:text-xs">
-                            AnantaGo
-                          </div>
-                        )}
-
-                      </div>
-
-                      {/* CONTENT */}
-
-                      <div className="p-3 sm:p-5 lg:p-6">
-
-                        {article.category && (
-                          <span className="text-[8px] font-bold uppercase tracking-[0.1em] text-zinc-500 sm:text-[10px] lg:text-xs">
-                            {article.category}
-                          </span>
-                        )}
-
-                        <h3 className="mt-1.5 text-sm font-black leading-tight tracking-tight text-zinc-950 sm:mt-2 sm:text-lg lg:text-2xl">
-                          {article.title}
-                        </h3>
-
-                        {article.excerpt && (
-                          <p className="mt-3 hidden line-clamp-3 text-sm leading-6 text-zinc-600 lg:block">
-                            {article.excerpt}
-                          </p>
-                        )}
-
-                        <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[8px] font-medium text-zinc-400 sm:mt-4 sm:text-[10px] lg:mt-5 lg:text-xs">
-
-                          <span>
-                            {formatDate(
-                              article.published_at ||
-                                article.created_at
-                            )}
-                          </span>
-
-                          {article.reading_time && (
-                            <>
-                              <span>
-                                •
-                              </span>
-
-                              <span>
-                                {article.reading_time} min read
-                              </span>
-                            </>
-                          )}
-
-                        </div>
-
-                        <div className="mt-3 text-[9px] font-bold !text-zinc-950 sm:mt-5 sm:text-xs lg:mt-6 lg:text-sm">
-
-                          Read more
-
-                          <span className="ml-1 inline-block transition-transform group-hover:translate-x-1">
-                            →
-                          </span>
-
-                        </div>
-
-                      </div>
-
-                    </Link>
-
-                  </article>
-
-                ))}
-
-              </div>
-
-              {/* VIEW ALL */}
-
-              {hasMoreArticles && (
-                <div className="mt-10 text-center">
-
-                  <Link
-                    href="/blog"
-                    className="inline-flex h-12 items-center justify-center rounded-xl border border-zinc-300 bg-white px-6 text-sm font-bold !text-zinc-950 transition hover:border-zinc-950 hover:bg-zinc-950 hover:!text-white"
-                  >
-                    View all articles
-
-                    <span className="ml-2">
-                      →
-                    </span>
-                  </Link>
-
-                </div>
-              )}
-
-            </>
+            <div className="grid grid-cols-3 gap-3 sm:gap-5 lg:gap-6">
+              {latestArticles.map((article) => (
+                <ArticleCard
+                  key={article.id}
+                  article={article}
+                />
+              ))}
+            </div>
           ) : (
-
-            <div className="rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-16 text-center">
-
-              <h3 className="text-2xl font-black text-zinc-950">
+            <div className="rounded-xl border border-dashed border-zinc-300 bg-white px-6 py-12 text-center">
+              <h3 className="font-bold">
                 Articles are coming soon.
               </h3>
 
-              <p className="mx-auto mt-3 max-w-lg text-zinc-500">
-                AnantaGo is preparing useful AI,
-                technology and digital-life stories.
+              <p className="mt-2 text-sm text-zinc-500">
+                AnantaGo is preparing useful technology
+                stories.
               </p>
-
             </div>
-
           )}
-
         </div>
-
       </section>
 
       {/* =====================================================
-          EXPLORE CATEGORIES
+          CATEGORY SECTIONS
       ====================================================== */}
 
-      <section className="mx-auto max-w-7xl px-5 py-16 sm:py-20 lg:px-8 lg:py-24">
+      {categories.map((category) => (
+        <CategorySection
+          key={category.href}
+          category={category}
+          articles={categoryArticles[category.name] || []}
+        />
+      ))}
 
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-          Explore
-        </p>
+      {/* =====================================================
+          BROWSE TOPICS
+      ====================================================== */}
 
-        <h2 className="mt-2 text-3xl font-black tracking-tight text-zinc-950 sm:text-4xl">
-          Explore AnantaGo
-        </h2>
+      <section className="border-t border-zinc-200 bg-zinc-50">
+        <div className="mx-auto max-w-[1280px] px-5 py-14 sm:px-6 sm:py-16 lg:px-8">
+          <div className="mb-7">
+            <div className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-zinc-950" />
 
-        <p className="mt-4 max-w-2xl leading-7 text-zinc-600">
-          Discover practical technology content organized
-          around the topics that matter most in the digital
-          world.
-        </p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">
+                Explore
+              </p>
+            </div>
 
-        <div className="mt-10 grid overflow-hidden rounded-2xl border border-zinc-200 sm:grid-cols-2 lg:grid-cols-3">
+            <h2 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">
+              Browse by topic
+            </h2>
 
-          {categories.map(
-            (category, index) => (
+            <p className="mt-2 max-w-xl text-sm leading-6 text-zinc-500">
+              Find useful stories and guides across the
+              topics covered by AnantaGo.
+            </p>
+          </div>
 
+          <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-zinc-200 bg-white sm:grid-cols-3">
+            {categories.map((category, index) => (
               <Link
                 key={category.href}
                 href={category.href}
-                className={`group border-zinc-200 bg-white p-7 transition hover:bg-zinc-50 sm:p-8 ${
-                  index < 3
-                    ? "border-b"
-                    : ""
+                className={`group border-zinc-200 p-5 transition hover:bg-zinc-50 sm:p-6 ${
+                  index < 4 ? "border-b" : ""
                 } ${
                   index % 3 !== 2
-                    ? "lg:border-r"
+                    ? "sm:border-r"
                     : ""
                 } ${
                   index % 2 === 0
-                    ? "sm:border-r lg:border-r"
+                    ? "border-r sm:border-r"
                     : ""
                 }`}
               >
-
-                <div className="flex items-start justify-between gap-4">
-
-                  <h3 className="text-2xl font-black tracking-tight text-zinc-950">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-lg font-black text-zinc-950">
                     {category.name}
                   </h3>
 
-                  <span className="text-xl !text-zinc-400 transition-transform group-hover:translate-x-1">
+                  <span className="text-zinc-400 transition-transform group-hover:translate-x-1">
                     →
                   </span>
-
                 </div>
 
-                <p className="mt-3 leading-7 text-zinc-600">
+                <p className="mt-2 text-xs leading-5 text-zinc-500 sm:text-sm">
                   {category.description}
                 </p>
-
-                <span className="mt-6 inline-block text-sm font-bold !text-zinc-950">
-                  Explore category
-                </span>
-
               </Link>
-
-            )
-          )}
-
+            ))}
+          </div>
         </div>
-
       </section>
 
       {/* =====================================================
-          EDITORIAL STATEMENT
+          EDITORIAL
       ====================================================== */}
 
       <section className="bg-zinc-950 text-white">
-
-        <div className="mx-auto max-w-5xl px-5 py-20 text-center sm:py-24 lg:px-8 lg:py-28">
-
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-zinc-500">
+        <div className="mx-auto max-w-4xl px-5 py-16 text-center sm:px-6 sm:py-20 lg:px-8">
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500">
             Our approach
           </p>
 
-          <h2 className="mt-6 text-4xl font-black leading-[1.05] tracking-[-0.035em] !text-white sm:text-5xl lg:text-6xl">
+          <h2 className="mt-4 text-3xl font-black leading-tight tracking-tight text-white sm:text-4xl">
             Useful technology content without
-            the unnecessary noise.
+            unnecessary noise.
           </h2>
 
-          <p className="mx-auto mt-7 max-w-2xl text-base leading-8 text-zinc-400 sm:text-lg">
-            Clear information, practical guides and genuinely
-            useful stories for the rapidly changing digital
-            world.
+          <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-zinc-400 sm:text-base">
+            Clear information, practical guides and
+            genuinely useful stories for the rapidly
+            changing digital world.
           </p>
 
-          <div className="mt-8">
-
-            <Link
-              href="/about"
-              className="inline-flex h-11 items-center rounded-xl border border-white/20 px-5 text-sm font-bold !text-white transition hover:bg-white hover:!text-black"
-            >
-              Learn about AnantaGo
-
-              <span className="ml-2">
-                →
-              </span>
-            </Link>
-
-          </div>
-
+          <Link
+            href="/about"
+            className="mt-6 inline-flex h-10 items-center rounded-lg border border-white/20 px-4 text-sm font-bold text-white transition hover:bg-white hover:text-black"
+          >
+            Learn about AnantaGo
+            <span className="ml-2">→</span>
+          </Link>
         </div>
-
       </section>
-
     </main>
   );
 }

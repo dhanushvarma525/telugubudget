@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -245,17 +246,6 @@ export default function NewBlogPage() {
    * =========================
    * SAFE API RESPONSE PARSER
    * =========================
-   *
-   * IMPORTANT:
-   *
-   * Do NOT use:
-   *
-   * const data = await response.json();
-   *
-   * directly.
-   *
-   * The API can sometimes return
-   * invalid/non-JSON content.
    */
 
   async function readApiResponse(
@@ -339,8 +329,7 @@ export default function NewBlogPage() {
     }
 
     /*
-     * OPTIONAL:
-     * Require introduction.
+     * REQUIRE INTRODUCTION
      */
 
     if (!introduction.trim()) {
@@ -352,9 +341,6 @@ export default function NewBlogPage() {
 
     /*
      * FAQ VALIDATION
-     *
-     * If an FAQ was added, make sure it has
-     * both a question and answer.
      */
 
     const invalidFAQ = faqs.some(
@@ -427,8 +413,6 @@ export default function NewBlogPage() {
 
       /*
        * CONTENT BLOCKS
-       *
-       * Make a clean JSON-safe copy.
        */
 
       const cleanContentBlocks =
@@ -476,15 +460,13 @@ export default function NewBlogPage() {
 
       formData.append(
         "meta_title",
-        (metaTitle.trim() || title.trim())
+        metaTitle.trim() || title.trim()
       );
 
       formData.append(
         "meta_description",
-        (
-          metaDescription.trim() ||
+        metaDescription.trim() ||
           excerpt.trim()
-        )
       );
 
       /*
@@ -526,16 +508,8 @@ export default function NewBlogPage() {
 
       /*
        * =========================
-       * IMPORTANT FIX
+       * SAFE RESPONSE
        * =========================
-       *
-       * Read as TEXT first.
-       *
-       * This prevents:
-       *
-       * "No number after minus sign in JSON"
-       *
-       * from crashing the page.
        */
 
       const { data, rawText } =
@@ -574,7 +548,7 @@ export default function NewBlogPage() {
       );
 
       /*
-       * Redirect after successful save.
+       * REDIRECT
        */
 
       setTimeout(() => {
@@ -586,10 +560,6 @@ export default function NewBlogPage() {
         "BLOG SAVE ERROR:",
         err
       );
-
-      /*
-       * Show the REAL error.
-       */
 
       if (err instanceof Error) {
         setError(err.message);
@@ -838,6 +808,12 @@ export default function NewBlogPage() {
 
                       <option value="Security">
                         Security
+                      </option>
+
+                      {/* NEW CATEGORY */}
+
+                      <option value="Explained">
+                        Explained
                       </option>
                     </select>
                   </div>
@@ -1345,3 +1321,4 @@ export default function NewBlogPage() {
     </main>
   );
 }
+

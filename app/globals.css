@@ -1,16 +1,14 @@
 @import "tailwindcss";
 
+/* =========================================================
+   ROOT
+========================================================= */
+
 :root {
   --background: #ffffff;
-  --foreground: #111111;
-  --muted: #6b7280;
-  --border: #e5e7eb;
-  --surface: #f8fafc;
-  --accent: #111111;
-}
-
-* {
-  box-sizing: border-box;
+  --foreground: #09090b;
+  --muted: #71717a;
+  --border: #e4e4e7;
 }
 
 html {
@@ -21,140 +19,266 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family:
+    Arial,
+    Helvetica,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
+/* =========================================================
+   BOX SIZING
+========================================================= */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* =========================================================
+   LINKS
+========================================================= */
+
+/*
+  IMPORTANT:
+  Do NOT globally force a color on every <a>.
+  Tailwind text-white/text-black classes need to work.
+*/
+
 a {
-  color: inherit;
   text-decoration: none;
 }
 
-button,
-input,
-textarea,
-select {
+/* =========================================================
+   BUTTONS
+========================================================= */
+
+button {
   font: inherit;
 }
 
-img {
-  max-width: 100%;
-  height: auto;
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
 }
 
+/* =========================================================
+   SELECTION
+========================================================= */
+
 ::selection {
-  background: #111111;
+  background: #18181b;
   color: #ffffff;
 }
 
-/* Scrollbar */
+/* =========================================================
+   IMAGES
+========================================================= */
+
+img {
+  max-width: 100%;
+}
+
+/* =========================================================
+   SCROLLBAR
+========================================================= */
 
 ::-webkit-scrollbar {
   width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f5f5f5;
+  background: #f4f4f5;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #bdbdbd;
-  border-radius: 10px;
+  background: #a1a1aa;
+  border-radius: 999px;
 }
 
-/* Article typography */
-
-.article-content {
-  font-size: 18px;
-  line-height: 1.85;
-  color: #292929;
+::-webkit-scrollbar-thumb:hover {
+  background: #71717a;
 }
 
-.article-content h2 {
-  margin-top: 48px;
-  margin-bottom: 18px;
-  font-size: 30px;
-  line-height: 1.25;
-  font-weight: 750;
-  color: #111111;
+/* =========================================================
+   FOCUS
+========================================================= */
+
+:focus-visible {
+  outline: 2px solid #18181b;
+  outline-offset: 3px;
 }
 
-.article-content h3 {
-  margin-top: 34px;
-  margin-bottom: 14px;
-  font-size: 23px;
-  line-height: 1.3;
-  font-weight: 700;
-  color: #111111;
+/* =========================================================
+   PREMIUM HOVER
+========================================================= */
+
+.hover-lift {
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
 }
 
-.article-content p {
-  margin: 0 0 22px;
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 20px 45px rgba(0, 0, 0, 0.08);
 }
 
-.article-content ul,
-.article-content ol {
-  margin: 20px 0 25px;
-  padding-left: 28px;
+/* =========================================================
+   GLASS
+========================================================= */
+
+.glass {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
-.article-content li {
-  margin-bottom: 10px;
+/* =========================================================
+   TEXT GRADIENT
+========================================================= */
+
+.text-gradient {
+  background: linear-gradient(
+    90deg,
+    #111111 0%,
+    #52525b 50%,
+    #111111 100%
+  );
+
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
-.article-content a {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
+/* =========================================================
+   SHIMMER
+========================================================= */
 
-.article-content blockquote {
-  margin: 30px 0;
-  padding: 20px 24px;
-  border-left: 4px solid #111111;
-  background: #f8fafc;
-  font-size: 19px;
-}
-
-.article-content img {
-  display: block;
-  width: 100%;
-  margin: 30px auto;
-  border-radius: 12px;
-}
-
-.article-content table {
-  width: 100%;
-  margin: 30px 0;
-  border-collapse: collapse;
+.shimmer {
+  position: relative;
   overflow: hidden;
 }
 
-.article-content th,
-.article-content td {
-  padding: 13px 15px;
-  border: 1px solid #e5e7eb;
-  text-align: left;
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.35),
+    transparent
+  );
+
+  animation: shimmer 2.2s infinite;
 }
 
-.article-content th {
-  background: #f8fafc;
-  font-weight: 700;
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
 }
 
-/* Mobile article typography */
+/* =========================================================
+   FADE UP
+========================================================= */
 
-@media (max-width: 640px) {
-  .article-content {
-    font-size: 17px;
-    line-height: 1.75;
+.animate-fade-up {
+  animation: fadeUp 0.7s ease both;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
   }
 
-  .article-content h2 {
-    margin-top: 38px;
-    font-size: 26px;
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =========================================================
+   FADE IN
+========================================================= */
+
+.animate-fade-in {
+  animation: fadeIn 0.6s ease both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
   }
 
-  .article-content h3 {
-    font-size: 21px;
+  to {
+    opacity: 1;
+  }
+}
+
+/* =========================================================
+   FLOAT
+========================================================= */
+
+.animate-float {
+  animation: float 5s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/* =========================================================
+   PULSE GLOW
+========================================================= */
+
+.animate-glow {
+  animation: glow 3s ease-in-out infinite;
+}
+
+@keyframes glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 rgba(255, 255, 255, 0);
+  }
+
+  50% {
+    box-shadow:
+      0 0 40px rgba(255, 255, 255, 0.08);
+  }
+}
+
+/* =========================================================
+   REDUCED MOTION
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

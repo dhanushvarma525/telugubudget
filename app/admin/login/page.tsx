@@ -1,4 +1,3 @@
-
 "use client";
 
 import { FormEvent, useState } from "react";
@@ -7,8 +6,13 @@ import {
   EyeOff,
   LockKeyhole,
   Loader2,
+  ArrowRight,
+  ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+
+const ADMIN_SESSION_DURATION = 24 * 60 * 60 * 1000;
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState("");
@@ -23,16 +27,11 @@ export default function AdminLoginPage() {
   ) {
     event.preventDefault();
 
-    console.log("LOGIN BUTTON CLICKED");
-
     setError("");
     setLoading(true);
 
     try {
       const cleanEmail = email.trim();
-
-      console.log("Attempting Supabase login...");
-      console.log("Email:", cleanEmail);
 
       const {
         data,
@@ -58,16 +57,20 @@ export default function AdminLoginPage() {
       );
 
       /*
-       * Supabase login has succeeded.
+       * Start the 24-hour admin login period.
        *
-       * Use a full browser navigation instead of
-       * router.replace() so we can completely
-       * reload the admin dashboard.
+       * The timestamp is stored only after
+       * Supabase authentication succeeds.
        */
-      console.log(
-        "Redirecting to /admin/blogs..."
+      localStorage.setItem(
+        "anatago_admin_login_time",
+        Date.now().toString()
       );
 
+      /*
+       * Full browser navigation ensures the
+       * admin dashboard completely reloads.
+       */
       window.location.href = "/admin/blogs";
     } catch (error) {
       console.error(
@@ -84,152 +87,516 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-950 px-4 py-10">
-      <div className="w-full max-w-md">
+    <main className="relative flex min-h-screen overflow-hidden bg-[#08080a] text-white">
 
-        {/* Brand */}
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-white text-zinc-950">
-            <LockKeyhole className="h-6 w-6" />
-          </div>
+      {/* =====================================================
+          BACKGROUND
+      ====================================================== */}
 
-          <h1 className="text-3xl font-bold tracking-tight text-white">
-            AnantaGo
-          </h1>
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
 
-          <p className="mt-2 text-sm text-zinc-400">
-            Admin Dashboard
-          </p>
-        </div>
+        {/* Large glow */}
+        <div className="absolute -left-40 -top-40 h-[500px] w-[500px] rounded-full bg-white/[0.035] blur-3xl" />
 
-        {/* Login Card */}
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl sm:p-8">
+        <div className="absolute -bottom-40 -right-40 h-[500px] w-[500px] rounded-full bg-white/[0.025] blur-3xl" />
 
-          <div className="mb-7">
-            <h2 className="text-xl font-semibold text-white">
-              Welcome back
-            </h2>
+        {/* Grid */}
+        <div
+          className="
+            absolute
+            inset-0
+            opacity-[0.035]
+            [background-image:linear-gradient(rgba(255,255,255,0.5)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.5)_1px,transparent_1px)]
+            [background-size:50px_50px]
+          "
+        />
 
-            <p className="mt-1 text-sm text-zinc-400">
-              Sign in to manage your AnantaGo publication.
-            </p>
-          </div>
+        {/* Top line */}
+        <div className="absolute left-0 right-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
 
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-5"
-          >
+      </div>
 
-            {/* Email */}
-            <div>
-              <label
-                htmlFor="email"
-                className="mb-2 block text-sm font-medium text-zinc-200"
-              >
-                Email
-              </label>
+      {/* =====================================================
+          CONTENT
+      ====================================================== */}
 
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(event) =>
-                  setEmail(event.target.value)
-                }
-                placeholder="admin@example.com"
-                autoComplete="email"
-                required
-                disabled={loading}
-                className="h-11 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-zinc-400 focus:ring-1 focus:ring-zinc-400 disabled:cursor-not-allowed disabled:opacity-60"
-              />
+      <div className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-center px-5 py-10 sm:px-8">
+
+        <div className="grid w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.035] shadow-[0_30px_100px_rgba(0,0,0,0.45)] backdrop-blur-xl lg:grid-cols-[0.95fr_1.05fr]">
+
+          {/* =================================================
+              LEFT BRAND PANEL
+          ================================================== */}
+
+          <div className="relative hidden min-h-[650px] overflow-hidden border-r border-white/10 bg-white/[0.02] p-10 lg:flex lg:flex-col lg:justify-between xl:p-12">
+
+            {/* Decorative circles */}
+
+            <div className="pointer-events-none absolute -right-28 -top-28 h-72 w-72 rounded-full border border-white/[0.06]" />
+
+            <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full border border-white/[0.05]" />
+
+            <div className="pointer-events-none absolute -bottom-32 -left-32 h-80 w-80 rounded-full border border-white/[0.05]" />
+
+            {/* Brand */}
+
+            <div className="relative">
+
+              <div className="flex items-center gap-3">
+
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-black shadow-lg">
+
+                  <span className="text-lg font-black">
+                    A
+                  </span>
+
+                </div>
+
+                <div>
+
+                  <p className="text-lg font-black tracking-tight text-white">
+                    AnantaGo
+                  </p>
+
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
+                    Publishing
+                  </p>
+
+                </div>
+
+              </div>
+
             </div>
 
-            {/* Password */}
-            <div>
-              <label
-                htmlFor="password"
-                className="mb-2 block text-sm font-medium text-zinc-200"
+            {/* Main message */}
+
+            <div className="relative">
+
+              <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06]">
+
+                <Sparkles className="h-5 w-5 text-white" />
+
+              </div>
+
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-zinc-500">
+                Editorial workspace
+              </p>
+
+              <h2 className="mt-4 max-w-md text-4xl font-black leading-[1.05] tracking-[-0.04em] text-white xl:text-5xl">
+                Ideas worth
+                <br />
+                <span className="text-zinc-500">
+                  publishing.
+                </span>
+              </h2>
+
+              <p className="mt-6 max-w-sm text-sm leading-7 text-zinc-400">
+                Manage your stories, publish useful technology
+                content and keep AnantaGo moving forward.
+              </p>
+
+              {/* Categories */}
+
+              <div className="mt-8 flex flex-wrap gap-2">
+
+                {[
+                  "AI",
+                  "TECH",
+                  "HOW-TO",
+                  "APPS",
+                  "SECURITY",
+                  "EXPLAINED",
+                ].map((item) => (
+                  <span
+                    key={item}
+                    className="
+                      rounded-full
+                      border
+                      border-white/10
+                      bg-white/[0.035]
+                      px-3
+                      py-1.5
+                      text-[10px]
+                      font-bold
+                      tracking-[0.12em]
+                      text-zinc-400
+                    "
+                  >
+                    {item}
+                  </span>
+                ))}
+
+              </div>
+
+            </div>
+
+            {/* Footer */}
+
+            <div className="relative flex items-center justify-between border-t border-white/10 pt-6">
+
+              <p className="text-xs text-zinc-600">
+                AnantaGo Admin
+              </p>
+
+              <div className="flex items-center gap-2 text-xs text-zinc-500">
+
+                <ShieldCheck className="h-4 w-4" />
+
+                Secure workspace
+
+              </div>
+
+            </div>
+
+          </div>
+
+          {/* =================================================
+              LOGIN PANEL
+          ================================================== */}
+
+          <div className="flex min-h-[650px] items-center justify-center p-6 sm:p-10 lg:p-12">
+
+            <div className="w-full max-w-md">
+
+              {/* Mobile Brand */}
+
+              <div className="mb-10 flex items-center justify-center lg:hidden">
+
+                <div className="flex items-center gap-3">
+
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-black shadow-lg">
+
+                    <span className="text-lg font-black">
+                      A
+                    </span>
+
+                  </div>
+
+                  <div>
+
+                    <p className="text-lg font-black tracking-tight text-white">
+                      AnantaGo
+                    </p>
+
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
+                      Publishing
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+              {/* Heading */}
+
+              <div className="mb-8">
+
+                <div className="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06]">
+
+                  <LockKeyhole className="h-5 w-5 text-white" />
+
+                </div>
+
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
+                  Admin access
+                </p>
+
+                <h1 className="mt-2 text-3xl font-black tracking-[-0.03em] text-white sm:text-4xl">
+                  Welcome back.
+                </h1>
+
+                <p className="mt-3 max-w-sm text-sm leading-6 text-zinc-400">
+                  Sign in to manage your AnantaGo publication
+                  and create your next story.
+                </p>
+
+              </div>
+
+              {/* =================================================
+                  FORM
+              ================================================== */}
+
+              <form
+                onSubmit={handleSubmit}
+                className="space-y-5"
               >
-                Password
-              </label>
 
-              <div className="relative">
+                {/* EMAIL */}
 
-                <input
-                  id="password"
-                  type={
-                    showPassword
-                      ? "text"
-                      : "password"
-                  }
-                  value={password}
-                  onChange={(event) =>
-                    setPassword(event.target.value)
-                  }
-                  placeholder="Enter your password"
-                  autoComplete="current-password"
-                  required
-                  disabled={loading}
-                  className="h-11 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 pr-11 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-zinc-400 focus:ring-1 focus:ring-zinc-400 disabled:cursor-not-allowed disabled:opacity-60"
-                />
+                <div>
+
+                  <label
+                    htmlFor="email"
+                    className="mb-2 block text-xs font-bold uppercase tracking-[0.12em] text-zinc-400"
+                  >
+                    Email address
+                  </label>
+
+                  <input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(event) =>
+                      setEmail(event.target.value)
+                    }
+                    placeholder="admin@example.com"
+                    autoComplete="email"
+                    required
+                    disabled={loading}
+                    className="
+                      h-12
+                      w-full
+                      rounded-xl
+                      border
+                      border-white/10
+                      bg-white/[0.045]
+                      px-4
+                      text-sm
+                      text-white
+                      outline-none
+                      transition
+                      duration-200
+                      placeholder:text-zinc-600
+                      hover:border-white/20
+                      focus:border-white/30
+                      focus:bg-white/[0.06]
+                      focus:ring-4
+                      focus:ring-white/[0.04]
+                      disabled:cursor-not-allowed
+                      disabled:opacity-50
+                    "
+                  />
+
+                </div>
+
+                {/* PASSWORD */}
+
+                <div>
+
+                  <div className="mb-2 flex items-center justify-between">
+
+                    <label
+                      htmlFor="password"
+                      className="block text-xs font-bold uppercase tracking-[0.12em] text-zinc-400"
+                    >
+                      Password
+                    </label>
+
+                  </div>
+
+                  <div className="relative">
+
+                    <input
+                      id="password"
+                      type={
+                        showPassword
+                          ? "text"
+                          : "password"
+                      }
+                      value={password}
+                      onChange={(event) =>
+                        setPassword(event.target.value)
+                      }
+                      placeholder="Enter your password"
+                      autoComplete="current-password"
+                      required
+                      disabled={loading}
+                      className="
+                        h-12
+                        w-full
+                        rounded-xl
+                        border
+                        border-white/10
+                        bg-white/[0.045]
+                        px-4
+                        pr-12
+                        text-sm
+                        text-white
+                        outline-none
+                        transition
+                        duration-200
+                        placeholder:text-zinc-600
+                        hover:border-white/20
+                        focus:border-white/30
+                        focus:bg-white/[0.06]
+                        focus:ring-4
+                        focus:ring-white/[0.04]
+                        disabled:cursor-not-allowed
+                        disabled:opacity-50
+                      "
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowPassword(
+                          (value) => !value
+                        )
+                      }
+                      disabled={loading}
+                      aria-label={
+                        showPassword
+                          ? "Hide password"
+                          : "Show password"
+                      }
+                      className="
+                        absolute
+                        right-1
+                        top-1
+                        flex
+                        h-10
+                        w-10
+                        items-center
+                        justify-center
+                        rounded-lg
+                        text-zinc-500
+                        transition
+                        hover:bg-white/[0.06]
+                        hover:text-white
+                        disabled:cursor-not-allowed
+                        disabled:opacity-50
+                      "
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+
+                  </div>
+
+                </div>
+
+                {/* ERROR */}
+
+                {error && (
+                  <div
+                    role="alert"
+                    className="
+                      rounded-xl
+                      border
+                      border-red-500/20
+                      bg-red-500/[0.08]
+                      px-4
+                      py-3
+                      text-sm
+                      leading-6
+                      text-red-300
+                    "
+                  >
+                    {error}
+                  </div>
+                )}
+
+                {/* LOGIN BUTTON */}
 
                 <button
-                  type="button"
-                  onClick={() =>
-                    setShowPassword(
-                      (value) => !value
-                    )
-                  }
+                  type="submit"
                   disabled={loading}
-                  aria-label={
-                    showPassword
-                      ? "Hide password"
-                      : "Show password"
-                  }
-                  className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center text-zinc-500 transition hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="
+                    group
+                    flex
+                    h-12
+                    w-full
+                    items-center
+                    justify-center
+                    gap-2
+                    rounded-xl
+                    bg-white
+                    px-5
+                    text-sm
+                    font-bold
+                    text-black
+                    shadow-[0_10px_30px_rgba(255,255,255,0.08)]
+                    transition-all
+                    duration-200
+                    hover:-translate-y-0.5
+                    hover:bg-zinc-200
+                    hover:shadow-[0_15px_35px_rgba(255,255,255,0.12)]
+                    active:translate-y-0
+                    disabled:cursor-not-allowed
+                    disabled:opacity-50
+                  "
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
+
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+
+                      <span>
+                        Signing in...
+                      </span>
+                    </>
                   ) : (
-                    <Eye className="h-4 w-4" />
+                    <>
+                      <span>
+                        Sign in to dashboard
+                      </span>
+
+                      <ArrowRight
+                        className="
+                          h-4
+                          w-4
+                          transition-transform
+                          duration-200
+                          group-hover:translate-x-1
+                        "
+                      />
+                    </>
                   )}
+
                 </button>
 
+              </form>
+
+              {/* =================================================
+                  SECURITY NOTE
+              ================================================== */}
+
+              <div className="mt-7 rounded-xl border border-white/10 bg-white/[0.025] p-4">
+
+                <div className="flex items-start gap-3">
+
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.06]">
+
+                    <ShieldCheck className="h-4 w-4 text-zinc-300" />
+
+                  </div>
+
+                  <div>
+
+                    <p className="text-xs font-semibold text-zinc-300">
+                      Protected admin access
+                    </p>
+
+                    <p className="mt-1 text-[11px] leading-5 text-zinc-600">
+                      For security, your admin login expires
+                      after 24 hours and you will need to
+                      sign in again.
+                    </p>
+
+                  </div>
+
+                </div>
+
               </div>
+
+              {/* Bottom */}
+
+              <p className="mt-7 text-center text-[10px] font-medium uppercase tracking-[0.18em] text-zinc-700">
+                AI · TECH · DIGITAL LIFE
+              </p>
+
             </div>
 
-            {/* Error */}
-            {error && (
-              <div className="rounded-lg border border-red-900/60 bg-red-950/40 px-3 py-3 text-sm leading-relaxed text-red-300">
-                {error}
-              </div>
-            )}
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Signing in...
-                </>
-              ) : (
-                "Sign In"
-              )}
-            </button>
-
-          </form>
-
-          <p className="mt-6 text-center text-xs leading-5 text-zinc-500">
-            AnantaGo Admin · AI • TECH • DIGITAL LIFE
-          </p>
+          </div>
 
         </div>
+
       </div>
+
     </main>
   );
 }
-
