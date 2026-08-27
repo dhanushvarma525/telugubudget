@@ -34,7 +34,13 @@ const categories = [
 function formatDate(date?: string | null) {
   if (!date) return "";
 
-  return new Date(date).toLocaleDateString("en-US", {
+  const parsedDate = new Date(date);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return "";
+  }
+
+  return parsedDate.toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -44,11 +50,13 @@ function formatDate(date?: string | null) {
 export default function BlogPage() {
   const searchParams = useSearchParams();
 
-  const pageParam = Number(searchParams.get("page") || "1");
+  const rawPage = searchParams.get("page");
+
+  const parsedPage = rawPage ? Number.parseInt(rawPage, 10) : 1;
 
   const currentPage =
-    Number.isFinite(pageParam) && pageParam > 0
-      ? Math.floor(pageParam)
+    Number.isInteger(parsedPage) && parsedPage > 0
+      ? parsedPage
       : 1;
 
   const [blogs, setBlogs] = useState<Blog[]>([]);
@@ -56,18 +64,57 @@ export default function BlogPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const totalPages = Math.ceil(totalBlogs / BLOGS_PER_PAGE);
+  const totalPages = Math.max(
+    1,
+    Math.ceil(totalBlogs / BLOGS_PER_PAGE)
+  );
 
   useEffect(() => {
-    async function loadBlogs() {
-      try {
-        setLoading(true);
-        setError("");
+    let cancelled = false;
 
+    async function loadBlogs() {
+      setLoading(true);
+      setError("");
+
+      try {
         const from = (currentPage - 1) * BLOGS_PER_PAGE;
         const to = from + BLOGS_PER_PAGE - 1;
 
-        const { data, error, count } = await supabase
+        /*
+         * First query:
+         * Get the total number of published articles.
+         *
+         * We intentionally use HEAD-style counting separately
+         * so pagination doesn't depend on the returned rows.
+         */
+        const { count, error: countError } = await supabase
+          .from("blogs")
+          .select("id", {
+            count: "exact",
+            head: true,
+          })
+          .eq("published", true);
+
+        if (cancelled) return;
+
+        if (countError) {
+          console.error(
+            "Error counting blogs:",
+            countError
+          );
+
+          setError("Unable to load articles.");
+          setBlogs([]);
+          setTotalBlogs(0);
+
+          return;
+        }
+
+        /*
+         * Second query:
+         * Fetch only the 10 articles needed for this page.
+         */
+        const { data, error: blogsError } = await supabase
           .from("blogs")
           .select(
             `
@@ -80,44 +127,79 @@ export default function BlogPage() {
               author,
               published_at,
               created_at
-            `,
-            { count: "exact" }
+            `
           )
           .eq("published", true)
           .order("published_at", {
             ascending: false,
             nullsFirst: false,
           })
+          .order("created_at", {
+            ascending: false,
+            nullsFirst: false,
+          })
           .range(from, to);
 
-        if (error) {
-          console.error("Error loading blogs:", error);
+        if (cancelled) return;
+
+        if (blogsError) {
+          console.error(
+            "Error loading blogs:",
+            blogsError
+          );
+
           setError("Unable to load articles.");
           setBlogs([]);
+          setTotalBlogs(0);
+
           return;
         }
 
         setBlogs(data || []);
         setTotalBlogs(count || 0);
       } catch (err) {
-        console.error("Unexpected error:", err);
+        if (cancelled) return;
+
+        console.error(
+          "Unexpected error loading blogs:",
+          err
+        );
+
         setError("Unable to load articles.");
         setBlogs([]);
+        setTotalBlogs(0);
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
     loadBlogs();
+
+    return () => {
+      cancelled = true;
+    };
   }, [currentPage]);
+
+  /*
+   * Prevent invalid URLs such as:
+   * /blog?page=999
+   */
+  const safeCurrentPage =
+    currentPage > totalPages && !loading
+      ? totalPages
+      : currentPage;
 
   return (
     <main className="min-h-screen bg-white">
-      {/* Hero */}
+      {/* =====================================================
+          HERO
+      ====================================================== */}
       <section className="border-b border-gray-100 bg-gray-50">
         <div className="mx-auto max-w-7xl px-6 py-16 sm:px-8 lg:px-10">
           <div className="max-w-3xl">
-            <p className="mb-4 text-sm font-semibold uppercase tracking-wider text-blue-600">
+            <p className="mb-4 text-sm font-semibold uppercase tracking-[0.18em] text-blue-600">
               AnantaGo
             </p>
 
@@ -126,14 +208,16 @@ export default function BlogPage() {
             </h1>
 
             <p className="mt-5 text-lg leading-8 text-gray-600">
-              Discover the latest stories, guides, explainers, and practical
-              insights from AnantaGo.
+              Discover the latest stories, guides, explainers, and
+              practical insights from AnantaGo.
             </p>
           </div>
         </div>
       </section>
 
-      {/* Category Navigation */}
+      {/* =====================================================
+          CATEGORY NAVIGATION
+      ====================================================== */}
       <section className="border-b border-gray-100 bg-white">
         <div className="mx-auto max-w-7xl overflow-x-auto px-6 sm:px-8 lg:px-10">
           <nav
@@ -157,8 +241,11 @@ export default function BlogPage() {
         </div>
       </section>
 
-      {/* Articles */}
+      {/* =====================================================
+          CONTENT
+      ====================================================== */}
       <section className="mx-auto max-w-7xl px-6 py-12 sm:px-8 lg:px-10">
+        {/* LOADING */}
         {loading ? (
           <>
             <div className="mb-8">
@@ -168,10 +255,12 @@ export default function BlogPage() {
             </div>
 
             <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 10 }).map((_, index) => (
+              {Array.from({
+                length: BLOGS_PER_PAGE,
+              }).map((_, index) => (
                 <div
                   key={index}
-                  className="overflow-hidden rounded-2xl border border-gray-200"
+                  className="overflow-hidden rounded-2xl border border-gray-200 bg-white"
                 >
                   <div className="aspect-[16/9] animate-pulse bg-gray-200" />
 
@@ -189,12 +278,15 @@ export default function BlogPage() {
             </div>
           </>
         ) : error ? (
+          /* ERROR */
           <div className="rounded-2xl border border-red-200 bg-red-50 px-6 py-12 text-center">
             <h2 className="text-xl font-semibold text-gray-900">
               Something went wrong
             </h2>
 
-            <p className="mt-2 text-gray-600">{error}</p>
+            <p className="mt-2 text-gray-600">
+              {error}
+            </p>
 
             <button
               type="button"
@@ -205,6 +297,7 @@ export default function BlogPage() {
             </button>
           </div>
         ) : blogs.length === 0 ? (
+          /* EMPTY */
           <div className="rounded-2xl border border-gray-200 bg-gray-50 px-6 py-16 text-center">
             <h2 className="text-2xl font-semibold text-gray-900">
               No articles found
@@ -225,7 +318,9 @@ export default function BlogPage() {
           </div>
         ) : (
           <>
-            {/* Section Heading */}
+            {/* =================================================
+                SECTION HEADER
+            ================================================== */}
             <div className="mb-8 flex items-end justify-between gap-4">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">
@@ -238,17 +333,22 @@ export default function BlogPage() {
               </div>
 
               <p className="hidden text-sm text-gray-500 sm:block">
-                Page {currentPage} of {totalPages}
+                Page {safeCurrentPage} of {totalPages}
               </p>
             </div>
 
-            {/* Article Grid */}
+            {/* =================================================
+                ARTICLE GRID
+            ================================================== */}
             <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
               {blogs.map((blog) => {
-                const date = blog.published_at || blog.created_at;
+                const date =
+                  blog.published_at ||
+                  blog.created_at;
 
                 const categorySlug = blog.category
                   ?.toLowerCase()
+                  .trim()
                   .replace(/\s+/g, "-");
 
                 return (
@@ -256,7 +356,7 @@ export default function BlogPage() {
                     key={blog.id}
                     className="group overflow-hidden rounded-2xl border border-gray-200 bg-white transition duration-300 hover:-translate-y-1 hover:shadow-lg"
                   >
-                    {/* Cover Image */}
+                    {/* IMAGE */}
                     <Link
                       href={`/blog/${blog.slug}`}
                       className="block"
@@ -281,17 +381,20 @@ export default function BlogPage() {
                       </div>
                     </Link>
 
-                    {/* Article Content */}
+                    {/* CARD CONTENT */}
                     <div className="p-6">
-                      {blog.category && categorySlug && (
-                        <Link
-                          href={`/${categorySlug}`}
-                          className="text-xs font-semibold uppercase tracking-wider text-blue-600 hover:text-blue-700"
-                        >
-                          {blog.category}
-                        </Link>
-                      )}
+                      {/* CATEGORY */}
+                      {blog.category &&
+                        categorySlug && (
+                          <Link
+                            href={`/${categorySlug}`}
+                            className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-600 transition hover:text-blue-700"
+                          >
+                            {blog.category}
+                          </Link>
+                        )}
 
+                      {/* TITLE */}
                       <h3 className="mt-3 text-xl font-bold leading-snug text-gray-900">
                         <Link
                           href={`/blog/${blog.slug}`}
@@ -301,12 +404,14 @@ export default function BlogPage() {
                         </Link>
                       </h3>
 
+                      {/* EXCERPT */}
                       {blog.excerpt && (
                         <p className="mt-3 line-clamp-3 text-sm leading-6 text-gray-600">
                           {blog.excerpt}
                         </p>
                       )}
 
+                      {/* FOOTER */}
                       <div className="mt-5 flex items-center justify-between gap-4 border-t border-gray-100 pt-4">
                         <div className="min-w-0">
                           {blog.author && (
@@ -335,19 +440,23 @@ export default function BlogPage() {
               })}
             </div>
 
-            {/* Pagination */}
+            {/* =================================================
+                PAGINATION
+            ================================================== */}
             {totalPages > 1 && (
               <nav
                 aria-label="Blog pagination"
                 className="mt-14 flex flex-wrap items-center justify-center gap-2"
               >
-                {/* Previous */}
-                {currentPage > 1 ? (
+                {/* PREVIOUS */}
+                {safeCurrentPage > 1 ? (
                   <Link
                     href={
-                      currentPage === 2
+                      safeCurrentPage === 2
                         ? "/blog"
-                        : `/blog?page=${currentPage - 1}`
+                        : `/blog?page=${
+                            safeCurrentPage - 1
+                          }`
                     }
                     className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
                   >
@@ -359,16 +468,20 @@ export default function BlogPage() {
                   </span>
                 )}
 
-                {/* Page Numbers */}
+                {/* PAGE NUMBERS */}
                 <div className="flex items-center gap-2">
-                  {Array.from({ length: totalPages }, (_, index) => {
-                    const pageNumber = index + 1;
+                  {Array.from(
+                    { length: totalPages },
+                    (_, index) => index + 1
+                  ).map((pageNumber) => {
+                    const shouldShow =
+                      pageNumber === 1 ||
+                      pageNumber === totalPages ||
+                      Math.abs(
+                        pageNumber - safeCurrentPage
+                      ) <= 2;
 
-                    if (
-                      pageNumber !== 1 &&
-                      pageNumber !== totalPages &&
-                      Math.abs(pageNumber - currentPage) > 2
-                    ) {
+                    if (!shouldShow) {
                       return null;
                     }
 
@@ -381,10 +494,12 @@ export default function BlogPage() {
                             : `/blog?page=${pageNumber}`
                         }
                         aria-current={
-                          pageNumber === currentPage ? "page" : undefined
+                          pageNumber === safeCurrentPage
+                            ? "page"
+                            : undefined
                         }
                         className={`min-w-10 rounded-lg px-3 py-2.5 text-center text-sm font-medium transition ${
-                          pageNumber === currentPage
+                          pageNumber === safeCurrentPage
                             ? "bg-gray-900 text-white"
                             : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
                         }`}
@@ -395,10 +510,12 @@ export default function BlogPage() {
                   })}
                 </div>
 
-                {/* Next */}
-                {currentPage < totalPages ? (
+                {/* NEXT */}
+                {safeCurrentPage < totalPages ? (
                   <Link
-                    href={`/blog?page=${currentPage + 1}`}
+                    href={`/blog?page=${
+                      safeCurrentPage + 1
+                    }`}
                     className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
                   >
                     Next →

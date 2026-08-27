@@ -1,43 +1,56 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
+const siteUrl = "https://www.anatago.com";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.anatago.com"),
+  metadataBase: new URL(siteUrl),
 
   title: {
-    default: "AnantaGo — AI, Tech & Digital Life",
+    default: "AnantaGo",
     template: "%s | AnantaGo",
   },
 
   description:
-    "AnantaGo covers AI, technology, apps, cybersecurity, how-to guides and easy-to-understand technology explainers.",
+    "AnantaGo covers AI, technology, apps, cybersecurity, how-to guides, and simple technology explainers.",
+
+  applicationName: "AnantaGo",
 
   keywords: [
     "AI",
     "Artificial Intelligence",
     "Technology",
     "Tech News",
-    "How To",
+    "How-To Guides",
     "Apps",
     "Cybersecurity",
-    "AI Tools",
-    "Technology Guides",
+    "Technology Explained",
+    "AnantaGo",
   ],
 
   authors: [
     {
       name: "AnantaGo",
-      url: "https://www.anatago.com",
+      url: siteUrl,
     },
   ],
 
   creator: "AnantaGo",
   publisher: "AnantaGo",
 
-  applicationName: "AnantaGo",
+  alternates: {
+    canonical: siteUrl,
+  },
+
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+    },
+  },
 
   icons: {
     icon: "/favicon.png",
@@ -47,25 +60,33 @@ export const metadata: Metadata = {
 
   openGraph: {
     type: "website",
-    siteName: "AnantaGo",
-    title: "AnantaGo — AI, Tech & Digital Life",
-    description:
-      "AnantaGo covers AI, technology, apps, cybersecurity, how-to guides and easy-to-understand technology explainers.",
-    url: "https://www.anatago.com/",
     locale: "en_US",
+    url: siteUrl,
+    siteName: "AnantaGo",
+    title: "AnantaGo",
+    description:
+      "AI, technology, apps, cybersecurity, how-to guides, and simple technology explainers.",
   },
 
-  robots: {
-    index: true,
-    follow: true,
+  twitter: {
+    card: "summary_large_image",
+    title: "AnantaGo",
+    description:
+      "AI, technology, apps, cybersecurity, how-to guides, and simple technology explainers.",
+  },
+};
 
-    googleBot: {
-      index: true,
-      follow: true,
-      "max-image-preview": "large",
-      "max-snippet": -1,
-      "max-video-preview": -1,
-    },
+const websiteSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "AnantaGo",
+  url: siteUrl,
+  description:
+    "AnantaGo covers AI, technology, apps, cybersecurity, how-to guides, and simple technology explainers.",
+  publisher: {
+    "@type": "Organization",
+    name: "AnantaGo",
+    url: siteUrl,
   },
 };
 
@@ -74,26 +95,15 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const websiteSchema = {
-    "@context": "https://schema.org",
-    "@type": "WebSite",
-    name: "AnantaGo",
-    alternateName: "AnantaGo",
-    url: "https://www.anatago.com/",
-  };
-
   return (
-    <html lang="en">
+    <html
+      lang="en"
+      data-scroll-behavior="smooth"
+    >
       <head>
-        {/* Google AdSense */}
-        <script
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9353337081766702"
-          crossOrigin="anonymous"
-        />
-
-        {/* Website Schema */}
-        <script
+        {/* Website Structured Data */}
+        <Script
+          id="website-schema"
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify(websiteSchema),
@@ -101,14 +111,8 @@ export default function RootLayout({
         />
       </head>
 
-      <body className="min-h-screen bg-white text-gray-950">
-        <div className="flex min-h-screen flex-col">
-          <Header />
-
-          <main className="flex-1">{children}</main>
-
-          <Footer />
-        </div>
+      <body className="min-h-screen bg-white text-gray-900 antialiased">
+        {children}
       </body>
     </html>
   );
