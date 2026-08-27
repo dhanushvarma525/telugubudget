@@ -44,8 +44,10 @@ export default function FeaturedSlider({
 
   /*
    * ==========================================================
-   * AUTO PLAY
+   * AUTO SLIDE
    * ==========================================================
+   *
+   * Changes article every 3 seconds.
    */
 
   useEffect(() => {
@@ -55,9 +57,13 @@ export default function FeaturedSlider({
 
     const timer = window.setInterval(() => {
       setCurrent((previous) => {
-        return (previous + 1) % blogs.length;
+        if (previous >= blogs.length - 1) {
+          return 0;
+        }
+
+        return previous + 1;
       });
-    }, 5000);
+    }, 3000);
 
     return () => {
       window.clearInterval(timer);
@@ -71,6 +77,11 @@ export default function FeaturedSlider({
    */
 
   useEffect(() => {
+    if (blogs.length === 0) {
+      setCurrent(0);
+      return;
+    }
+
     if (current >= blogs.length) {
       setCurrent(0);
     }
@@ -88,21 +99,39 @@ export default function FeaturedSlider({
 
   function previousSlide() {
     setCurrent((previous) => {
-      return previous === 0
-        ? blogs.length - 1
-        : previous - 1;
+      if (previous === 0) {
+        return blogs.length - 1;
+      }
+
+      return previous - 1;
     });
   }
 
   function nextSlide() {
     setCurrent((previous) => {
-      return (previous + 1) % blogs.length;
+      if (previous === blogs.length - 1) {
+        return 0;
+      }
+
+      return previous + 1;
     });
   }
 
+  const activeBlog = blogs[current];
+
   return (
     <section
-      className="mx-auto max-w-[1280px] px-5 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16"
+      className="
+        mx-auto
+        w-full
+        max-w-[1180px]
+        px-4
+        py-8
+        sm:px-6
+        sm:py-10
+        lg:px-8
+        lg:py-12
+      "
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
@@ -110,157 +139,289 @@ export default function FeaturedSlider({
           HEADER
       ====================================================== */}
 
-      <div className="mb-6 flex items-end justify-between gap-4">
+      <div className="mb-5 flex items-end justify-between sm:mb-6">
         <div>
           <div className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-zinc-950" />
 
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500">
+            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500 sm:text-[11px]">
               Featured
-            </p>
+            </span>
           </div>
 
-          <h2 className="mt-2 text-2xl font-black tracking-tight text-zinc-950 sm:text-3xl">
-            Stories worth knowing
+          <h2 className="mt-1.5 text-2xl font-black tracking-tight text-zinc-950 sm:text-3xl">
+            Latest from AnantaGo
           </h2>
         </div>
 
         <Link
           href="/blog"
-          className="hidden text-sm font-semibold text-zinc-500 transition-colors duration-200 hover:text-zinc-950 sm:block"
+          className="
+            hidden
+            text-sm
+            font-semibold
+            text-zinc-500
+            transition-colors
+            duration-200
+            hover:text-zinc-950
+            sm:block
+          "
         >
           View all →
         </Link>
       </div>
 
       {/* =====================================================
-          SLIDER
+          SINGLE ARTICLE SLIDE
       ====================================================== */}
 
-      <div className="relative overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-        <div
+      <div
+        className="
+          relative
+          w-full
+          overflow-hidden
+          rounded-2xl
+          border
+          border-zinc-200
+          bg-white
+          shadow-[0_6px_24px_rgba(0,0,0,0.05)]
+        "
+      >
+        <article
+          key={activeBlog.id}
           className="
-            flex
+            grid
             w-full
-            transition-transform
-            duration-700
-            ease-[cubic-bezier(0.22,1,0.36,1)]
-            will-change-transform
+            lg:grid-cols-[1.05fr_0.95fr]
           "
-          style={{
-            transform: `translate3d(-${
-              current * 100
-            }%, 0, 0)`,
-          }}
         >
-          {blogs.map((article, index) => (
-            <article
-              key={article.id}
-              className="grid min-w-full shrink-0 lg:grid-cols-[1fr_1.05fr]"
+          {/* =================================================
+              IMAGE
+          ================================================== */}
+
+          <Link
+            href={`/blog/${activeBlog.slug}`}
+            className="
+              group
+              relative
+              order-1
+              block
+              aspect-[16/9]
+              w-full
+              overflow-hidden
+              bg-zinc-100
+              lg:order-2
+              lg:aspect-auto
+              lg:h-[370px]
+            "
+          >
+            {activeBlog.cover_image ? (
+              <Image
+                src={activeBlog.cover_image}
+                alt={
+                  activeBlog.cover_image_alt ||
+                  activeBlog.title
+                }
+                fill
+                priority={current === 0}
+                sizes="
+                  (max-width: 1023px) 100vw,
+                  50vw
+                "
+                className="
+                  object-cover
+                  transition-transform
+                  duration-500
+                  ease-out
+                  group-hover:scale-[1.025]
+                "
+              />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-zinc-400">
+                AnantaGo
+              </div>
+            )}
+
+            <div
+              className="
+                pointer-events-none
+                absolute
+                inset-0
+                bg-gradient-to-t
+                from-black/20
+                via-transparent
+                to-transparent
+              "
+            />
+          </Link>
+
+          {/* =================================================
+              CONTENT
+          ================================================== */}
+
+          <div
+            className="
+              order-2
+              flex
+              min-h-[250px]
+              flex-col
+              justify-center
+              px-5
+              py-6
+              sm:min-h-[275px]
+              sm:px-8
+              sm:py-8
+              lg:order-1
+              lg:min-h-0
+              lg:px-10
+              lg:py-8
+              xl:px-12
+            "
+          >
+            {/* CATEGORY */}
+
+            {activeBlog.category && (
+              <span
+                className="
+                  w-fit
+                  rounded-full
+                  bg-zinc-950
+                  px-3
+                  py-1.5
+                  text-[9px]
+                  font-bold
+                  uppercase
+                  tracking-[0.14em]
+                  text-white
+                  sm:text-[10px]
+                "
+              >
+                {activeBlog.category}
+              </span>
+            )}
+
+            {/* TITLE */}
+
+            <h3
+              className="
+                mt-3
+                line-clamp-3
+                max-w-[650px]
+                text-[23px]
+                font-black
+                leading-[1.13]
+                tracking-[-0.03em]
+                text-zinc-950
+                sm:mt-4
+                sm:text-3xl
+                lg:text-[34px]
+                xl:text-[38px]
+              "
             >
-              {/* =================================================
-                  TEXT
-              ================================================== */}
+              {activeBlog.title}
+            </h3>
 
-              <div className="flex flex-col justify-center p-6 sm:p-8 lg:p-10 xl:p-12">
-                {article.category && (
-                  <span className="w-fit rounded-full bg-zinc-950 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.13em] text-white">
-                    {article.category}
+            {/* EXCERPT */}
+
+            {activeBlog.excerpt && (
+              <p
+                className="
+                  mt-3
+                  line-clamp-2
+                  max-w-[560px]
+                  text-sm
+                  leading-6
+                  text-zinc-600
+                  sm:text-base
+                  sm:leading-7
+                "
+              >
+                {activeBlog.excerpt}
+              </p>
+            )}
+
+            {/* META */}
+
+            <div
+              className="
+                mt-4
+                flex
+                flex-wrap
+                items-center
+                gap-2
+                text-[11px]
+                text-zinc-500
+                sm:text-xs
+              "
+            >
+              {activeBlog.author && (
+                <>
+                  <span>{activeBlog.author}</span>
+
+                  <span className="text-zinc-300">
+                    •
                   </span>
+                </>
+              )}
+
+              <span>
+                {formatDate(
+                  activeBlog.published_at ||
+                    activeBlog.created_at
                 )}
+              </span>
 
-                <h3 className="mt-4 max-w-2xl text-2xl font-black leading-tight tracking-[-0.025em] text-zinc-950 sm:text-3xl lg:text-4xl">
-                  {article.title}
-                </h3>
-
-                {article.excerpt && (
-                  <p className="mt-4 max-w-xl text-sm leading-6 text-zinc-600 sm:text-base sm:leading-7">
-                    {article.excerpt}
-                  </p>
-                )}
-
-                <div className="mt-5 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-                  {article.author && (
-                    <>
-                      <span>{article.author}</span>
-
-                      <span className="text-zinc-300">
-                        •
-                      </span>
-                    </>
-                  )}
+              {activeBlog.reading_time && (
+                <>
+                  <span className="text-zinc-300">
+                    •
+                  </span>
 
                   <span>
-                    {formatDate(
-                      article.published_at ||
-                        article.created_at
-                    )}
+                    {activeBlog.reading_time} min read
                   </span>
+                </>
+              )}
+            </div>
 
-                  {article.reading_time && (
-                    <>
-                      <span className="text-zinc-300">
-                        •
-                      </span>
+            {/* BUTTON */}
 
-                      <span>
-                        {article.reading_time} min read
-                      </span>
-                    </>
-                  )}
-                </div>
-
-                <div className="mt-6">
-                  <Link
-                    href={`/blog/${article.slug}`}
-                    className="group inline-flex h-10 items-center rounded-lg bg-zinc-950 px-4 text-sm font-bold text-white transition-all duration-200 hover:bg-zinc-800 hover:shadow-lg"
-                  >
-                    Read the story
-
-                    <span className="ml-2 transition-transform duration-200 group-hover:translate-x-1">
-                      →
-                    </span>
-                  </Link>
-                </div>
-              </div>
-
-              {/* =================================================
-                  IMAGE
-              ================================================== */}
-
+            <div className="mt-5">
               <Link
-                href={`/blog/${article.slug}`}
-                className="group relative h-[250px] overflow-hidden bg-zinc-100 sm:h-[330px] lg:h-[390px]"
+                href={`/blog/${activeBlog.slug}`}
+                className="
+                  group
+                  inline-flex
+                  h-10
+                  items-center
+                  rounded-lg
+                  bg-zinc-950
+                  px-4
+                  text-sm
+                  font-bold
+                  text-white
+                  transition-all
+                  duration-200
+                  hover:bg-zinc-800
+                  hover:shadow-md
+                "
               >
-                {article.cover_image ? (
-                  <Image
-                    src={article.cover_image}
-                    alt={
-                      article.cover_image_alt ||
-                      article.title
-                    }
-                    fill
-                    priority={index === 0}
-                    sizes="(max-width: 1024px) 100vw, 55vw"
-                    className="
-                      object-cover
-                      transition-transform
-                      duration-700
-                      ease-out
-                      group-hover:scale-[1.04]
-                    "
-                  />
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-zinc-400">
-                    AnantaGo
-                  </div>
-                )}
+                Read article
 
-                <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />
+                <span
+                  className="
+                    ml-2
+                    transition-transform
+                    duration-200
+                    group-hover:translate-x-1
+                  "
+                >
+                  →
+                </span>
               </Link>
-            </article>
-          ))}
-        </div>
+            </div>
+          </div>
+        </article>
 
         {/* =====================================================
             PREVIOUS
@@ -272,32 +433,34 @@ export default function FeaturedSlider({
             onClick={previousSlide}
             aria-label="Previous featured article"
             className="
-              group
               absolute
               left-3
-              top-1/2
-              z-10
+              top-[25%]
+              z-20
               flex
-              h-10
-              w-10
-              -translate-y-1/2
+              h-9
+              w-9
               items-center
               justify-center
               rounded-full
               border
-              border-white/40
-              bg-black/30
+              border-white/60
+              bg-black/40
               text-white
-              opacity-0
+              shadow-md
               backdrop-blur-md
               transition-all
-              duration-300
-              hover:bg-black/55
+              duration-200
+              hover:bg-black/60
+              active:scale-95
+              sm:h-10
+              sm:w-10
               lg:left-4
-              lg:group-hover:opacity-100
+              lg:top-1/2
+              lg:-translate-y-1/2
             "
           >
-            <ChevronLeft className="h-4 w-4 transition-transform duration-200 group-hover:-translate-x-0.5" />
+            <ChevronLeft className="h-4 w-4" />
           </button>
         )}
 
@@ -311,32 +474,34 @@ export default function FeaturedSlider({
             onClick={nextSlide}
             aria-label="Next featured article"
             className="
-              group
               absolute
               right-3
-              top-1/2
-              z-10
+              top-[25%]
+              z-20
               flex
-              h-10
-              w-10
-              -translate-y-1/2
+              h-9
+              w-9
               items-center
               justify-center
               rounded-full
               border
-              border-white/40
-              bg-black/30
+              border-white/60
+              bg-black/40
               text-white
-              opacity-0
+              shadow-md
               backdrop-blur-md
               transition-all
-              duration-300
-              hover:bg-black/55
+              duration-200
+              hover:bg-black/60
+              active:scale-95
+              sm:h-10
+              sm:w-10
               lg:right-4
-              lg:group-hover:opacity-100
+              lg:top-1/2
+              lg:-translate-y-1/2
             "
           >
-            <ChevronRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+            <ChevronRight className="h-4 w-4" />
           </button>
         )}
       </div>
@@ -346,28 +511,27 @@ export default function FeaturedSlider({
       ====================================================== */}
 
       {blogs.length > 1 && (
-        <div className="mt-5 flex items-center justify-center gap-1.5">
+        <div className="mt-4 flex items-center justify-center gap-1.5">
           {blogs.map((blog, index) => (
             <button
               key={blog.id}
               type="button"
+              onClick={() => setCurrent(index)}
               aria-label={`Show featured article ${
                 index + 1
               }`}
               aria-current={
-                index === current
+                current === index
                   ? "true"
                   : undefined
               }
-              onClick={() => setCurrent(index)}
               className={`
                 h-1.5
                 rounded-full
                 transition-all
-                duration-500
-                ease-out
+                duration-300
                 ${
-                  index === current
+                  current === index
                     ? "w-7 bg-zinc-950"
                     : "w-1.5 bg-zinc-300 hover:bg-zinc-500"
                 }
@@ -376,6 +540,26 @@ export default function FeaturedSlider({
           ))}
         </div>
       )}
+
+      {/* =====================================================
+          MOBILE VIEW ALL
+      ====================================================== */}
+
+      <div className="mt-4 text-center sm:hidden">
+        <Link
+          href="/blog"
+          className="
+            text-xs
+            font-semibold
+            text-zinc-500
+            transition-colors
+            duration-200
+            hover:text-zinc-950
+          "
+        >
+          View all articles →
+        </Link>
+      </div>
     </section>
   );
 }
