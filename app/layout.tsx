@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import "./globals.css";
 
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+
 const siteUrl = "https://www.anatago.com";
 
 export const metadata: Metadata = {
@@ -46,6 +49,7 @@ export const metadata: Metadata = {
   robots: {
     index: true,
     follow: true,
+
     googleBot: {
       index: true,
       follow: true,
@@ -63,14 +67,18 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: siteUrl,
     siteName: "AnantaGo",
+
     title: "AnantaGo",
+
     description:
       "AI, technology, apps, cybersecurity, how-to guides, and simple technology explainers.",
   },
 
   twitter: {
     card: "summary_large_image",
+
     title: "AnantaGo",
+
     description:
       "AI, technology, apps, cybersecurity, how-to guides, and simple technology explainers.",
   },
@@ -79,10 +87,13 @@ export const metadata: Metadata = {
 const websiteSchema = {
   "@context": "https://schema.org",
   "@type": "WebSite",
+
   name: "AnantaGo",
   url: siteUrl,
+
   description:
     "AnantaGo covers AI, technology, apps, cybersecurity, how-to guides, and simple technology explainers.",
+
   publisher: {
     "@type": "Organization",
     name: "AnantaGo",
@@ -102,17 +113,26 @@ export default function RootLayout({
     >
       <head>
         {/* Website Structured Data */}
+
         <Script
           id="website-schema"
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(websiteSchema),
+            __html: JSON.stringify(
+              websiteSchema
+            ),
           }}
         />
       </head>
 
       <body className="min-h-screen bg-white text-gray-900 antialiased">
-        {children}
+        <Header />
+
+        <main className="min-h-screen">
+          {children}
+        </main>
+
+        <Footer />
       </body>
     </html>
   );
