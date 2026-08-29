@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -117,7 +118,7 @@ export default function EditBlogPage() {
     author: "AnantaGo",
     tags: "",
     cover_image: "",
-    published: true,
+    published: false,
     featured: false,
   });
 
@@ -132,6 +133,9 @@ export default function EditBlogPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [unpublishing, setUnpublishing] =
+    useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const [uploadingCover, setUploadingCover] =
@@ -145,6 +149,12 @@ export default function EditBlogPage() {
 
   const [showDeleteConfirm, setShowDeleteConfirm] =
     useState(false);
+
+  const isBusy =
+    saving ||
+    publishing ||
+    unpublishing ||
+    deleting;
 
   /* =======================================================
      LOAD
@@ -160,7 +170,9 @@ export default function EditBlogPage() {
      TYPE HELPERS
   ======================================================= */
 
-  function isListType(type: string): type is ListBlockType {
+  function isListType(
+    type: string
+  ): type is ListBlockType {
     return (
       type === "bullet-list" ||
       type === "bullets" ||
@@ -230,8 +242,6 @@ export default function EditBlogPage() {
         ? source.type
         : "";
 
-    /* IMAGE */
-
     if (rawType === "image") {
       return {
         type: "image",
@@ -247,8 +257,6 @@ export default function EditBlogPage() {
             : "",
       };
     }
-
-    /* TEXT */
 
     if (
       rawType === "text" ||
@@ -277,8 +285,6 @@ export default function EditBlogPage() {
       };
     }
 
-    /* HEADINGS */
-
     if (
       rawType === "h1" ||
       rawType === "h2" ||
@@ -296,8 +302,6 @@ export default function EditBlogPage() {
       };
     }
 
-    /* CALLOUT */
-
     if (rawType === "callout") {
       return {
         type: "callout",
@@ -313,8 +317,6 @@ export default function EditBlogPage() {
             : "",
       };
     }
-
-    /* QUOTE */
 
     if (
       rawType === "quote" ||
@@ -334,8 +336,6 @@ export default function EditBlogPage() {
             : "",
       };
     }
-
-    /* LIST */
 
     if (isListType(rawType)) {
       const rawItems = source.items;
@@ -382,8 +382,6 @@ export default function EditBlogPage() {
       };
     }
 
-    /* TABLE */
-
     if (rawType === "table") {
       const rawHeaders =
         source.headers;
@@ -421,8 +419,6 @@ export default function EditBlogPage() {
         rows,
       };
     }
-
-    /* UNKNOWN */
 
     return {
       ...(source as UnknownBlock),
@@ -538,8 +534,17 @@ export default function EditBlogPage() {
             ? blog.cover_image
             : "",
 
+        /*
+         * IMPORTANT:
+         * A blog is published ONLY when the
+         * database value is exactly true.
+         *
+         * This fixes the old behaviour where
+         * missing/undefined values could become
+         * published accidentally.
+         */
         published:
-          blog.published !== false,
+          blog.published === true,
 
         featured:
           blog.featured === true,
@@ -559,7 +564,9 @@ export default function EditBlogPage() {
             )
             .filter(
               (
-                block: ContentBlock | null
+                block:
+                  | ContentBlock
+                  | null
               ): block is ContentBlock =>
                 block !== null
             );
@@ -593,7 +600,8 @@ export default function EditBlogPage() {
           {
             type: "text",
             content: "",
-            headingType: "paragraph",
+            headingType:
+              "paragraph",
           },
         ]);
       }
@@ -1041,7 +1049,9 @@ export default function EditBlogPage() {
 
   function updateCallout(
     index: number,
-    field: "title" | "content",
+    field:
+      | "title"
+      | "content",
     value: string
   ) {
     setContentBlocks(
@@ -1073,7 +1083,9 @@ export default function EditBlogPage() {
 
   function updateQuote(
     index: number,
-    field: "content" | "author",
+    field:
+      | "content"
+      | "author",
     value: string
   ) {
     setContentBlocks(
@@ -1165,8 +1177,7 @@ export default function EditBlogPage() {
                   _item: string,
                   i: number
                 ) =>
-                  i !==
-                  itemIndex
+                  i !== itemIndex
               ),
           };
         }
@@ -1695,24 +1706,17 @@ export default function EditBlogPage() {
   }
 
   /* =======================================================
-     UPDATE BLOG
+     VALIDATE
   ======================================================= */
 
-  async function updateBlog() {
-    if (!blogId) {
-      alert(
-        "Blog ID is missing."
-      );
-      return;
-    }
-
+  function validateBlog(): boolean {
     if (
       !form.title.trim()
     ) {
       alert(
         "Please enter a blog title."
       );
-      return;
+      return false;
     }
 
     const cleanBlocks =
@@ -1736,11 +1740,269 @@ export default function EditBlogPage() {
       alert(
         "Please write some blog content."
       );
+      return false;
+    }
+
+    return true;
+  }
+
+  /* =======================================================
+     UPDATE BLOG
+  ======================================================= */
+
+  async function saveBlog(
+    publishState: boolean
+  ) {
+    if (!blogId) {
+      alert(
+        "Blog ID is missing."
+      );
+      return;
+    }
+
+    if (!validateBlog()) {
       return;
     }
 
     try {
-      setSaving(true);
+      if (publishState) {
+        setPublishing(true);
+      } else {
+        setSaving(true);
+      }
+
+      const cleanBlocks =
+        getCleanBlocks();
+
+      const plainText =
+        getPlainText(
+          cleanBlocks
+        );
+
+      const additionalImages =
+        getAdditionalImages(
+          cleanBlocks
+        );
+
+      const finalSlug =
+        form.slug.trim() ||
+        generateSlug(
+          form.title
+        );
+
+      /*
+       * When publishing:
+       * published = true
+       * published_at = current time
+       *
+       * When saving a draft:
+       * published = false
+       * published_at = null
+       */
+      const publishedAt =
+        publishState
+          ? new Date().toISOString()
+          : null;
+
+      const payload = {
+        id: blogId,
+
+        title:
+          form.title.trim(),
+
+        slug: finalSlug,
+
+        excerpt:
+          form.excerpt.trim(),
+
+        introduction:
+          form.introduction.trim(),
+
+        content:
+          plainText,
+
+        cover_image:
+          form.cover_image,
+
+        content_blocks:
+          cleanBlocks,
+
+        additional_images:
+          additionalImages,
+
+        category:
+          form.category.trim(),
+
+        author:
+          form.author.trim(),
+
+        tags:
+          form.tags
+            .split(",")
+            .map(
+              (
+                tag: string
+              ) =>
+                tag.trim()
+            )
+            .filter(
+              (
+                tag: string
+              ) =>
+                Boolean(tag)
+            ),
+
+        published:
+          publishState,
+
+        published_at:
+          publishedAt,
+
+        featured:
+          form.featured,
+      };
+
+      const response =
+        await fetch(
+          `/api/blogs/${slug}`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            body:
+              JSON.stringify(
+                payload
+              ),
+          }
+        );
+
+      const data: unknown =
+        await response.json();
+
+      const result =
+        data &&
+        typeof data === "object"
+          ? (data as Record<
+              string,
+              unknown
+            >)
+          : {};
+
+      if (!response.ok) {
+        throw new Error(
+          typeof result.message ===
+            "string"
+            ? result.message
+            : typeof result.error ===
+              "string"
+            ? result.error
+            : publishState
+            ? "Failed to publish blog."
+            : "Failed to save draft."
+        );
+      }
+
+      /*
+       * Keep local state synchronized
+       * with the database.
+       */
+      setForm((prev) => ({
+        ...prev,
+        slug: finalSlug,
+        published:
+          publishState,
+      }));
+
+      if (publishState) {
+        alert(
+          "🎉 Blog published successfully!"
+        );
+      } else {
+        alert(
+          "📝 Draft saved successfully!"
+        );
+      }
+
+      /*
+       * Return to the admin blog list.
+       * The admin list will now show the
+       * article under Published or Drafts.
+       */
+      router.push(
+        "/admin/blogs"
+      );
+
+      router.refresh();
+    } catch (error: unknown) {
+      console.error(
+        "SAVE BLOG ERROR:",
+        error
+      );
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : publishState
+          ? "Something went wrong while publishing the blog."
+          : "Something went wrong while saving the draft."
+      );
+    } finally {
+      setSaving(false);
+      setPublishing(false);
+    }
+  }
+
+  /* =======================================================
+     SAVE DRAFT
+  ======================================================= */
+
+  async function saveDraft() {
+    await saveBlog(false);
+  }
+
+  /* =======================================================
+     PUBLISH
+  ======================================================= */
+
+  async function publishBlog() {
+    if (
+      !window.confirm(
+        "Are you sure you want to publish this article publicly?"
+      )
+    ) {
+      return;
+    }
+
+    await saveBlog(true);
+  }
+
+  /* =======================================================
+     UNPUBLISH
+  ======================================================= */
+
+  async function unpublishBlog() {
+    if (
+      !window.confirm(
+        "Unpublish this article and move it back to drafts?"
+      )
+    ) {
+      return;
+    }
+
+    if (!blogId) {
+      alert(
+        "Blog ID is missing."
+      );
+      return;
+    }
+
+    try {
+      setUnpublishing(true);
+
+      const cleanBlocks =
+        getCleanBlocks();
 
       const plainText =
         getPlainText(
@@ -1806,8 +2068,9 @@ export default function EditBlogPage() {
                 Boolean(tag)
             ),
 
-        published:
-          form.published,
+        published: false,
+
+        published_at: null,
 
         featured:
           form.featured,
@@ -1849,12 +2112,12 @@ export default function EditBlogPage() {
             : typeof result.error ===
               "string"
             ? result.error
-            : "Failed to update blog"
+            : "Failed to unpublish blog."
         );
       }
 
       alert(
-        "Blog updated successfully!"
+        "Blog moved back to drafts."
       );
 
       router.push(
@@ -1864,17 +2127,17 @@ export default function EditBlogPage() {
       router.refresh();
     } catch (error: unknown) {
       console.error(
-        "UPDATE BLOG ERROR:",
+        "UNPUBLISH BLOG ERROR:",
         error
       );
 
       alert(
         error instanceof Error
           ? error.message
-          : "Something went wrong while updating the blog."
+          : "Failed to unpublish blog."
       );
     } finally {
-      setSaving(false);
+      setUnpublishing(false);
     }
   }
 
@@ -2232,14 +2495,27 @@ export default function EditBlogPage() {
 
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-              ✏️ Edit Blog
-            </h1>
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
+                ✏️ Edit Blog
+              </h1>
+
+              {form.published ? (
+                <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700">
+                  ● Published
+                </span>
+              ) : (
+                <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-bold text-yellow-700">
+                  ● Draft
+                </span>
+              )}
+            </div>
 
             <p className="mt-1 text-sm text-gray-500">
               Update your article,
-              preview it, publish it
-              or delete it.
+              preview it, save it as
+              a draft, publish it or
+              delete it.
             </p>
           </div>
 
@@ -2251,7 +2527,8 @@ export default function EditBlogPage() {
                   "/admin/blogs"
                 )
               }
-              className="rounded-xl border border-gray-300 bg-white px-5 py-3 font-semibold text-gray-900 hover:bg-gray-50"
+              disabled={isBusy}
+              className="rounded-xl border border-gray-300 bg-white px-5 py-3 font-semibold text-gray-900 hover:bg-gray-50 disabled:opacity-50"
             >
               ← Back
             </button>
@@ -2261,24 +2538,50 @@ export default function EditBlogPage() {
               onClick={() =>
                 setShowPreview(true)
               }
-              className="rounded-xl border border-gray-300 bg-white px-5 py-3 font-semibold text-gray-900 hover:bg-gray-50"
+              disabled={isBusy}
+              className="rounded-xl border border-gray-300 bg-white px-5 py-3 font-semibold text-gray-900 hover:bg-gray-50 disabled:opacity-50"
             >
               👁 Preview
             </button>
 
             <button
               type="button"
-              onClick={updateBlog}
-              disabled={
-                saving ||
-                deleting
-              }
-              className="rounded-xl bg-black px-6 py-3 font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
+              onClick={saveDraft}
+              disabled={isBusy}
+              className="rounded-xl border border-gray-300 bg-white px-5 py-3 font-semibold text-gray-900 hover:bg-gray-50 disabled:opacity-50"
             >
               {saving
                 ? "Saving..."
-                : "Save Changes"}
+                : "📝 Save Draft"}
             </button>
+
+            {form.published ? (
+              <button
+                type="button"
+                onClick={
+                  unpublishBlog
+                }
+                disabled={isBusy}
+                className="rounded-xl border border-orange-300 bg-orange-50 px-5 py-3 font-semibold text-orange-700 hover:bg-orange-100 disabled:opacity-50"
+              >
+                {unpublishing
+                  ? "Unpublishing..."
+                  : "↩ Unpublish"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={
+                  publishBlog
+                }
+                disabled={isBusy}
+                className="rounded-xl bg-green-600 px-6 py-3 font-semibold text-white shadow-sm hover:bg-green-700 disabled:opacity-50"
+              >
+                {publishing
+                  ? "Publishing..."
+                  : "🚀 Publish Now"}
+              </button>
+            )}
           </div>
         </div>
 
@@ -2435,54 +2738,40 @@ export default function EditBlogPage() {
                 />
               </div>
 
-              <div className="flex flex-wrap gap-6 pt-2">
+              <div className="rounded-xl border bg-gray-50 p-4">
+                <div className="flex flex-wrap gap-6">
 
-                <label className="flex cursor-pointer items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={
-                      form.published
-                    }
-                    onChange={(e) =>
-                      setForm(
-                        (prev) => ({
-                          ...prev,
-                          published:
-                            e.target
-                              .checked,
-                        })
-                      )
-                    }
-                  />
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={
+                        form.featured
+                      }
+                      onChange={(e) =>
+                        setForm(
+                          (prev) => ({
+                            ...prev,
+                            featured:
+                              e.target
+                                .checked,
+                          })
+                        )
+                      }
+                    />
 
-                  <span className="text-sm font-medium">
-                    Published
-                  </span>
-                </label>
+                    <span className="text-sm font-medium">
+                      Featured Article
+                    </span>
+                  </label>
 
-                <label className="flex cursor-pointer items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={
-                      form.featured
-                    }
-                    onChange={(e) =>
-                      setForm(
-                        (prev) => ({
-                          ...prev,
-                          featured:
-                            e.target
-                              .checked,
-                        })
-                      )
-                    }
-                  />
+                </div>
 
-                  <span className="text-sm font-medium">
-                    Featured
-                  </span>
-                </label>
-
+                <p className="mt-2 text-xs text-gray-500">
+                  Publishing is now
+                  controlled by the
+                  buttons at the top and
+                  bottom of this page.
+                </p>
               </div>
 
             </div>
@@ -2523,7 +2812,8 @@ export default function EditBlogPage() {
                   onClick={
                     removeCoverImage
                   }
-                  className="mt-3 rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
+                  disabled={isBusy}
+                  className="mt-3 rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
                 >
                   Remove Cover Image
                 </button>
@@ -2546,7 +2836,8 @@ export default function EditBlogPage() {
                   handleCoverUpload
                 }
                 disabled={
-                  uploadingCover
+                  uploadingCover ||
+                  isBusy
                 }
                 className="hidden"
               />
@@ -2582,7 +2873,8 @@ export default function EditBlogPage() {
                   onClick={() =>
                     addTextBlock()
                   }
-                  className="rounded-xl bg-black px-4 py-2.5 text-sm font-semibold text-white"
+                  disabled={isBusy}
+                  className="rounded-xl bg-black px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
                 >
                   + Text
                 </button>
@@ -2592,7 +2884,8 @@ export default function EditBlogPage() {
                   onClick={() =>
                     addImageBlock()
                   }
-                  className="rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-900"
+                  disabled={isBusy}
+                  className="rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-900 disabled:opacity-50"
                 >
                   + Image
                 </button>
@@ -2602,7 +2895,8 @@ export default function EditBlogPage() {
                   onClick={
                     addTableBlock
                   }
-                  className="rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-900"
+                  disabled={isBusy}
+                  className="rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-900 disabled:opacity-50"
                 >
                   + Table
                 </button>
@@ -2663,8 +2957,8 @@ export default function EditBlogPage() {
                             )
                           }
                           disabled={
-                            index ===
-                            0
+                            index === 0 ||
+                            isBusy
                           }
                           className="rounded-lg border bg-white px-2.5 py-1.5 disabled:opacity-30"
                         >
@@ -2680,8 +2974,9 @@ export default function EditBlogPage() {
                           }
                           disabled={
                             index ===
-                            contentBlocks.length -
-                              1
+                              contentBlocks.length -
+                                1 ||
+                            isBusy
                           }
                           className="rounded-lg border bg-white px-2.5 py-1.5 disabled:opacity-30"
                         >
@@ -2695,7 +2990,8 @@ export default function EditBlogPage() {
                               index
                             )
                           }
-                          className="rounded-lg border bg-white px-2.5 py-1.5 text-red-600"
+                          disabled={isBusy}
+                          className="rounded-lg border bg-white px-2.5 py-1.5 text-red-600 disabled:opacity-50"
                         >
                           Delete
                         </button>
@@ -2721,6 +3017,7 @@ export default function EditBlogPage() {
                                 .value as TextBlockType
                             )
                           }
+                          disabled={isBusy}
                           className="rounded-xl border bg-white px-3 py-2.5 text-sm font-medium"
                         >
                           <option value="paragraph">
@@ -2751,6 +3048,7 @@ export default function EditBlogPage() {
                                 .value
                             )
                           }
+                          disabled={isBusy}
                           rows={
                             block.headingType ===
                             "paragraph"
@@ -2808,7 +3106,8 @@ export default function EditBlogPage() {
                             }
                             disabled={
                               uploadingBlockIndex ===
-                              index
+                                index ||
+                              isBusy
                             }
                             className="hidden"
                           />
@@ -2826,6 +3125,7 @@ export default function EditBlogPage() {
                                 .value
                             )
                           }
+                          disabled={isBusy}
                           placeholder="Image alt text"
                           className="w-full rounded-xl border bg-white p-3 text-sm"
                         />
@@ -2853,6 +3153,7 @@ export default function EditBlogPage() {
                                 .value
                             )
                           }
+                          disabled={isBusy}
                           placeholder="Callout title"
                           className="mb-3 w-full rounded-xl border p-3 font-semibold"
                         />
@@ -2869,6 +3170,7 @@ export default function EditBlogPage() {
                                 .value
                             )
                           }
+                          disabled={isBusy}
                           rows={6}
                           className="w-full rounded-xl border p-4"
                         />
@@ -2895,6 +3197,7 @@ export default function EditBlogPage() {
                                 .value
                             )
                           }
+                          disabled={isBusy}
                           rows={5}
                           className="w-full rounded-xl border p-4"
                         />
@@ -2912,6 +3215,7 @@ export default function EditBlogPage() {
                                 .value
                             )
                           }
+                          disabled={isBusy}
                           placeholder="Author (optional)"
                           className="mt-3 w-full rounded-xl border p-3"
                         />
@@ -2953,6 +3257,7 @@ export default function EditBlogPage() {
                                       .value
                                   )
                                 }
+                                disabled={isBusy}
                                 className="w-full rounded-xl border p-3"
                               />
 
@@ -2964,7 +3269,8 @@ export default function EditBlogPage() {
                                     itemIndex
                                   )
                                 }
-                                className="rounded-xl border px-3 text-red-600"
+                                disabled={isBusy}
+                                className="rounded-xl border px-3 text-red-600 disabled:opacity-50"
                               >
                                 ×
                               </button>
@@ -2980,7 +3286,8 @@ export default function EditBlogPage() {
                               index
                             )
                           }
-                          className="rounded-lg border px-3 py-2 text-sm font-semibold"
+                          disabled={isBusy}
+                          className="rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50"
                         >
                           + Add Item
                         </button>
@@ -3028,6 +3335,7 @@ export default function EditBlogPage() {
                                               .value
                                           )
                                         }
+                                        disabled={isBusy}
                                         className="w-full rounded-lg border bg-white p-2 text-sm font-semibold"
                                       />
                                     </th>
@@ -3081,6 +3389,7 @@ export default function EditBlogPage() {
                                                   .value
                                               )
                                             }
+                                            disabled={isBusy}
                                             className="w-full rounded-lg border p-2 text-sm"
                                           />
                                         </td>
@@ -3097,7 +3406,8 @@ export default function EditBlogPage() {
                                             rowIndex
                                           )
                                         }
-                                        className="rounded-lg border px-3 py-2 text-sm text-red-600"
+                                        disabled={isBusy}
+                                        className="rounded-lg border px-3 py-2 text-sm text-red-600 disabled:opacity-50"
                                       >
                                         Delete
                                       </button>
@@ -3123,7 +3433,8 @@ export default function EditBlogPage() {
                                 index
                               )
                             }
-                            className="rounded-lg border px-3 py-2 text-sm font-semibold"
+                            disabled={isBusy}
+                            className="rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50"
                           >
                             + Add Row
                           </button>
@@ -3135,7 +3446,8 @@ export default function EditBlogPage() {
                                 index
                               )
                             }
-                            className="rounded-lg border px-3 py-2 text-sm font-semibold"
+                            disabled={isBusy}
+                            className="rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50"
                           >
                             + Add Column
                           </button>
@@ -3147,7 +3459,7 @@ export default function EditBlogPage() {
 
                     {/* UNKNOWN */}
 
-                    {![
+                    {[
                       "text",
                       "image",
                       "callout",
@@ -3160,7 +3472,7 @@ export default function EditBlogPage() {
                       "table",
                     ].includes(
                       block.type
-                    ) && (
+                    ) === false && (
                       <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
 
                         <p className="text-sm font-semibold text-yellow-800">
@@ -3193,7 +3505,8 @@ export default function EditBlogPage() {
                             index
                           )
                         }
-                        className="rounded-lg border bg-white px-3 py-2 text-xs font-semibold"
+                        disabled={isBusy}
+                        className="rounded-lg border bg-white px-3 py-2 text-xs font-semibold disabled:opacity-50"
                       >
                         + Text After
                       </button>
@@ -3205,7 +3518,8 @@ export default function EditBlogPage() {
                             index
                           )
                         }
-                        className="rounded-lg border bg-white px-3 py-2 text-xs font-semibold"
+                        disabled={isBusy}
+                        className="rounded-lg border bg-white px-3 py-2 text-xs font-semibold disabled:opacity-50"
                       >
                         + Image After
                       </button>
@@ -3242,7 +3556,8 @@ export default function EditBlogPage() {
                 )
               }
               disabled={
-                deleting
+                deleting ||
+                isBusy
               }
               className="rounded-xl bg-red-600 px-5 py-3 font-semibold text-white hover:bg-red-700 disabled:opacity-50"
             >
@@ -3251,46 +3566,90 @@ export default function EditBlogPage() {
 
           </section>
 
-          {/* BOTTOM */}
+          {/* BOTTOM ACTIONS */}
 
-          <div className="flex flex-col justify-end gap-3 sm:flex-row">
+          <div className="rounded-2xl border bg-gray-50 p-4 sm:p-5">
 
-            <button
-              type="button"
-              onClick={() =>
-                router.push(
-                  "/admin/blogs"
-                )
-              }
-              className="rounded-xl border bg-white px-6 py-3 font-semibold"
-            >
-              Cancel
-            </button>
+            <div className="mb-4">
+              <p className="text-sm font-semibold text-gray-900">
+                {form.published
+                  ? "This article is currently public."
+                  : "This article is currently a draft."}
+              </p>
 
-            <button
-              type="button"
-              onClick={() =>
-                setShowPreview(true)
-              }
-              className="rounded-xl border bg-white px-6 py-3 font-semibold"
-            >
-              👁 Preview
-            </button>
+              <p className="mt-1 text-xs text-gray-500">
+                Save your changes as a
+                draft or publish the
+                article when it is ready.
+              </p>
+            </div>
 
-            <button
-              type="button"
-              onClick={updateBlog}
-              disabled={
-                saving ||
-                deleting
-              }
-              className="rounded-xl bg-black px-7 py-3 font-semibold text-white disabled:opacity-50"
-            >
-              {saving
-                ? "Saving..."
-                : "Save Changes"}
-            </button>
+            <div className="flex flex-col justify-end gap-3 sm:flex-row">
 
+              <button
+                type="button"
+                onClick={() =>
+                  router.push(
+                    "/admin/blogs"
+                  )
+                }
+                disabled={isBusy}
+                className="rounded-xl border bg-white px-6 py-3 font-semibold disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setShowPreview(true)
+                }
+                disabled={isBusy}
+                className="rounded-xl border bg-white px-6 py-3 font-semibold disabled:opacity-50"
+              >
+                👁 Preview
+              </button>
+
+              <button
+                type="button"
+                onClick={saveDraft}
+                disabled={isBusy}
+                className="rounded-xl border border-gray-300 bg-white px-6 py-3 font-semibold text-gray-900 hover:bg-gray-50 disabled:opacity-50"
+              >
+                {saving
+                  ? "Saving..."
+                  : "📝 Save Draft"}
+              </button>
+
+              {form.published ? (
+                <button
+                  type="button"
+                  onClick={
+                    unpublishBlog
+                  }
+                  disabled={isBusy}
+                  className="rounded-xl border border-orange-300 bg-orange-50 px-6 py-3 font-semibold text-orange-700 hover:bg-orange-100 disabled:opacity-50"
+                >
+                  {unpublishing
+                    ? "Unpublishing..."
+                    : "↩ Unpublish"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={
+                    publishBlog
+                  }
+                  disabled={isBusy}
+                  className="rounded-xl bg-green-600 px-7 py-3 font-semibold text-white shadow-sm hover:bg-green-700 disabled:opacity-50"
+                >
+                  {publishing
+                    ? "Publishing..."
+                    : "🚀 Publish Now"}
+                </button>
+              )}
+
+            </div>
           </div>
 
         </div>
@@ -3455,7 +3814,7 @@ export default function EditBlogPage() {
                 disabled={
                   deleting
                 }
-                className="rounded-xl border bg-white px-5 py-3 font-semibold"
+                className="rounded-xl border bg-white px-5 py-3 font-semibold disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -3484,3 +3843,4 @@ export default function EditBlogPage() {
     </>
   );
 }
+

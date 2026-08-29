@@ -72,7 +72,6 @@ export default function AdminBlogsPage() {
           console.log("No authenticated admin user.");
 
           router.replace("/admin/login");
-
           return;
         }
 
@@ -112,16 +111,38 @@ export default function AdminBlogsPage() {
     try {
       setLoading(true);
 
+      /*
+       * IMPORTANT:
+       *
+       * admin=true tells the API that this is the
+       * admin dashboard and drafts must also be returned.
+       *
+       * Previously this was:
+       *
+       * /api/blogs?limit=1000
+       *
+       * which only returned published articles.
+       */
+
       const response = await fetch(
-        "/api/blogs?limit=1000",
+        "/api/blogs?admin=true&limit=1000",
         {
+          method: "GET",
           cache: "no-store",
+          headers: {
+            "Cache-Control": "no-cache",
+          },
         }
       );
 
       if (!response.ok) {
+        const errorData = await response.json().catch(
+          () => null
+        );
+
         throw new Error(
-          "Failed to load blogs"
+          errorData?.error ||
+            "Failed to load blogs."
         );
       }
 
@@ -134,7 +155,6 @@ export default function AdminBlogsPage() {
           : [];
 
       setBlogs(blogList);
-
       setCurrentPage(1);
     } catch (error) {
       console.error(
@@ -143,6 +163,12 @@ export default function AdminBlogsPage() {
       );
 
       setBlogs([]);
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to load articles."
+      );
     } finally {
       setLoading(false);
     }
@@ -175,7 +201,7 @@ export default function AdminBlogsPage() {
     title: string
   ) {
     const confirmed = window.confirm(
-      `Are you sure you want to delete "${title}"? This action cannot be undone.`
+      `Are you sure you want to delete "${title}"?\n\nThis action cannot be undone.`
     );
 
     if (!confirmed) {
@@ -189,12 +215,18 @@ export default function AdminBlogsPage() {
         `/api/blogs?id=${id}`,
         {
           method: "DELETE",
+          cache: "no-store",
         }
       );
 
+      const data = await response
+        .json()
+        .catch(() => null);
+
       if (!response.ok) {
         throw new Error(
-          "Failed to delete blog"
+          data?.error ||
+            "Failed to delete article."
         );
       }
 
@@ -203,6 +235,27 @@ export default function AdminBlogsPage() {
           (blog) => blog.id !== id
         )
       );
+
+      /*
+       * Keep pagination valid after deletion.
+       */
+
+      setCurrentPage((page) => {
+        const remaining =
+          blogs.length - 1;
+
+        const newTotalPages = Math.max(
+          1,
+          Math.ceil(
+            remaining / BLOGS_PER_PAGE
+          )
+        );
+
+        return Math.min(
+          page,
+          newTotalPages
+        );
+      });
     } catch (error) {
       console.error(
         "Error deleting blog:",
@@ -210,7 +263,9 @@ export default function AdminBlogsPage() {
       );
 
       alert(
-        "Failed to delete the article. Please try again."
+        error instanceof Error
+          ? error.message
+          : "Failed to delete the article. Please try again."
       );
     } finally {
       setDeletingId(null);
@@ -287,7 +342,9 @@ export default function AdminBlogsPage() {
     categories.forEach((category) => {
       counts[category] = blogs.filter(
         (blog) =>
-          blog.category?.trim().toLowerCase() ===
+          blog.category
+            ?.trim()
+            .toLowerCase() ===
           category.toLowerCase()
       ).length;
     });
@@ -370,7 +427,8 @@ export default function AdminBlogsPage() {
       pages.push(page);
     }
 
-    if (safeCurrentPage <
+    if (
+      safeCurrentPage <
       totalPages - 3
     ) {
       pages.push(-1);
@@ -587,13 +645,13 @@ export default function AdminBlogsPage() {
       </header>
 
       {/* =================================================
-          MAIN CONTENT
+          MAIN
       ================================================= */}
 
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
 
         {/* =================================================
-            MAIN STATS
+            STATS
         ================================================= */}
 
         <section className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -741,12 +799,12 @@ export default function AdminBlogsPage() {
         </section>
 
         {/* =================================================
-            ARTICLES SECTION
+            ARTICLES
         ================================================= */}
 
         <section className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
 
-          {/* SECTION HEADER */}
+          {/* HEADER */}
 
           <div className="border-b border-zinc-200 px-4 py-4 sm:px-6">
 
@@ -849,9 +907,7 @@ export default function AdminBlogsPage() {
 
           </div>
 
-          {/* =================================================
-              RESULTS INFO
-          ================================================= */}
+          {/* RESULTS INFO */}
 
           {filteredBlogs.length > 0 && (
             <div className="border-b border-zinc-100 bg-zinc-50/50 px-4 py-3 sm:px-6">
@@ -892,9 +948,7 @@ export default function AdminBlogsPage() {
             </div>
           )}
 
-          {/* =================================================
-              EMPTY STATE
-          ================================================= */}
+          {/* EMPTY */}
 
           {filteredBlogs.length === 0 ? (
 
@@ -950,9 +1004,8 @@ export default function AdminBlogsPage() {
           ) : (
 
             <>
-              {/* =================================================
-                  ARTICLE TABLE
-              ================================================= */}
+
+              {/* TABLE */}
 
               <div className="overflow-x-auto">
 
@@ -1074,9 +1127,9 @@ export default function AdminBlogsPage() {
 
                           <td className="px-6 py-4 text-sm text-zinc-500">
 
-                            {blog.created_at
+                            {blog.updated_at
                               ? new Date(
-                                  blog.created_at
+                                  blog.updated_at
                                 ).toLocaleDateString(
                                   "en-IN",
                                   {
@@ -1182,16 +1235,12 @@ export default function AdminBlogsPage() {
 
               </div>
 
-              {/* =================================================
-                  PAGINATION
-              ================================================= */}
+              {/* PAGINATION */}
 
               {totalPages > 1 && (
                 <div className="border-t border-zinc-200 bg-white px-4 py-4 sm:px-6">
 
                   <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-
-                    {/* RESULTS */}
 
                     <p className="text-sm text-zinc-500">
 
@@ -1205,8 +1254,6 @@ export default function AdminBlogsPage() {
                       </span>
 
                     </p>
-
-                    {/* PAGINATION BUTTONS */}
 
                     <nav
                       aria-label="Admin article pagination"
@@ -1258,7 +1305,7 @@ export default function AdminBlogsPage() {
 
                       </button>
 
-                      {/* PAGE NUMBERS */}
+                      {/* NUMBERS */}
 
                       <div className="flex items-center gap-1">
 
