@@ -1,16 +1,15 @@
-"use client";
 
-import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 
 type Blog = {
   id: string | number;
   title: string;
   slug: string;
-  excerpt?: string;
+  excerpt?: string | null;
   cover_image?: string | null;
-  category?: string;
-  author?: string;
+  category?: string | null;
+  author?: string | null;
   published_at?: string | null;
   created_at?: string | null;
 };
@@ -19,123 +18,166 @@ type Props = {
   category: string;
   title: string;
   description: string;
+  page?: number;
 };
 
 const BLOGS_PER_PAGE = 10;
 
-export default function BlogCategoryPage({
+type ApiResponse = {
+  success?: boolean;
+  blogs?: Blog[];
+  total?: number;
+  page?: number;
+  limit?: number;
+  totalPages?: number;
+  error?: string;
+};
+
+function getCategoryPath(category: string) {
+  const paths: Record<string, string> = {
+    AI: "/ai",
+    Tech: "/tech",
+    "How-To": "/how-to",
+    Apps: "/apps",
+    Security: "/security",
+    Explained: "/explained",
+  };
+
+  return paths[category] || `/${category.toLowerCase()}`;
+}
+
+async function getBlogs(
+  category: string,
+  page: number
+): Promise<{
+  blogs: Blog[];
+  total: number;
+}> {
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    "https://www.anatago.com";
+
+  const params = new URLSearchParams({
+    category,
+    page: String(page),
+    limit: String(BLOGS_PER_PAGE),
+  });
+
+  try {
+    const response = await fetch(
+      `${baseUrl}/api/blogs?${params.toString()}`,
+      {
+        method: "GET",
+        cache: "no-store",
+      }
+    );
+
+    if (!response.ok) {
+      console.error(
+        "CATEGORY BLOG API ERROR:",
+        response.status
+      );
+
+      return {
+        blogs: [],
+        total: 0,
+      };
+    }
+
+    const data =
+      (await response.json()) as ApiResponse;
+
+    return {
+      blogs: Array.isArray(data.blogs)
+        ? data.blogs
+        : [],
+      total:
+        Number.isFinite(Number(data.total))
+          ? Number(data.total)
+          : 0,
+    };
+  } catch (error) {
+    console.error(
+      "CATEGORY BLOG FETCH ERROR:",
+      error
+    );
+
+    return {
+      blogs: [],
+      total: 0,
+    };
+  }
+}
+
+function formatDate(
+  dateString?: string | null
+) {
+  if (!dateString) {
+    return "";
+  }
+
+  const date = new Date(dateString);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat(
+    "en-IN",
+    {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }
+  ).format(date);
+}
+
+export default async function BlogCategoryPage({
   category,
   title,
   description,
+  page = 1,
 }: Props) {
-  const [blogs, setBlogs] = useState<Blog[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
+  const currentPage = Math.max(
+    1,
+    Number.isFinite(page)
+      ? Math.floor(page)
+      : 1
+  );
 
-  async function loadBlogs(pageNumber: number) {
-    try {
-      setLoading(true);
-
-      const params = new URLSearchParams({
-        category,
-        page: String(pageNumber),
-        limit: String(BLOGS_PER_PAGE),
-      });
-
-      const response = await fetch(
-        `/api/blogs?${params.toString()}`,
-        {
-          method: "GET",
-          cache: "no-store",
-        }
-      );
-
-      const rawText = await response.text();
-
-      let data: any = null;
-
-      try {
-        data = rawText ? JSON.parse(rawText) : null;
-      } catch {
-        console.error(
-          "BLOG CATEGORY API RETURNED NON-JSON:",
-          rawText
-        );
-
-        throw new Error(
-          `Server returned an invalid response (${response.status}).`
-        );
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          data?.error ||
-            data?.message ||
-            `Failed to load blogs. Server returned ${response.status}.`
-        );
-      }
-
-      const nextBlogs = Array.isArray(data?.blogs)
-        ? data.blogs
-        : [];
-
-      setBlogs(nextBlogs);
-
-      setTotal(
-        Number.isFinite(Number(data?.total))
-          ? Number(data.total)
-          : 0
-      );
-    } catch (error) {
-      console.error(
-        "CATEGORY BLOG ERROR:",
-        error
-      );
-
-      setBlogs([]);
-      setTotal(0);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    loadBlogs(page);
-  }, [page, category]);
+  const {
+    blogs,
+    total,
+  } = await getBlogs(
+    category,
+    currentPage
+  );
 
   const totalPages = Math.ceil(
     total / BLOGS_PER_PAGE
   );
 
-  function changePage(newPage: number) {
-    if (
-      newPage < 1 ||
-      newPage > totalPages ||
-      newPage === page
-    ) {
-      return;
+  const safeCurrentPage =
+    totalPages > 0
+      ? Math.min(currentPage, totalPages)
+      : 1;
+
+  const categoryPath =
+    getCategoryPath(category);
+
+  function pageHref(
+    pageNumber: number
+  ) {
+    if (pageNumber <= 1) {
+      return categoryPath;
     }
 
-    setPage(newPage);
-
-    /*
-     * Use instant scrolling here.
-     *
-     * This avoids the Next.js warning caused by
-     * global scroll-behavior: smooth.
-     */
-    window.scrollTo({
-      top: 0,
-      behavior: "auto",
-    });
+    return `${categoryPath}?page=${pageNumber}`;
   }
 
   return (
     <main className="min-h-screen bg-gray-50">
-      {/* =====================================================
-          CATEGORY HEADER
-      ====================================================== */}
+      {/* CATEGORY HEADER */}
 
       <section className="border-b border-gray-200 bg-white">
         <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
@@ -155,35 +197,10 @@ export default function BlogCategoryPage({
         </div>
       </section>
 
-      {/* =====================================================
-          ARTICLES
-      ====================================================== */}
+      {/* ARTICLES */}
 
       <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
-        {loading ? (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map(
-              (_, index) => (
-                <div
-                  key={index}
-                  className="overflow-hidden rounded-2xl border border-gray-200 bg-white"
-                >
-                  <div className="aspect-[16/9] animate-pulse bg-gray-200" />
-
-                  <div className="space-y-3 p-5">
-                    <div className="h-3 w-20 animate-pulse rounded bg-gray-200" />
-
-                    <div className="h-5 animate-pulse rounded bg-gray-200" />
-
-                    <div className="h-4 animate-pulse rounded bg-gray-200" />
-
-                    <div className="h-4 w-4/5 animate-pulse rounded bg-gray-200" />
-                  </div>
-                </div>
-              )
-            )}
-          </div>
-        ) : blogs.length === 0 ? (
+        {blogs.length === 0 ? (
           <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center">
             <h2 className="text-xl font-bold text-gray-900">
               No articles yet
@@ -206,12 +223,13 @@ export default function BlogCategoryPage({
                   {/* IMAGE */}
 
                   {blog.cover_image ? (
-                    <div className="overflow-hidden">
-                      <img
+                    <div className="relative aspect-[16/9] overflow-hidden bg-gray-100">
+                      <Image
                         src={blog.cover_image}
                         alt={blog.title}
-                        loading="lazy"
-                        className="aspect-[16/9] w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                        className="object-cover transition duration-300 group-hover:scale-[1.02]"
                       />
                     </div>
                   ) : (
@@ -239,48 +257,72 @@ export default function BlogCategoryPage({
                       </p>
                     )}
 
-                    <div className="mt-4 text-xs font-semibold text-gray-400">
-                      Read article →
+                    <div className="mt-4 flex items-center justify-between gap-3">
+                      <span className="text-xs font-semibold text-gray-400">
+                        Read article →
+                      </span>
+
+                      {blog.published_at && (
+                        <span className="text-xs text-gray-400">
+                          {formatDate(
+                            blog.published_at
+                          )}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </Link>
               ))}
             </div>
 
-            {/* =================================================
-                PAGINATION
-            ================================================== */}
+            {/* PAGINATION */}
 
             {totalPages > 1 && (
-              <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={() =>
-                    changePage(page - 1)
-                  }
-                  disabled={page === 1}
-                  className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Previous
-                </button>
+              <nav
+                aria-label={`${title} pagination`}
+                className="mt-10 flex flex-wrap items-center justify-center gap-3"
+              >
+                {safeCurrentPage > 1 ? (
+                  <Link
+                    href={pageHref(
+                      safeCurrentPage - 1
+                    )}
+                    rel="prev"
+                    className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                  >
+                    Previous
+                  </Link>
+                ) : (
+                  <span className="cursor-not-allowed rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm font-medium text-gray-300">
+                    Previous
+                  </span>
+                )}
 
-                <span className="px-3 text-sm font-semibold text-gray-700">
-                  Page {page} of {totalPages}
+                <span
+                  aria-current="page"
+                  className="px-3 text-sm font-semibold text-gray-700"
+                >
+                  Page {safeCurrentPage} of{" "}
+                  {totalPages}
                 </span>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    changePage(page + 1)
-                  }
-                  disabled={
-                    page === totalPages
-                  }
-                  className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Next
-                </button>
-              </div>
+                {safeCurrentPage <
+                totalPages ? (
+                  <Link
+                    href={pageHref(
+                      safeCurrentPage + 1
+                    )}
+                    rel="next"
+                    className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                  >
+                    Next
+                  </Link>
+                ) : (
+                  <span className="cursor-not-allowed rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm font-medium text-gray-300">
+                    Next
+                  </span>
+                )}
+              </nav>
             )}
           </>
         )}
@@ -288,3 +330,4 @@ export default function BlogCategoryPage({
     </main>
   );
 }
+
