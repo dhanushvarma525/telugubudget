@@ -3,7 +3,7 @@ import Link from "next/link";
 const footerLinks = [
   { name: "About", href: "/about" },
   { name: "Contact", href: "/contact" },
-  { name: "Privacy Policy", href: "/privacy-policy" },
+  { name: "Privacy Policy", href: "/privacy" },
   { name: "Terms", href: "/terms" },
 ];
 
