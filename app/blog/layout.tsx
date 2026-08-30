@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
-const title = "Latest Technology Articles, Guides & Insights";
+const title = "AnantaGo — AI, Tech & Digital Life";
 
 const description =
-  "Explore the latest AI and technology stories, practical how-to guides, useful apps, cybersecurity tips, and simple technology explainers from AnantaGo.";
+  "AnantaGo covers AI, technology, apps, cybersecurity, how-to guides and easy-to-understand technology explainers.";
 
 export const metadata: Metadata = {
   title,
