@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -238,10 +239,26 @@ export async function GET(
      * =====================================================
      * CATEGORY FILTER
      * =====================================================
+     *
+     * IMPORTANT:
+     * Use ilike() instead of eq() so category matching
+     * is case-insensitive.
+     *
+     * This allows:
+     *
+     *   Security
+     *   security
+     *   SECURITY
+     *   SeCuRiTy
+     *
+     * to all match the same database category.
+     *
+     * This fixes existing articles without requiring
+     * you to manually edit their category values.
      */
 
     if (category) {
-      query = query.eq(
+      query = query.ilike(
         "category",
         category
       );
