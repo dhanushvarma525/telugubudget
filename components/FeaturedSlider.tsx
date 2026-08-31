@@ -1,3 +1,4 @@
+
 "use client";
 
 import Image from "next/image";
@@ -29,11 +30,17 @@ type Props = {
 function formatDate(dateString?: string | null) {
   if (!dateString) return "";
 
+  const date = new Date(dateString);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
   return new Intl.DateTimeFormat("en-IN", {
     day: "numeric",
     month: "short",
     year: "numeric",
-  }).format(new Date(dateString));
+  }).format(date);
 }
 
 export default function FeaturedSlider({
@@ -42,6 +49,8 @@ export default function FeaturedSlider({
   const [current, setCurrent] = useState(0);
   const [paused, setPaused] = useState(false);
 
+  const totalSlides = blogs.length;
+
   /*
    * ==========================================================
    * SAFETY
@@ -49,46 +58,44 @@ export default function FeaturedSlider({
    */
 
   useEffect(() => {
-    if (blogs.length === 0) {
+    if (totalSlides === 0) {
       setCurrent(0);
       return;
     }
 
-    if (current >= blogs.length) {
+    if (current >= totalSlides) {
       setCurrent(0);
     }
-  }, [blogs.length, current]);
+  }, [current, totalSlides]);
 
   /*
    * ==========================================================
    * AUTO SLIDE
    * ==========================================================
    *
-   * Changes slide every 4 seconds.
+   * Automatically changes the featured article
+   * every 4 seconds.
    *
-   * The actual animation is handled by the CSS transform
-   * transition on the slider track below.
+   * Pauses while the user is hovering over the slider.
    */
 
   useEffect(() => {
-    if (blogs.length <= 1 || paused) {
+    if (totalSlides <= 1 || paused) {
       return;
     }
 
     const timer = window.setInterval(() => {
-      setCurrent((previous) => {
-        if (previous >= blogs.length - 1) {
-          return 0;
-        }
-
-        return previous + 1;
-      });
+      setCurrent((previous) =>
+        previous >= totalSlides - 1
+          ? 0
+          : previous + 1
+      );
     }, 4000);
 
     return () => {
       window.clearInterval(timer);
     };
-  }, [blogs.length, paused]);
+  }, [paused, totalSlides]);
 
   /*
    * ==========================================================
@@ -97,23 +104,23 @@ export default function FeaturedSlider({
    */
 
   function previousSlide() {
-    setCurrent((previous) => {
-      if (previous === 0) {
-        return blogs.length - 1;
-      }
+    if (totalSlides <= 1) return;
 
-      return previous - 1;
-    });
+    setCurrent((previous) =>
+      previous === 0
+        ? totalSlides - 1
+        : previous - 1
+    );
   }
 
   function nextSlide() {
-    setCurrent((previous) => {
-      if (previous >= blogs.length - 1) {
-        return 0;
-      }
+    if (totalSlides <= 1) return;
 
-      return previous + 1;
-    });
+    setCurrent((previous) =>
+      previous >= totalSlides - 1
+        ? 0
+        : previous + 1
+    );
   }
 
   function goToSlide(index: number) {
@@ -132,51 +139,32 @@ export default function FeaturedSlider({
 
   return (
     <section
-      className="
-        mx-auto
-        w-full
-        max-w-[1180px]
-        px-4
-        py-8
-        sm:px-6
-        sm:py-10
-        lg:px-8
-        lg:py-12
-      "
+      className="mx-auto w-full max-w-[1280px] px-5 py-10 sm:px-6 sm:py-12 lg:px-8 lg:py-14"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
       {/* =====================================================
-          HEADER
+          SECTION HEADER
       ====================================================== */}
 
-      <div className="mb-5 flex items-end justify-between sm:mb-6">
+      <div className="mb-6 flex items-end justify-between gap-5">
         <div>
           <div className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-zinc-950" />
 
-            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500 sm:text-[11px]">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500 sm:text-[11px]">
               Featured
-            </span>
+            </p>
           </div>
 
-          <h2 className="mt-1.5 text-2xl font-black tracking-tight text-zinc-950 sm:text-3xl">
-            Latest from AnantaGo
+          <h2 className="mt-2 text-2xl font-black tracking-tight text-zinc-950 sm:text-3xl">
+            Featured stories
           </h2>
         </div>
 
         <Link
           href="/blog"
-          className="
-            hidden
-            text-sm
-            font-semibold
-            text-zinc-500
-            transition-colors
-            duration-200
-            hover:text-zinc-950
-            sm:block
-          "
+          className="hidden text-sm font-bold text-zinc-500 transition-colors hover:text-zinc-950 sm:block"
         >
           View all →
         </Link>
@@ -189,21 +177,16 @@ export default function FeaturedSlider({
       <div
         className="
           relative
-          w-full
           overflow-hidden
           rounded-2xl
           border
           border-zinc-200
           bg-white
-          shadow-[0_6px_24px_rgba(0,0,0,0.05)]
+          shadow-[0_8px_30px_rgba(0,0,0,0.05)]
         "
       >
         {/* ===================================================
             SLIDE TRACK
-
-            Every slide occupies 100% of the container.
-
-            transform moves the entire track smoothly.
         ==================================================== */}
 
         <div
@@ -216,10 +199,12 @@ export default function FeaturedSlider({
             will-change-transform
           "
           style={{
-            transform: `translateX(-${current * 100}%)`,
+            transform: `translate3d(-${
+              current * 100
+            }%, 0, 0)`,
           }}
         >
-          {blogs.map((blog) => (
+          {blogs.map((blog, index) => (
             <article
               key={blog.id}
               className="
@@ -227,69 +212,9 @@ export default function FeaturedSlider({
                 w-full
                 min-w-full
                 shrink-0
-                lg:grid-cols-[1.05fr_0.95fr]
+                lg:grid-cols-[0.95fr_1.05fr]
               "
             >
-              {/* =================================================
-                  IMAGE
-              ================================================== */}
-
-              <Link
-                href={`/blog/${blog.slug}`}
-                className="
-                  group
-                  relative
-                  order-1
-                  block
-                  aspect-[16/9]
-                  w-full
-                  overflow-hidden
-                  bg-zinc-100
-                  lg:order-2
-                  lg:aspect-auto
-                  lg:h-[370px]
-                "
-              >
-                {blog.cover_image ? (
-                  <Image
-                    src={blog.cover_image}
-                    alt={
-                      blog.cover_image_alt ||
-                      blog.title
-                    }
-                    fill
-                    priority={blog.id === blogs[0]?.id}
-                    sizes="
-                      (max-width: 1023px) 100vw,
-                      50vw
-                    "
-                    className="
-                      object-cover
-                      transition-transform
-                      duration-700
-                      ease-out
-                      group-hover:scale-[1.025]
-                    "
-                  />
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-zinc-400">
-                    AnantaGo
-                  </div>
-                )}
-
-                <div
-                  className="
-                    pointer-events-none
-                    absolute
-                    inset-0
-                    bg-gradient-to-t
-                    from-black/20
-                    via-transparent
-                    to-transparent
-                  "
-                />
-              </Link>
-
               {/* =================================================
                   CONTENT
               ================================================== */}
@@ -298,18 +223,17 @@ export default function FeaturedSlider({
                 className="
                   order-2
                   flex
-                  min-h-[250px]
+                  min-h-[290px]
                   flex-col
                   justify-center
                   px-5
-                  py-6
-                  sm:min-h-[275px]
+                  py-7
+                  sm:min-h-[320px]
                   sm:px-8
-                  sm:py-8
+                  sm:py-9
                   lg:order-1
-                  lg:min-h-0
+                  lg:min-h-[390px]
                   lg:px-10
-                  lg:py-8
                   xl:px-12
                 "
               >
@@ -339,18 +263,17 @@ export default function FeaturedSlider({
 
                 <h3
                   className="
-                    mt-3
+                    mt-4
                     line-clamp-3
                     max-w-[650px]
-                    text-[23px]
+                    text-[24px]
                     font-black
-                    leading-[1.13]
-                    tracking-[-0.03em]
+                    leading-[1.12]
+                    tracking-[-0.035em]
                     text-zinc-950
-                    sm:mt-4
                     sm:text-3xl
                     lg:text-[34px]
-                    xl:text-[38px]
+                    xl:text-[39px]
                   "
                 >
                   {blog.title}
@@ -362,8 +285,8 @@ export default function FeaturedSlider({
                   <p
                     className="
                       mt-3
-                      line-clamp-2
-                      max-w-[560px]
+                      line-clamp-3
+                      max-w-[590px]
                       text-sm
                       leading-6
                       text-zinc-600
@@ -384,16 +307,15 @@ export default function FeaturedSlider({
                     flex-wrap
                     items-center
                     gap-2
-                    text-[11px]
+                    text-[10px]
+                    font-medium
                     text-zinc-500
                     sm:text-xs
                   "
                 >
                   {blog.author && (
                     <>
-                      <span>
-                        {blog.author}
-                      </span>
+                      <span>{blog.author}</span>
 
                       <span className="text-zinc-300">
                         •
@@ -441,6 +363,7 @@ export default function FeaturedSlider({
                       duration-200
                       hover:bg-zinc-800
                       hover:shadow-md
+                      active:scale-[0.98]
                     "
                   >
                     Read article
@@ -458,15 +381,72 @@ export default function FeaturedSlider({
                   </Link>
                 </div>
               </div>
+
+              {/* =================================================
+                  IMAGE
+              ================================================== */}
+
+              <Link
+                href={`/blog/${blog.slug}`}
+                className="
+                  group
+                  relative
+                  order-1
+                  block
+                  aspect-[16/10]
+                  w-full
+                  overflow-hidden
+                  bg-zinc-100
+                  lg:order-2
+                  lg:aspect-auto
+                  lg:min-h-[390px]
+                "
+              >
+                {blog.cover_image ? (
+                  <Image
+                    src={blog.cover_image}
+                    alt={
+                      blog.cover_image_alt ||
+                      blog.title
+                    }
+                    fill
+                    priority={index === 0}
+                    sizes="(max-width: 1023px) 100vw, 52vw"
+                    className="
+                      object-cover
+                      transition-transform
+                      duration-700
+                      ease-out
+                      group-hover:scale-[1.025]
+                    "
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center bg-zinc-100 text-sm font-bold text-zinc-400">
+                    AnantaGo
+                  </div>
+                )}
+
+                <div
+                  className="
+                    pointer-events-none
+                    absolute
+                    inset-0
+                    bg-gradient-to-t
+                    from-black/25
+                    via-transparent
+                    to-transparent
+                  "
+                />
+              </Link>
             </article>
           ))}
         </div>
 
         {/* =====================================================
-            PREVIOUS
+            PREVIOUS BUTTON
         ====================================================== */}
 
-        {blogs.length > 1 && (
+        {totalSlides > 1 && (
           <button
             type="button"
             onClick={previousSlide}
@@ -474,43 +454,43 @@ export default function FeaturedSlider({
             className="
               absolute
               left-3
-              top-[25%]
+              top-[38%]
               z-20
               flex
               h-9
               w-9
+              -translate-y-1/2
               items-center
               justify-center
               rounded-full
               border
               border-white/60
-              bg-black/40
+              bg-black/45
               text-white
-              shadow-md
+              shadow-lg
               backdrop-blur-md
               transition-all
               duration-200
-              hover:bg-black/60
+              hover:bg-black/65
               active:scale-95
+              sm:left-4
               sm:h-10
               sm:w-10
-              lg:left-4
               lg:top-1/2
-              lg:-translate-y-1/2
             "
           >
             <ChevronLeft
-              className="h-4 w-4"
-              strokeWidth={2.3}
+              className="h-4 w-4 sm:h-5 sm:w-5"
+              strokeWidth={2.4}
             />
           </button>
         )}
 
         {/* =====================================================
-            NEXT
+            NEXT BUTTON
         ====================================================== */}
 
-        {blogs.length > 1 && (
+        {totalSlides > 1 && (
           <button
             type="button"
             onClick={nextSlide}
@@ -518,60 +498,50 @@ export default function FeaturedSlider({
             className="
               absolute
               right-3
-              top-[25%]
+              top-[38%]
               z-20
               flex
               h-9
               w-9
+              -translate-y-1/2
               items-center
               justify-center
               rounded-full
               border
               border-white/60
-              bg-black/40
+              bg-black/45
               text-white
-              shadow-md
+              shadow-lg
               backdrop-blur-md
               transition-all
               duration-200
-              hover:bg-black/60
+              hover:bg-black/65
               active:scale-95
+              sm:right-4
               sm:h-10
               sm:w-10
-              lg:right-4
               lg:top-1/2
-              lg:-translate-y-1/2
             "
           >
             <ChevronRight
-              className="h-4 w-4"
-              strokeWidth={2.3}
+              className="h-4 w-4 sm:h-5 sm:w-5"
+              strokeWidth={2.4}
             />
           </button>
         )}
       </div>
 
       {/* =====================================================
-          DOTS
+          SLIDE INDICATORS
       ====================================================== */}
 
-      {blogs.length > 1 && (
-        <div
-          className="
-            mt-4
-            flex
-            items-center
-            justify-center
-            gap-1.5
-          "
-        >
+      {totalSlides > 1 && (
+        <div className="mt-4 flex items-center justify-center gap-1.5">
           {blogs.map((blog, index) => (
             <button
               key={blog.id}
               type="button"
-              onClick={() =>
-                goToSlide(index)
-              }
+              onClick={() => goToSlide(index)}
               aria-label={`Show featured article ${
                 index + 1
               }`}
@@ -584,8 +554,7 @@ export default function FeaturedSlider({
                 h-1.5
                 rounded-full
                 transition-all
-                duration-500
-                ease-out
+                duration-300
                 ${
                   current === index
                     ? "w-7 bg-zinc-950"
@@ -606,10 +575,9 @@ export default function FeaturedSlider({
           href="/blog"
           className="
             text-xs
-            font-semibold
+            font-bold
             text-zinc-500
             transition-colors
-            duration-200
             hover:text-zinc-950
           "
         >

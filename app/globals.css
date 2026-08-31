@@ -1,3 +1,4 @@
+
 @import "tailwindcss";
 
 /* =========================================================
@@ -41,12 +42,6 @@ body {
    LINKS
 ========================================================= */
 
-/*
-  IMPORTANT:
-  Do NOT globally force a color on every <a>.
-  Tailwind text-white/text-black classes need to work.
-*/
-
 a {
   text-decoration: none;
 }
@@ -65,20 +60,21 @@ a {
 }
 
 /* =========================================================
+   IMAGES
+========================================================= */
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* =========================================================
    SELECTION
 ========================================================= */
 
 ::selection {
   background: #18181b;
   color: #ffffff;
-}
-
-/* =========================================================
-   IMAGES
-========================================================= */
-
-img {
-  max-width: 100%;
 }
 
 /* =========================================================
@@ -207,6 +203,46 @@ img {
 }
 
 /* =========================================================
+   HOME FADE UP
+========================================================= */
+
+.animate-home-fade-up {
+  animation: homeFadeUp 0.7s ease both;
+}
+
+@keyframes homeFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =========================================================
+   HOME FADE IN
+========================================================= */
+
+.animate-home-fade-in {
+  animation: homeFadeIn 0.8s ease both;
+}
+
+@keyframes homeFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* =========================================================
    FADE IN
 ========================================================= */
 
@@ -282,3 +318,4 @@ img {
     scroll-behavior: auto !important;
   }
 }
+

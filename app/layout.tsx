@@ -1,10 +1,9 @@
+
 import type { Metadata } from "next";
-import Script from "next/script";
 import "./globals.css";
 
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import NativeBanner from "@/components/NativeBanner";
 
 const siteUrl = "https://www.anatago.com";
 
@@ -12,12 +11,12 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
 
   title: {
-    default: "AnantaGo",
+    default: "AnantaGo — AI, Tech & Digital Life",
     template: "%s | AnantaGo",
   },
 
   description:
-    "AnantaGo covers AI, technology, apps, cybersecurity, how-to guides, and simple technology explainers.",
+    "AnantaGo covers AI, technology, apps, cybersecurity, practical how-to guides, and simple technology explainers.",
 
   applicationName: "AnantaGo",
 
@@ -29,7 +28,9 @@ export const metadata: Metadata = {
     "How-To Guides",
     "Apps",
     "Cybersecurity",
+    "Online Security",
     "Technology Explained",
+    "AI Tools",
     "AnantaGo",
   ],
 
@@ -54,6 +55,9 @@ export const metadata: Metadata = {
     googleBot: {
       index: true,
       follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
     },
   },
 
@@ -68,26 +72,33 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: siteUrl,
     siteName: "AnantaGo",
-    title: "AnantaGo",
+    title: "AnantaGo — AI, Tech & Digital Life",
     description:
-      "AI, technology, apps, cybersecurity, how-to guides, and simple technology explainers.",
+      "AI, technology, apps, cybersecurity, practical how-to guides, and simple technology explainers.",
   },
 
   twitter: {
     card: "summary_large_image",
-    title: "AnantaGo",
+    title: "AnantaGo — AI, Tech & Digital Life",
     description:
-      "AI, technology, apps, cybersecurity, how-to guides, and simple technology explainers.",
+      "AI, technology, apps, cybersecurity, practical how-to guides, and simple technology explainers.",
   },
 };
+
+/* =========================================================
+   WEBSITE STRUCTURED DATA
+========================================================= */
 
 const websiteSchema = {
   "@context": "https://schema.org",
   "@type": "WebSite",
+
   name: "AnantaGo",
   url: siteUrl,
+
   description:
-    "AnantaGo covers AI, technology, apps, cybersecurity, how-to guides, and simple technology explainers.",
+    "AnantaGo covers AI, technology, apps, cybersecurity, practical how-to guides, and simple technology explainers.",
+
   publisher: {
     "@type": "Organization",
     name: "AnantaGo",
@@ -95,19 +106,19 @@ const websiteSchema = {
   },
 };
 
+/* =========================================================
+   ROOT LAYOUT
+========================================================= */
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      data-scroll-behavior="smooth"
-    >
+    <html lang="en" data-scroll-behavior="smooth">
       <head>
-        {/* Website Structured Data */}
-        <Script
+        <script
           id="website-schema"
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -116,24 +127,16 @@ export default function RootLayout({
         />
       </head>
 
-      <body className="min-h-screen bg-white text-gray-900 antialiased">
+      <body className="min-h-screen bg-white text-zinc-900 antialiased">
         <Header />
-
-        {/* Monetag Native Banner */}
-        <NativeBanner />
 
         <main className="min-h-screen">
           {children}
         </main>
 
         <Footer />
-
-        {/* Adsterra Social Bar */}
-        <Script
-          src="https://pl31091980.profitableratecpmnetwork.com/02/fc/a9/02fca9aaaff8951cb5c8153a2571c0be.js"
-          strategy="afterInteractive"
-        />
       </body>
     </html>
   );
 }
+

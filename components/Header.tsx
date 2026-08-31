@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -21,7 +22,7 @@ export default function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-zinc-200 bg-white text-zinc-950 shadow-sm">
+    <header className="sticky top-0 z-50 w-full border-b border-zinc-200 bg-white/95 text-zinc-950 shadow-sm backdrop-blur-md">
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 sm:px-6 lg:px-8">
         {/* =====================================================
             LOGO
@@ -31,6 +32,7 @@ export default function Header() {
           href="/"
           onClick={closeMobileMenu}
           className="group flex shrink-0 flex-col"
+          aria-label="AnantaGo home"
         >
           <span className="text-2xl font-black tracking-[-0.04em] text-zinc-950 transition-colors group-hover:text-zinc-700">
             AnantaGo
@@ -47,28 +49,31 @@ export default function Header() {
 
         <nav
           aria-label="Main navigation"
-          className="hidden items-center gap-6 lg:flex"
+          className="hidden items-center gap-1 lg:flex"
         >
           {navigation.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="inline-flex h-10 items-center rounded-lg px-2.5 text-sm font-bold text-zinc-700 transition-colors hover:bg-zinc-100 hover:text-zinc-950"
+              className="inline-flex h-10 items-center rounded-lg px-3 text-sm font-bold text-zinc-700 transition-colors hover:bg-zinc-100 hover:text-zinc-950"
             >
               {item.name}
             </Link>
           ))}
 
-          {/* SEARCH BUTTON */}
+          {/* =================================================
+              SEARCH
+          ================================================== */}
 
           <Link
             href="/search"
-            aria-label="Search"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-300 bg-white text-zinc-800 transition-all hover:border-zinc-950 hover:bg-zinc-950 hover:text-white"
+            aria-label="Search AnantaGo"
+            className="ml-2 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-300 bg-white text-zinc-800 transition-all hover:border-zinc-950 hover:bg-zinc-950 hover:text-white"
           >
             <Search
               size={18}
               strokeWidth={2.2}
+              aria-hidden="true"
             />
           </Link>
         </nav>
@@ -86,17 +91,20 @@ export default function Header() {
               : "Open navigation menu"
           }
           aria-expanded={open}
-          className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-300 bg-white text-zinc-950 transition-all hover:border-zinc-950 hover:bg-zinc-950 hover:text-white lg:hidden"
+          aria-controls="mobile-navigation"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-300 bg-white text-zinc-950 transition-all hover:border-zinc-950 hover:bg-zinc-950 hover:text-white active:scale-95 lg:hidden"
         >
           {open ? (
             <X
               size={22}
               strokeWidth={2.3}
+              aria-hidden="true"
             />
           ) : (
             <Menu
               size={22}
               strokeWidth={2.3}
+              aria-hidden="true"
             />
           )}
         </button>
@@ -107,7 +115,10 @@ export default function Header() {
       ====================================================== */}
 
       {open && (
-        <div className="border-t border-zinc-200 bg-white lg:hidden">
+        <div
+          id="mobile-navigation"
+          className="border-t border-zinc-200 bg-white lg:hidden"
+        >
           <nav
             aria-label="Mobile navigation"
             className="mx-auto max-w-7xl px-5 py-3 sm:px-6"
@@ -123,7 +134,9 @@ export default function Header() {
               </Link>
             ))}
 
-            {/* MOBILE SEARCH */}
+            {/* =================================================
+                MOBILE SEARCH
+            ================================================== */}
 
             <Link
               href="/search"
@@ -133,6 +146,7 @@ export default function Header() {
               <Search
                 size={19}
                 strokeWidth={2.2}
+                aria-hidden="true"
               />
 
               <span>Search</span>
@@ -143,3 +157,4 @@ export default function Header() {
     </header>
   );
 }
+

@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import Script from "next/script";
 import { supabase } from "@/lib/supabase";
+import AdOne from "@/components/AdOne";
 
 type Blog = {
   id: number;
@@ -26,6 +28,7 @@ type Blog = {
   content_blocks: unknown;
   faqs: unknown;
 
+  published_at: string | null;
   created_at: string;
   updated_at: string;
 
@@ -43,12 +46,22 @@ type PageProps = {
    HELPERS
 ========================================================= */
 
-function formatDate(date: string) {
+function formatDate(date: string | null) {
+  if (!date) {
+    return "";
+  }
+
+  const parsedDate = new Date(date);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return "";
+  }
+
   return new Intl.DateTimeFormat("en-IN", {
     day: "numeric",
     month: "long",
     year: "numeric",
-  }).format(new Date(date));
+  }).format(parsedDate);
 }
 
 function getCategorySlug(category: string) {
@@ -79,7 +92,7 @@ function getString(
       typeof value === "string" &&
       value.trim()
     ) {
-      return value;
+      return value.trim();
     }
   }
 
@@ -99,6 +112,229 @@ function getArray(
   }
 
   return [];
+}
+
+/* =========================================================
+   JSON PARSER
+========================================================= */
+
+function parseJsonValue(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return value;
+  }
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
+/* =========================================================
+   FAQ NORMALIZER
+========================================================= */
+
+type NormalizedFAQ = {
+  question: string;
+  answer: string;
+};
+
+function normalizeFaqs(value: unknown): NormalizedFAQ[] {
+  if (value === null || value === undefined) {
+    return [];
+  }
+
+  let parsed: unknown = value;
+
+  /*
+   * If Supabase returns JSON as a string,
+   * try to parse it.
+   */
+  if (typeof parsed === "string") {
+    const trimmed = parsed.trim();
+
+    if (!trimmed) {
+      return [];
+    }
+
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      /*
+       * Plain text FAQ fallback.
+       *
+       * Example:
+       *
+       * Question: What is AI?
+       * Answer: AI means Artificial Intelligence.
+       *
+       * Question: Is AI useful?
+       * Answer: Yes.
+       */
+
+      const lines = trimmed
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+      const faqList: NormalizedFAQ[] = [];
+
+      let currentQuestion = "";
+      let currentAnswer = "";
+
+      for (const line of lines) {
+        const lower = line.toLowerCase();
+
+        if (
+          lower.startsWith("question:") ||
+          lower.startsWith("q:")
+        ) {
+          if (currentQuestion && currentAnswer) {
+            faqList.push({
+              question: currentQuestion,
+              answer: currentAnswer,
+            });
+          }
+
+          currentQuestion = line
+            .substring(line.indexOf(":") + 1)
+            .trim();
+
+          currentAnswer = "";
+        } else if (
+          lower.startsWith("answer:") ||
+          lower.startsWith("a:")
+        ) {
+          currentAnswer = line
+            .substring(line.indexOf(":") + 1)
+            .trim();
+        } else if (currentQuestion) {
+          currentAnswer +=
+            (currentAnswer ? " " : "") + line;
+        }
+      }
+
+      if (currentQuestion && currentAnswer) {
+        faqList.push({
+          question: currentQuestion,
+          answer: currentAnswer,
+        });
+      }
+
+      return faqList;
+    }
+  }
+
+  /*
+   * Handle:
+   *
+   * {
+   *   "faqs": [...]
+   * }
+   *
+   * {
+   *   "items": [...]
+   * }
+   *
+   * {
+   *   "questions": [...]
+   * }
+   *
+   * {
+   *   "data": [...]
+   * }
+   */
+
+  if (isObject(parsed)) {
+    if (Array.isArray(parsed.faqs)) {
+      parsed = parsed.faqs;
+    } else if (Array.isArray(parsed.items)) {
+      parsed = parsed.items;
+    } else if (Array.isArray(parsed.questions)) {
+      parsed = parsed.questions;
+    } else if (Array.isArray(parsed.data)) {
+      parsed = parsed.data;
+    }
+  }
+
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  const result: NormalizedFAQ[] = [];
+
+  for (const item of parsed) {
+    /*
+     * Object format:
+     *
+     * {
+     *   question: "...",
+     *   answer: "..."
+     * }
+     */
+
+    if (isObject(item)) {
+      const question = getString(item, [
+        "question",
+        "title",
+        "q",
+        "Question",
+      ]);
+
+      const answer = getString(item, [
+        "answer",
+        "content",
+        "a",
+        "description",
+        "Answer",
+      ]);
+
+      if (question && answer) {
+        result.push({
+          question,
+          answer,
+        });
+      }
+
+      continue;
+    }
+
+    /*
+     * Array format:
+     *
+     * [
+     *   ["Question", "Answer"],
+     *   ["Question 2", "Answer 2"]
+     * ]
+     */
+
+    if (Array.isArray(item)) {
+      const question =
+        typeof item[0] === "string"
+          ? item[0].trim()
+          : "";
+
+      const answer =
+        typeof item[1] === "string"
+          ? item[1].trim()
+          : "";
+
+      if (question && answer) {
+        result.push({
+          question,
+          answer,
+        });
+      }
+    }
+  }
+
+  return result;
 }
 
 /* =========================================================
@@ -150,21 +386,23 @@ async function getRelatedBlogs(
         published,
         featured,
         reading_time,
+        views,
+        published_at,
         created_at,
         updated_at,
         content_blocks,
         faqs,
         introduction,
         content,
-        views,
         seo_title,
         seo_description
       `)
       .eq("published", true)
       .eq("category", blog.category)
       .neq("id", blog.id)
-      .order("created_at", {
+      .order("published_at", {
         ascending: false,
+        nullsFirst: false,
       })
       .limit(6);
 
@@ -194,19 +432,21 @@ async function getRelatedBlogs(
         published,
         featured,
         reading_time,
+        views,
+        published_at,
         created_at,
         updated_at,
         content_blocks,
         faqs,
         introduction,
         content,
-        views,
         seo_title,
         seo_description
       `)
       .eq("published", true)
-      .order("created_at", {
+      .order("published_at", {
         ascending: false,
+        nullsFirst: false,
       })
       .limit(12);
 
@@ -229,71 +469,7 @@ async function getRelatedBlogs(
 }
 
 /* =========================================================
-   METADATA
-========================================================= */
-
-export async function generateMetadata({
-  params,
-}: PageProps) {
-  const { slug } = await params;
-
-  const blog = await getBlog(slug);
-
-  if (!blog) {
-    return {
-      title: "Article Not Found | AnantaGo",
-    };
-  }
-
-  return {
-    title:
-      blog.seo_title ||
-      `${blog.title} | AnantaGo`,
-
-    description:
-      blog.seo_description ||
-      blog.excerpt ||
-      "Useful technology stories, AI updates and practical guides from AnantaGo.",
-
-    openGraph: {
-      title:
-        blog.seo_title ||
-        blog.title,
-
-      description:
-        blog.seo_description ||
-        blog.excerpt ||
-        "",
-
-      type: "article",
-
-      publishedTime: blog.created_at,
-
-      modifiedTime: blog.updated_at,
-
-      authors: [
-        blog.author ||
-          "AnantaGo Editorial",
-      ],
-
-      ...(blog.cover_image
-        ? {
-            images: [
-              {
-                url: blog.cover_image,
-                alt:
-                  blog.cover_image_alt ||
-                  blog.title,
-              },
-            ],
-          }
-        : {}),
-    },
-  };
-}
-
-/* =========================================================
-   BLOCK RENDERER
+   CONTENT BLOCK RENDERER
 ========================================================= */
 
 function RenderBlock({
@@ -308,9 +484,6 @@ function RenderBlock({
       <p
         key={index}
         className="my-6 whitespace-pre-line"
-        style={{
-          color: "#3f3f46",
-        }}
       >
         {block}
       </p>
@@ -327,9 +500,7 @@ function RenderBlock({
     "kind",
   ]).toLowerCase();
 
-  /* =====================================================
-     TEXT
-  ===================================================== */
+  /* TEXT */
 
   if (
     type === "text" ||
@@ -359,9 +530,6 @@ function RenderBlock({
         <div
           key={index}
           className="my-6"
-          style={{
-            color: "#3f3f46",
-          }}
           dangerouslySetInnerHTML={{
             __html: text,
           }}
@@ -373,18 +541,13 @@ function RenderBlock({
       <p
         key={index}
         className="my-6 whitespace-pre-line"
-        style={{
-          color: "#3f3f46",
-        }}
       >
         {text}
       </p>
     );
   }
 
-  /* =====================================================
-     HEADING
-  ===================================================== */
+  /* HEADING */
 
   if (
     type === "heading" ||
@@ -407,18 +570,13 @@ function RenderBlock({
       <h2
         key={index}
         className="mt-14 mb-5 text-2xl font-black leading-tight tracking-tight sm:text-3xl"
-        style={{
-          color: "#09090b",
-        }}
       >
         {heading}
       </h2>
     );
   }
 
-  /* =====================================================
-     H3
-  ===================================================== */
+  /* H3 */
 
   if (
     type === "h3" ||
@@ -440,18 +598,13 @@ function RenderBlock({
       <h3
         key={index}
         className="mt-10 mb-4 text-xl font-extrabold leading-tight sm:text-2xl"
-        style={{
-          color: "#09090b",
-        }}
       >
         {heading}
       </h3>
     );
   }
 
-  /* =====================================================
-     IMAGE
-  ===================================================== */
+  /* IMAGE */
 
   if (
     type === "image" ||
@@ -499,12 +652,7 @@ function RenderBlock({
         </div>
 
         {caption && (
-          <figcaption
-            className="mt-3 text-center text-sm leading-6"
-            style={{
-              color: "#71717a",
-            }}
-          >
+          <figcaption className="mt-3 text-center text-sm leading-6 text-zinc-500">
             {caption}
           </figcaption>
         )}
@@ -512,9 +660,7 @@ function RenderBlock({
     );
   }
 
-  /* =====================================================
-     BULLET LIST
-  ===================================================== */
+  /* BULLET LIST */
 
   if (
     type === "bullet-list" ||
@@ -537,9 +683,6 @@ function RenderBlock({
       <ul
         key={index}
         className="my-7 list-disc space-y-3 pl-6 text-[1.08rem] leading-8"
-        style={{
-          color: "#3f3f46",
-        }}
       >
         {items.map(
           (item, itemIndex) => {
@@ -574,9 +717,7 @@ function RenderBlock({
     );
   }
 
-  /* =====================================================
-     ORDERED LIST
-  ===================================================== */
+  /* ORDERED LIST */
 
   if (
     type === "ordered-list" ||
@@ -598,9 +739,6 @@ function RenderBlock({
       <ol
         key={index}
         className="my-7 list-decimal space-y-3 pl-6 text-[1.08rem] leading-8"
-        style={{
-          color: "#3f3f46",
-        }}
       >
         {items.map(
           (item, itemIndex) => {
@@ -635,9 +773,7 @@ function RenderBlock({
     );
   }
 
-  /* =====================================================
-     QUOTE
-  ===================================================== */
+  /* QUOTE */
 
   if (
     type === "quote" ||
@@ -665,22 +801,12 @@ function RenderBlock({
         key={index}
         className="my-10 rounded-r-2xl border-l-4 border-zinc-900 bg-zinc-50 px-6 py-5"
       >
-        <p
-          className="text-lg font-medium italic leading-8"
-          style={{
-            color: "#52525b",
-          }}
-        >
+        <p className="text-lg font-medium italic leading-8 text-zinc-600">
           {text}
         </p>
 
         {author && (
-          <footer
-            className="mt-3 text-sm font-semibold"
-            style={{
-              color: "#71717a",
-            }}
-          >
+          <footer className="mt-3 text-sm font-semibold text-zinc-500">
             — {author}
           </footer>
         )}
@@ -688,9 +814,7 @@ function RenderBlock({
     );
   }
 
-  /* =====================================================
-     CALLOUT
-  ===================================================== */
+  /* CALLOUT */
 
   if (
     type === "callout" ||
@@ -721,23 +845,13 @@ function RenderBlock({
         className="my-9 rounded-2xl border border-zinc-200 bg-zinc-50 p-6"
       >
         {title && (
-          <h3
-            className="mb-2 text-base font-extrabold"
-            style={{
-              color: "#09090b",
-            }}
-          >
+          <h3 className="mb-2 text-base font-extrabold text-zinc-950">
             {title}
           </h3>
         )}
 
         {text && (
-          <p
-            className="whitespace-pre-line text-[1rem] leading-7"
-            style={{
-              color: "#3f3f46",
-            }}
-          >
+          <p className="whitespace-pre-line text-[1rem] leading-7 text-zinc-700">
             {text}
           </p>
         )}
@@ -745,9 +859,7 @@ function RenderBlock({
     );
   }
 
-  /* =====================================================
-     TABLE
-  ===================================================== */
+  /* TABLE */
 
   if (type === "table") {
     const headers = getArray(block, [
@@ -782,12 +894,10 @@ function RenderBlock({
                     headerIndex
                   ) => (
                     <th
-                      key={headerIndex}
-                      className="border-b border-zinc-200 px-5 py-4 text-left font-bold"
-                      style={{
-                        color:
-                          "#18181b",
-                      }}
+                      key={
+                        headerIndex
+                      }
+                      className="border-b border-zinc-200 px-5 py-4 text-left font-bold text-zinc-900"
                     >
                       {typeof header ===
                       "string"
@@ -844,11 +954,7 @@ function RenderBlock({
                           key={
                             cellIndex
                           }
-                          className="px-5 py-4 align-top leading-6"
-                          style={{
-                            color:
-                              "#3f3f46",
-                          }}
+                          className="px-5 py-4 align-top leading-6 text-zinc-700"
                         >
                           {typeof cell ===
                           "string"
@@ -878,9 +984,7 @@ function RenderBlock({
     );
   }
 
-  /* =====================================================
-     HTML
-  ===================================================== */
+  /* HTML */
 
   if (
     type === "html" ||
@@ -907,9 +1011,7 @@ function RenderBlock({
     );
   }
 
-  /* =====================================================
-     FALLBACK
-  ===================================================== */
+  /* FALLBACK */
 
   const fallbackText = getString(
     block,
@@ -927,9 +1029,6 @@ function RenderBlock({
       <p
         key={index}
         className="my-6 whitespace-pre-line"
-        style={{
-          color: "#3f3f46",
-        }}
       >
         {fallbackText}
       </p>
@@ -946,122 +1045,51 @@ function RenderBlock({
 function RenderFAQs({
   faqs,
 }: {
-  faqs: unknown;
+  faqs: NormalizedFAQ[];
 }) {
-  if (
-    !Array.isArray(faqs) ||
-    faqs.length === 0
-  ) {
-    return null;
-  }
-
-  const validFaqs =
-    faqs.filter((faq) => {
-      if (!isObject(faq)) {
-        return false;
-      }
-
-      return (
-        getString(faq, [
-          "question",
-          "title",
-        ]) &&
-        getString(faq, [
-          "answer",
-          "content",
-        ])
-      );
-    });
-
-  if (validFaqs.length === 0) {
+  if (!faqs || faqs.length === 0) {
     return null;
   }
 
   return (
     <section
-      className="mt-16 border-t border-zinc-200 pt-12"
-      style={{
-        color: "#09090b",
-      }}
+      id="faq"
+      className="mt-16 scroll-mt-24 border-t border-zinc-200 pt-12"
     >
       <div className="mb-8">
-        <p
-          className="text-xs font-bold uppercase tracking-[0.18em]"
-          style={{
-            color: "#71717a",
-          }}
-        >
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
           FAQ
         </p>
 
-        <h2
-          className="mt-2 text-2xl font-black tracking-tight sm:text-3xl"
-          style={{
-            color: "#09090b",
-          }}
-        >
+        <h2 className="mt-2 text-2xl font-black tracking-tight text-zinc-950 sm:text-3xl">
           Frequently Asked Questions
         </h2>
       </div>
 
       <div className="space-y-4">
-        {validFaqs.map(
-          (faq, index) => {
-            if (!isObject(faq)) {
-              return null;
-            }
+        {faqs.map(
+          (faq, index) => (
+            <details
+              key={`${faq.question}-${index}`}
+              className="group overflow-hidden rounded-2xl border border-zinc-200 bg-white"
+            >
+              <summary className="cursor-pointer list-none px-5 py-5 font-bold text-zinc-950 sm:px-6">
+                <div className="flex items-center justify-between gap-5">
+                  <span>
+                    {faq.question}
+                  </span>
 
-            const question =
-              getString(faq, [
-                "question",
-                "title",
-              ]);
-
-            const answer =
-              getString(faq, [
-                "answer",
-                "content",
-              ]);
-
-            return (
-              <details
-                key={index}
-                className="group rounded-2xl border border-zinc-200 bg-white"
-              >
-                <summary className="cursor-pointer list-none px-5 py-5 font-bold sm:px-6">
-                  <div className="flex items-center justify-between gap-5">
-                    <span
-                      style={{
-                        color:
-                          "#09090b",
-                      }}
-                    >
-                      {question}
-                    </span>
-
-                    <span
-                      className="shrink-0 text-xl transition group-open:rotate-45"
-                      style={{
-                        color:
-                          "#a1a1aa",
-                      }}
-                    >
-                      +
-                    </span>
-                  </div>
-                </summary>
-
-                <div
-                  className="border-t border-zinc-100 px-5 py-5 text-[1rem] leading-7 sm:px-6"
-                  style={{
-                    color: "#52525b",
-                  }}
-                >
-                  {answer}
+                  <span className="shrink-0 text-xl text-zinc-400 transition group-open:rotate-45">
+                    +
+                  </span>
                 </div>
-              </details>
-            );
-          }
+              </summary>
+
+              <div className="border-t border-zinc-100 px-5 py-5 text-base leading-7 text-zinc-600 sm:px-6">
+                {faq.answer}
+              </div>
+            </details>
+          )
         )}
       </div>
     </section>
@@ -1095,55 +1123,33 @@ function RelatedBlogCard({
           />
         </div>
       ) : (
-        <div
-          className="flex aspect-[16/9] items-center justify-center bg-zinc-100 text-sm font-semibold"
-          style={{
-            color: "#a1a1aa",
-          }}
-        >
+        <div className="flex aspect-[16/9] items-center justify-center bg-zinc-100 text-sm font-semibold text-zinc-400">
           AnantaGo
         </div>
       )}
 
       <div className="p-5">
         {blog.category && (
-          <p
-            className="text-xs font-bold uppercase tracking-[0.14em]"
-            style={{
-              color: "#71717a",
-            }}
-          >
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">
             {blog.category}
           </p>
         )}
 
-        <h3
-          className="mt-2 line-clamp-2 text-lg font-extrabold leading-tight tracking-tight"
-          style={{
-            color: "#09090b",
-          }}
-        >
+        <h3 className="mt-2 line-clamp-2 text-lg font-extrabold leading-tight tracking-tight text-zinc-950">
           {blog.title}
         </h3>
 
         {blog.excerpt && (
-          <p
-            className="mt-3 line-clamp-3 text-sm leading-6"
-            style={{
-              color: "#71717a",
-            }}
-          >
+          <p className="mt-3 line-clamp-3 text-sm leading-6 text-zinc-500">
             {blog.excerpt}
           </p>
         )}
 
-        <div
-          className="mt-4 text-xs font-semibold"
-          style={{
-            color: "#a1a1aa",
-          }}
-        >
-          {formatDate(blog.created_at)}
+        <div className="mt-4 text-xs font-semibold text-zinc-400">
+          {formatDate(
+            blog.published_at ||
+              blog.created_at
+          )}
         </div>
       </div>
     </Link>
@@ -1169,143 +1175,116 @@ export default async function BlogArticlePage({
     await getRelatedBlogs(blog);
 
   /* =====================================================
-     NORMALIZE CONTENT BLOCKS
+     CONTENT BLOCKS
   ===================================================== */
 
   let contentBlocks: unknown[] = [];
 
-  if (
-    Array.isArray(
+  const parsedBlocks =
+    parseJsonValue(
       blog.content_blocks
-    )
-  ) {
-    contentBlocks =
-      blog.content_blocks;
+    );
+
+  if (Array.isArray(parsedBlocks)) {
+    contentBlocks = parsedBlocks;
   }
 
-  if (
-    typeof blog.content_blocks ===
-    "string"
-  ) {
-    try {
-      const parsed = JSON.parse(
-        blog.content_blocks
-      );
+  /* =====================================================
+     FAQ
+  ===================================================== */
 
-      if (Array.isArray(parsed)) {
-        contentBlocks = parsed;
-      }
-    } catch {
-      console.error(
-        "Could not parse content_blocks"
-      );
-    }
-  }
+  const normalizedFaqs =
+    normalizeFaqs(blog.faqs);
+
+  const hasFaqs =
+    normalizedFaqs.length > 0;
+
+  console.log(
+    "BLOG FAQ:",
+    blog.slug,
+    normalizedFaqs
+  );
+
+  /* =====================================================
+     DATE
+  ===================================================== */
+
+  const articleDate =
+    blog.published_at ||
+    blog.created_at;
 
   return (
-    <main
-      className="min-h-screen"
-      style={{
-        backgroundColor:
-          "#ffffff",
-        color: "#09090b",
-      }}
-    >
+    <main className="min-h-screen bg-white text-zinc-950">
+
+      {/* =================================================
+          TOP AD
+          Uses your AdOne.tsx
+      ================================================= */}
+
+      <section
+        className="w-full border-b border-zinc-100 bg-white"
+        aria-label="Advertisement"
+      >
+        <div className="mx-auto flex w-full max-w-[1100px] justify-center px-2 py-4">
+          <AdOne />
+        </div>
+      </section>
+
       {/* =================================================
           ARTICLE HEADER
       ================================================= */}
 
-      <header
-        className="border-b border-zinc-200"
-        style={{
-          backgroundColor:
-            "#ffffff",
-        }}
-      >
+      <header className="border-b border-zinc-200 bg-white">
         <div className="mx-auto max-w-5xl px-5 pb-10 pt-12 sm:px-6 sm:pb-14 sm:pt-16 lg:px-8 lg:pt-20">
+
           {blog.category && (
             <Link
               href={`/${getCategorySlug(
                 blog.category
               )}`}
-              className="inline-flex rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition hover:opacity-80"
-              style={{
-                backgroundColor:
-                  "#09090b",
-                color: "#ffffff",
-              }}
+              className="inline-flex rounded-full bg-zinc-950 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white transition hover:opacity-80"
             >
               {blog.category}
             </Link>
           )}
 
-          <h1
-            className="mt-6 max-w-4xl text-4xl font-black leading-[1.05] tracking-[-0.04em] sm:text-5xl lg:text-6xl"
-            style={{
-              color: "#09090b",
-            }}
-          >
+          <h1 className="mt-6 max-w-4xl text-4xl font-black leading-[1.05] tracking-[-0.04em] text-zinc-950 sm:text-5xl lg:text-6xl">
             {blog.title}
           </h1>
 
           {blog.excerpt && (
-            <p
-              className="mt-6 max-w-3xl text-lg leading-8 sm:text-xl sm:leading-9"
-              style={{
-                color: "#52525b",
-              }}
-            >
+            <p className="mt-6 max-w-3xl text-lg leading-8 text-zinc-600 sm:text-xl sm:leading-9">
               {blog.excerpt}
             </p>
           )}
 
-          <div
-            className="mt-7 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm"
-            style={{
-              color: "#71717a",
-            }}
-          >
-            <span
-              className="font-semibold"
-              style={{
-                color: "#18181b",
-              }}
-            >
+          <div className="mt-7 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-zinc-500">
+
+            <span className="font-semibold text-zinc-900">
               {blog.author ||
                 "AnantaGo Editorial"}
             </span>
 
-            <span
-              style={{
-                color: "#d4d4d8",
-              }}
-            >
+            <span className="text-zinc-300">
               •
             </span>
 
-            <time dateTime={blog.created_at}>
-              {formatDate(
-                blog.created_at
-              )}
+            <time dateTime={articleDate}>
+              {formatDate(articleDate)}
             </time>
 
             {blog.reading_time && (
               <>
-                <span
-                  style={{
-                    color:
-                      "#d4d4d8",
-                  }}
-                >
+                <span className="text-zinc-300">
                   •
                 </span>
 
                 <span>
-                  {blog.reading_time}{" "}
-                  min read
+                  {blog.reading_time} min read
                 </span>
               </>
             )}
+
           </div>
         </div>
       </header>
@@ -1324,6 +1303,7 @@ export default async function BlogArticlePage({
                 blog.title
               }
               className="block h-auto max-h-[650px] w-full object-cover"
+              loading="eager"
             />
           </div>
         </section>
@@ -1333,23 +1313,12 @@ export default async function BlogArticlePage({
           ARTICLE
       ================================================= */}
 
-      <article
-        className="mx-auto max-w-3xl px-5 py-10 sm:px-6 sm:py-14 lg:px-8 lg:py-16"
-        style={{
-          color: "#3f3f46",
-        }}
-      >
-        {/* =================================================
-            INTRODUCTION
-        ================================================= */}
+      <article className="mx-auto max-w-3xl px-5 py-10 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
+
+        {/* INTRODUCTION */}
 
         {blog.introduction && (
-          <div
-            className="mb-10 text-[1.08rem] leading-8 sm:text-[1.12rem] sm:leading-8"
-            style={{
-              color: "#3f3f46",
-            }}
-          >
+          <div className="mb-10 text-[1.08rem] leading-8 text-zinc-700 sm:text-[1.12rem]">
             <p className="whitespace-pre-line">
               {blog.introduction}
             </p>
@@ -1361,12 +1330,7 @@ export default async function BlogArticlePage({
         ================================================= */}
 
         {contentBlocks.length > 0 && (
-          <div
-            className="article-content"
-            style={{
-              color: "#3f3f46",
-            }}
-          >
+          <div className="article-content">
             {contentBlocks.map(
               (block, index) => (
                 <RenderBlock
@@ -1387,9 +1351,6 @@ export default async function BlogArticlePage({
           blog.content && (
             <div
               className="article-content"
-              style={{
-                color: "#3f3f46",
-              }}
               dangerouslySetInnerHTML={{
                 __html: blog.content,
               }}
@@ -1400,9 +1361,11 @@ export default async function BlogArticlePage({
             FAQ
         ================================================= */}
 
-        <RenderFAQs
-          faqs={blog.faqs}
-        />
+        {hasFaqs && (
+          <RenderFAQs
+            faqs={normalizedFaqs}
+          />
+        )}
 
         {/* =================================================
             TAGS
@@ -1411,12 +1374,8 @@ export default async function BlogArticlePage({
         {blog.tags &&
           blog.tags.length > 0 && (
             <div className="mt-16 border-t border-zinc-200 pt-8">
-              <p
-                className="mb-4 text-xs font-bold uppercase tracking-[0.16em]"
-                style={{
-                  color: "#71717a",
-                }}
-              >
+
+              <p className="mb-4 text-xs font-bold uppercase tracking-[0.16em] text-zinc-500">
                 Topics
               </p>
 
@@ -1425,19 +1384,17 @@ export default async function BlogArticlePage({
                   (tag) => (
                     <span
                       key={tag}
-                      className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-medium"
-                      style={{
-                        color:
-                          "#52525b",
-                      }}
+                      className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-600"
                     >
                       {tag}
                     </span>
                   )
                 )}
               </div>
+
             </div>
           )}
+
       </article>
 
       {/* =================================================
@@ -1445,47 +1402,32 @@ export default async function BlogArticlePage({
       ================================================= */}
 
       {relatedBlogs.length > 0 && (
-        <section
-          className="border-t border-zinc-200"
-          style={{
-            backgroundColor:
-              "#fafafa",
-          }}
-        >
+        <section className="border-t border-zinc-200 bg-zinc-50">
           <div className="mx-auto max-w-6xl px-5 py-14 sm:px-6 sm:py-16 lg:px-8">
+
             <div className="mb-8 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+
               <div>
-                <p
-                  className="text-xs font-bold uppercase tracking-[0.18em]"
-                  style={{
-                    color: "#71717a",
-                  }}
-                >
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
                   Keep Reading
                 </p>
 
-                <h2
-                  className="mt-2 text-2xl font-black tracking-tight sm:text-3xl"
-                  style={{
-                    color: "#09090b",
-                  }}
-                >
+                <h2 className="mt-2 text-2xl font-black tracking-tight text-zinc-950 sm:text-3xl">
                   More from AnantaGo
                 </h2>
               </div>
 
               <Link
-                href="/"
-                className="text-sm font-bold"
-                style={{
-                  color: "#52525b",
-                }}
+                href="/blog"
+                className="text-sm font-bold text-zinc-600"
               >
                 Explore more →
               </Link>
+
             </div>
 
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+
               {relatedBlogs.map(
                 (relatedBlog) => (
                   <RelatedBlogCard
@@ -1498,6 +1440,7 @@ export default async function BlogArticlePage({
                   />
                 )
               )}
+
             </div>
           </div>
         </section>
@@ -1507,40 +1450,18 @@ export default async function BlogArticlePage({
           BOTTOM CTA
       ================================================= */}
 
-      <section
-        className="border-t border-zinc-800"
-        style={{
-          backgroundColor:
-            "#09090b",
-          color: "#ffffff",
-        }}
-      >
+      <section className="border-t border-zinc-800 bg-zinc-950 text-white">
         <div className="mx-auto max-w-5xl px-5 py-16 sm:px-6 lg:px-8">
-          <p
-            className="text-xs font-bold uppercase tracking-[0.2em]"
-            style={{
-              color: "#a1a1aa",
-            }}
-          >
+
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-400">
             AnantaGo
           </p>
 
-          <h2
-            className="mt-4 text-3xl font-black tracking-tight sm:text-4xl"
-            style={{
-              color: "#ffffff",
-              fontWeight: 900,
-            }}
-          >
+          <h2 className="mt-4 text-3xl font-black tracking-tight text-white sm:text-4xl">
             Technology, made easier.
           </h2>
 
-          <p
-            className="mt-4 max-w-2xl text-base leading-7"
-            style={{
-              color: "#a1a1aa",
-            }}
-          >
+          <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-400">
             Useful AI and technology
             stories, practical guides
             and clear explanations for
@@ -1549,12 +1470,7 @@ export default async function BlogArticlePage({
 
           <Link
             href="/"
-            className="mt-7 inline-flex items-center rounded-xl px-5 py-3 text-sm font-bold transition hover:opacity-90"
-            style={{
-              backgroundColor:
-                "#ffffff",
-              color: "#09090b",
-            }}
+            className="mt-7 inline-flex items-center rounded-xl bg-white px-5 py-3 text-sm font-bold text-zinc-950 transition hover:opacity-90"
           >
             Explore AnantaGo
 
@@ -1562,6 +1478,7 @@ export default async function BlogArticlePage({
               →
             </span>
           </Link>
+
         </div>
       </section>
 
@@ -1571,7 +1488,7 @@ export default async function BlogArticlePage({
 
       <style>{`
         .article-content {
-          color: #3f3f46 !important;
+          color: #3f3f46;
           font-size: 1.08rem;
           line-height: 1.9;
           overflow-wrap: break-word;
@@ -1579,13 +1496,13 @@ export default async function BlogArticlePage({
 
         .article-content p {
           margin: 1.35rem 0;
-          color: #3f3f46 !important;
+          color: #3f3f46;
         }
 
         .article-content h2 {
           margin-top: 3.75rem;
           margin-bottom: 1.25rem;
-          color: #09090b !important;
+          color: #09090b;
           font-size: 2rem;
           line-height: 1.2;
           font-weight: 850;
@@ -1595,7 +1512,7 @@ export default async function BlogArticlePage({
         .article-content h3 {
           margin-top: 2.75rem;
           margin-bottom: 1rem;
-          color: #09090b !important;
+          color: #09090b;
           font-size: 1.45rem;
           line-height: 1.3;
           font-weight: 800;
@@ -1603,7 +1520,7 @@ export default async function BlogArticlePage({
         }
 
         .article-content strong {
-          color: #09090b !important;
+          color: #09090b;
           font-weight: 750;
         }
 
@@ -1612,7 +1529,7 @@ export default async function BlogArticlePage({
         }
 
         .article-content a {
-          color: #18181b !important;
+          color: #18181b;
           font-weight: 650;
           text-decoration: underline;
           text-decoration-thickness: 1px;
@@ -1620,27 +1537,24 @@ export default async function BlogArticlePage({
         }
 
         .article-content a:hover {
-          color: #52525b !important;
+          color: #52525b;
         }
 
         .article-content ul {
           margin: 1.5rem 0;
           padding-left: 1.6rem;
           list-style: disc;
-          color: #3f3f46 !important;
         }
 
         .article-content ol {
           margin: 1.5rem 0;
           padding-left: 1.6rem;
           list-style: decimal;
-          color: #3f3f46 !important;
         }
 
         .article-content li {
           margin: 0.55rem 0;
           padding-left: 0.3rem;
-          color: #3f3f46 !important;
         }
 
         .article-content blockquote {
@@ -1649,7 +1563,7 @@ export default async function BlogArticlePage({
           border-radius: 0 1rem 1rem 0;
           background: #f4f4f5;
           padding: 1.25rem 1.5rem;
-          color: #52525b !important;
+          color: #52525b;
           font-style: italic;
         }
 
@@ -1657,9 +1571,9 @@ export default async function BlogArticlePage({
           margin: 2rem 0;
           overflow-x: auto;
           border-radius: 1rem;
-          background: #18181b !important;
+          background: #18181b;
           padding: 1.25rem;
-          color: #f4f4f5 !important;
+          color: #f4f4f5;
           font-family:
             ui-monospace,
             SFMono-Regular,
@@ -1675,7 +1589,7 @@ export default async function BlogArticlePage({
           border-radius: 0.35rem;
           background: #f4f4f5;
           padding: 0.15rem 0.35rem;
-          color: #18181b !important;
+          color: #18181b;
           font-family:
             ui-monospace,
             SFMono-Regular,
@@ -1687,8 +1601,8 @@ export default async function BlogArticlePage({
         }
 
         .article-content pre code {
-          background: transparent !important;
-          color: #f4f4f5 !important;
+          background: transparent;
+          color: #f4f4f5;
           padding: 0;
         }
 
@@ -1711,7 +1625,7 @@ export default async function BlogArticlePage({
         .article-content figcaption {
           margin-top: 0.75rem;
           text-align: center;
-          color: #71717a !important;
+          color: #71717a;
           font-size: 0.8rem;
           line-height: 1.5;
         }
@@ -1734,12 +1648,12 @@ export default async function BlogArticlePage({
 
         .article-content th {
           background: #f4f4f5;
-          color: #18181b !important;
+          color: #18181b;
           font-weight: 700;
         }
 
         .article-content td {
-          color: #3f3f46 !important;
+          color: #3f3f46;
         }
 
         .article-content tr:nth-child(even) td {

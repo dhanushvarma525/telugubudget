@@ -1,41 +1,36 @@
 import Link from "next/link";
-import FeaturedSlider from "../components/FeaturedSlider";
+import FeaturedSlider from "@/components/FeaturedSlider";
+import AdBanner from "@/components/AdBanner";
 
 const categories = [
   {
     name: "AI",
-    description:
-      "AI news, tools, models and practical insights.",
+    description: "AI news, tools, models and practical insights.",
     href: "/ai",
   },
   {
     name: "Tech",
-    description:
-      "Technology news, trends and useful developments.",
+    description: "Technology news, trends and useful developments.",
     href: "/tech",
   },
   {
     name: "How-To",
-    description:
-      "Simple guides that help you get things done.",
+    description: "Simple guides that help you get things done.",
     href: "/how-to",
   },
   {
     name: "Apps",
-    description:
-      "Useful apps, software and digital tools.",
+    description: "Useful apps, software and digital tools.",
     href: "/apps",
   },
   {
     name: "Security",
-    description:
-      "Privacy, cybersecurity, scams and online safety.",
+    description: "Privacy, cybersecurity, scams and online safety.",
     href: "/security",
   },
   {
     name: "Explained",
-    description:
-      "Complex technology explained in simple language.",
+    description: "Complex technology explained in simple language.",
     href: "/explained",
   },
 ];
@@ -56,11 +51,15 @@ type Blog = {
   published_at?: string | null;
 };
 
+/* =========================================================
+   BLOG FETCH
+========================================================= */
+
 async function getBlogs(): Promise<Blog[]> {
   try {
     const baseUrl =
       process.env.NEXT_PUBLIC_SITE_URL ||
-      "http://localhost:3000";
+      "https://www.anatago.com";
 
     const response = await fetch(
       `${baseUrl}/api/blogs?published=true&limit=100`,
@@ -84,17 +83,21 @@ async function getBlogs(): Promise<Blog[]> {
       ? data.blogs
       : [];
 
-    return articles.sort((a, b) => {
-      const dateA = new Date(
-        a.published_at || a.created_at
-      ).getTime();
+    return articles
+      .filter(
+        (article) => article.published !== false
+      )
+      .sort((a, b) => {
+        const dateA = new Date(
+          a.published_at || a.created_at
+        ).getTime();
 
-      const dateB = new Date(
-        b.published_at || b.created_at
-      ).getTime();
+        const dateB = new Date(
+          b.published_at || b.created_at
+        ).getTime();
 
-      return dateB - dateA;
-    });
+        return dateB - dateA;
+      });
   } catch (error) {
     console.error(
       "HOME BLOG FETCH ERROR:",
@@ -105,15 +108,31 @@ async function getBlogs(): Promise<Blog[]> {
   }
 }
 
-function formatDate(dateString?: string | null) {
+/* =========================================================
+   DATE FORMAT
+========================================================= */
+
+function formatDate(
+  dateString?: string | null
+) {
   if (!dateString) return "";
+
+  const date = new Date(dateString);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
 
   return new Intl.DateTimeFormat("en-IN", {
     day: "numeric",
     month: "short",
     year: "numeric",
-  }).format(new Date(dateString));
+  }).format(date);
 }
+
+/* =========================================================
+   ARTICLE CARD
+========================================================= */
 
 function ArticleCard({
   article,
@@ -121,10 +140,26 @@ function ArticleCard({
   article: Blog;
 }) {
   return (
-    <article className="group overflow-hidden rounded-xl border border-zinc-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-zinc-300 hover:shadow-lg">
+    <article
+      className="
+        group
+        overflow-hidden
+        rounded-lg
+        border
+        border-zinc-200
+        bg-white
+        transition-all
+        duration-300
+        hover:-translate-y-1
+        hover:border-zinc-300
+        hover:shadow-lg
+        sm:rounded-xl
+      "
+    >
       <Link
         href={`/blog/${article.slug}`}
         className="block"
+        aria-label={`Read ${article.title}`}
       >
         <div className="relative aspect-[16/10] overflow-hidden bg-zinc-100">
           {article.cover_image ? (
@@ -135,7 +170,15 @@ function ArticleCard({
                 article.title
               }
               loading="lazy"
-              className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+              decoding="async"
+              className="
+                h-full
+                w-full
+                object-cover
+                transition
+                duration-500
+                group-hover:scale-[1.04]
+              "
             />
           ) : (
             <div className="flex h-full items-center justify-center text-xs font-medium text-zinc-400">
@@ -144,24 +187,74 @@ function ArticleCard({
           )}
         </div>
 
-        <div className="p-4 sm:p-5">
+        <div className="p-2 sm:p-5">
           {article.category && (
-            <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-zinc-500 sm:text-[10px]">
+            <span
+              className="
+                block
+                truncate
+                text-[7px]
+                font-bold
+                uppercase
+                tracking-[0.1em]
+                text-zinc-500
+                sm:text-[10px]
+                sm:tracking-[0.14em]
+              "
+            >
               {article.category}
             </span>
           )}
 
-          <h3 className="mt-2 line-clamp-2 text-base font-black leading-tight tracking-tight text-zinc-950 sm:text-lg">
+          <h3
+            className="
+              mt-1
+              line-clamp-2
+              text-[10px]
+              font-black
+              leading-[1.25]
+              tracking-tight
+              text-zinc-950
+              sm:mt-2
+              sm:text-lg
+              sm:leading-tight
+            "
+          >
             {article.title}
           </h3>
 
           {article.excerpt && (
-            <p className="mt-2 line-clamp-2 text-xs leading-5 text-zinc-600 sm:text-sm sm:leading-6">
+            <p
+              className="
+                mt-2
+                hidden
+                line-clamp-2
+                text-xs
+                leading-5
+                text-zinc-600
+                sm:block
+                sm:text-sm
+                sm:leading-6
+              "
+            >
               {article.excerpt}
             </p>
           )}
 
-          <div className="mt-4 flex flex-wrap items-center gap-1.5 text-[9px] font-medium text-zinc-400 sm:text-[10px]">
+          <div
+            className="
+              mt-2
+              flex
+              items-center
+              gap-1
+              text-[7px]
+              font-medium
+              text-zinc-400
+              sm:mt-4
+              sm:gap-1.5
+              sm:text-[10px]
+            "
+          >
             <span>
               {formatDate(
                 article.published_at ||
@@ -171,18 +264,29 @@ function ArticleCard({
 
             {article.reading_time && (
               <>
-                <span>•</span>
+                <span aria-hidden="true">
+                  •
+                </span>
 
-                <span>
-                  {article.reading_time} min read
+                <span className="truncate">
+                  {article.reading_time} min
                 </span>
               </>
             )}
           </div>
 
-          <div className="mt-4 text-xs font-bold text-zinc-950 sm:text-sm">
+          <div className="mt-3 hidden text-sm font-bold text-zinc-950 sm:block">
             Read more
-            <span className="ml-1 inline-block transition-transform group-hover:translate-x-1">
+
+            <span
+              aria-hidden="true"
+              className="
+                ml-1
+                inline-block
+                transition-transform
+                group-hover:translate-x-1
+              "
+            >
               →
             </span>
           </div>
@@ -192,6 +296,10 @@ function ArticleCard({
   );
 }
 
+/* =========================================================
+   CATEGORY SECTION
+========================================================= */
+
 function CategorySection({
   category,
   articles,
@@ -199,35 +307,99 @@ function CategorySection({
   category: (typeof categories)[number];
   articles: Blog[];
 }) {
-  if (!articles.length) return null;
+  if (!articles.length) {
+    return null;
+  }
 
   return (
-    <section className="border-t border-zinc-200">
-      <div className="mx-auto max-w-[1280px] px-5 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
-        <div className="mb-6 flex items-end justify-between gap-4">
+    <section
+      aria-labelledby={`category-${category.name.toLowerCase()}`}
+      className="border-t border-zinc-200"
+    >
+      <div
+        className="
+          mx-auto
+          max-w-[1280px]
+          px-5
+          py-12
+          sm:px-6
+          sm:py-14
+          lg:px-8
+          lg:py-16
+        "
+      >
+        <div
+          className="
+            mb-5
+            flex
+            items-end
+            justify-between
+            gap-3
+            sm:mb-6
+            sm:gap-4
+          "
+        >
           <div>
             <div className="flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full bg-zinc-950" />
 
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">
+              <p
+                className="
+                  text-[9px]
+                  font-bold
+                  uppercase
+                  tracking-[0.16em]
+                  text-zinc-500
+                  sm:text-[10px]
+                  sm:tracking-[0.18em]
+                "
+              >
                 {category.name}
               </p>
             </div>
 
-            <h2 className="mt-2 text-2xl font-black tracking-tight text-zinc-950 sm:text-3xl">
+            <h2
+              id={`category-${category.name.toLowerCase()}`}
+              className="
+                mt-2
+                text-xl
+                font-black
+                tracking-tight
+                text-zinc-950
+                sm:text-3xl
+              "
+            >
               Latest {category.name}
             </h2>
           </div>
 
           <Link
             href={category.href}
-            className="text-xs font-bold text-zinc-500 transition hover:text-zinc-950 sm:text-sm"
+            className="
+              shrink-0
+              text-[10px]
+              font-bold
+              text-zinc-500
+              transition
+              hover:text-zinc-950
+              sm:text-sm
+            "
           >
             View all →
           </Link>
         </div>
 
-        <div className="grid grid-cols-3 gap-3 sm:gap-5 lg:gap-6">
+        <div
+          className="
+            grid
+            grid-cols-3
+            gap-2
+            sm:grid-cols-2
+            sm:gap-5
+            lg:grid-cols-3
+            lg:gap-6
+          "
+        >
           {articles.map((article) => (
             <ArticleCard
               key={article.id}
@@ -240,53 +412,43 @@ function CategorySection({
   );
 }
 
+/* =========================================================
+   HOME PAGE
+========================================================= */
+
 export default async function HomePage() {
   const blogs = await getBlogs();
-
-  /*
-   * ==========================================================
-   * FEATURED
-   * Latest 5 featured articles
-   * ==========================================================
-   */
 
   const featuredBlogs = blogs
     .filter((blog) => blog.featured)
     .slice(0, 5);
 
-  /*
-   * ==========================================================
-   * LATEST
-   * Keep the latest section separate from featured stories
-   * ==========================================================
-   */
+  const featuredIds = new Set(
+    featuredBlogs.map((blog) => blog.id)
+  );
 
   const latestArticles = blogs
     .filter(
-      (blog) =>
-        !featuredBlogs.some(
-          (featured) =>
-            featured.id === blog.id
-        )
+      (blog) => !featuredIds.has(blog.id)
     )
     .slice(0, 6);
 
-  /*
-   * ==========================================================
-   * CATEGORY ARTICLES
-   * ==========================================================
-   */
-
-  const categoryArticles: Record<string, Blog[]> = {};
+  const categoryArticles: Record<
+    string,
+    Blog[]
+  > = {};
 
   categories.forEach((category) => {
-    categoryArticles[category.name] = blogs
-      .filter(
-        (blog) =>
-          blog.category?.toLowerCase() ===
-          category.name.toLowerCase()
-      )
-      .slice(0, 3);
+    categoryArticles[category.name] =
+      blogs
+        .filter(
+          (blog) =>
+            blog.category
+              ?.trim()
+              .toLowerCase() ===
+            category.name.toLowerCase()
+        )
+        .slice(0, 3);
   });
 
   return (
@@ -294,20 +456,43 @@ export default async function HomePage() {
 
       {/* =====================================================
           HERO
-      ====================================================== */}
+      ===================================================== */}
 
       <section className="relative overflow-hidden bg-[#0b0b0d] text-white">
+
         <div className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full bg-white/[0.035] blur-3xl" />
 
         <div className="pointer-events-none absolute -bottom-32 -left-32 h-80 w-80 rounded-full bg-white/[0.025] blur-3xl" />
 
         <div className="relative mx-auto max-w-[1280px] px-5 sm:px-6 lg:px-8">
-          <div className="grid min-h-[520px] items-center gap-10 py-16 lg:grid-cols-[1.1fr_0.9fr] lg:py-20">
 
-            {/* LEFT */}
+          <div
+            className="
+              grid
+              min-h-[520px]
+              items-center
+              gap-10
+              py-16
+              lg:grid-cols-[1.1fr_0.9fr]
+              lg:py-20
+            "
+          >
 
-            <div className="max-w-3xl animate-home-fade-up">
-              <div className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.06] px-3.5 py-1.5">
+            <div className="animate-home-fade-up max-w-3xl">
+
+              <div
+                className="
+                  inline-flex
+                  items-center
+                  rounded-full
+                  border
+                  border-white/10
+                  bg-white/[0.06]
+                  px-3.5
+                  py-1.5
+                "
+              >
+
                 <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-300">
                   AI
                 </span>
@@ -323,11 +508,24 @@ export default async function HomePage() {
                 <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-300">
                   DIGITAL LIFE
                 </span>
+
               </div>
 
-              <h1 className="mt-6 text-5xl font-black leading-[0.96] tracking-[-0.05em] text-white sm:text-6xl lg:text-7xl">
+              <h1
+                className="
+                  mt-6
+                  text-5xl
+                  font-black
+                  leading-[0.96]
+                  tracking-[-0.05em]
+                  text-white
+                  sm:text-6xl
+                  lg:text-7xl
+                "
+              >
                 Technology,
                 <br />
+
                 <span className="text-zinc-400">
                   made easier.
                 </span>
@@ -340,33 +538,75 @@ export default async function HomePage() {
               </p>
 
               <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+
                 <Link
                   href="/ai"
-                  className="inline-flex h-11 items-center justify-center rounded-lg bg-white px-5 text-sm font-bold text-black transition hover:bg-zinc-200"
+                  className="
+                    inline-flex
+                    h-11
+                    items-center
+                    justify-center
+                    rounded-lg
+                    bg-white
+                    px-5
+                    text-sm
+                    font-bold
+                    text-black
+                    transition
+                    hover:bg-zinc-200
+                  "
                 >
                   Explore AI
-                  <span className="ml-2">→</span>
+
+                  <span className="ml-2">
+                    →
+                  </span>
                 </Link>
 
                 <Link
                   href="/blog"
-                  className="inline-flex h-11 items-center justify-center rounded-lg border border-white/20 bg-white/[0.06] px-5 text-sm font-bold text-white transition hover:bg-white/10"
+                  className="
+                    inline-flex
+                    h-11
+                    items-center
+                    justify-center
+                    rounded-lg
+                    border
+                    border-white/20
+                    bg-white/[0.06]
+                    px-5
+                    text-sm
+                    font-bold
+                    text-white
+                    transition
+                    hover:bg-white/10
+                  "
                 >
                   Latest Articles
-                  <span className="ml-2">→</span>
+
+                  <span className="ml-2">
+                    →
+                  </span>
                 </Link>
+
               </div>
+
             </div>
 
-            {/* RIGHT VISUAL */}
+            {/* DESKTOP HERO VISUAL */}
 
-            <div className="hidden justify-end lg:flex animate-home-fade-in">
+            <div className="hidden justify-end animate-home-fade-in lg:flex">
+
               <div className="relative w-full max-w-[390px]">
+
                 <div className="absolute inset-8 rounded-full bg-white/[0.04] blur-3xl" />
 
                 <div className="relative rounded-3xl border border-white/10 bg-white/[0.035] p-2 shadow-2xl">
+
                   <div className="rounded-2xl border border-white/10 bg-[#111114] p-7">
+
                     <div className="flex items-center justify-between">
+
                       <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
                         ANANTAGO
                       </span>
@@ -374,9 +614,11 @@ export default async function HomePage() {
                       <span className="rounded-full border border-white/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-zinc-400">
                         Digital
                       </span>
+
                     </div>
 
                     <div className="my-12">
+
                       <div className="mb-4 h-px w-12 bg-white/30" />
 
                       <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
@@ -393,9 +635,11 @@ export default async function HomePage() {
                         Clear stories. Useful guides.
                         Better digital decisions.
                       </p>
+
                     </div>
 
                     <div className="flex items-center justify-between border-t border-white/10 pt-4">
+
                       <span className="text-[10px] text-zinc-500">
                         AI & Technology
                       </span>
@@ -403,10 +647,15 @@ export default async function HomePage() {
                       <span className="text-sm text-white">
                         →
                       </span>
+
                     </div>
+
                   </div>
+
                 </div>
+
               </div>
+
             </div>
 
           </div>
@@ -414,91 +663,179 @@ export default async function HomePage() {
       </section>
 
       {/* =====================================================
-          FEATURED
-      ====================================================== */}
+          HOMEPAGE AD
+          ONLY ONE HOMEPAGE AD
+          728 × 90
+      ===================================================== */}
+
+      <AdBanner position="top" />
+
+      {/* =====================================================
+          FEATURED STORIES
+      ===================================================== */}
 
       {featuredBlogs.length > 0 && (
-        <FeaturedSlider blogs={featuredBlogs} />
+        <FeaturedSlider
+          blogs={featuredBlogs}
+        />
       )}
 
       {/* =====================================================
           LATEST STORIES
-      ====================================================== */}
+      ===================================================== */}
 
       <section className="border-y border-zinc-200 bg-zinc-50">
-        <div className="mx-auto max-w-[1280px] px-5 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
-          <div className="mb-7 flex items-end justify-between gap-5">
+
+        <div
+          className="
+            mx-auto
+            max-w-[1280px]
+            px-5
+            py-12
+            sm:px-6
+            sm:py-14
+            lg:px-8
+            lg:py-16
+          "
+        >
+
+          <div className="mb-6 flex items-end justify-between gap-4 sm:mb-7">
+
             <div>
+
               <div className="flex items-center gap-2">
+
                 <span className="h-1.5 w-1.5 rounded-full bg-zinc-950" />
 
                 <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">
                   Latest
                 </p>
+
               </div>
 
               <h2 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">
                 Latest stories
               </h2>
+
             </div>
 
             <Link
               href="/blog"
-              className="text-xs font-bold text-zinc-500 transition hover:text-zinc-950 sm:text-sm"
+              className="
+                shrink-0
+                text-[10px]
+                font-bold
+                text-zinc-500
+                transition
+                hover:text-zinc-950
+                sm:text-sm
+              "
             >
               View all →
             </Link>
+
           </div>
 
           {latestArticles.length > 0 ? (
-            <div className="grid grid-cols-3 gap-3 sm:gap-5 lg:gap-6">
-              {latestArticles.map((article) => (
-                <ArticleCard
-                  key={article.id}
-                  article={article}
-                />
-              ))}
+
+            <div
+              className="
+                grid
+                grid-cols-3
+                gap-2
+                sm:grid-cols-2
+                sm:gap-5
+                lg:grid-cols-3
+                lg:gap-6
+              "
+            >
+
+              {latestArticles.map(
+                (article) => (
+                  <ArticleCard
+                    key={article.id}
+                    article={article}
+                  />
+                )
+              )}
+
             </div>
+
           ) : (
-            <div className="rounded-xl border border-dashed border-zinc-300 bg-white px-6 py-12 text-center">
+
+            <div
+              className="
+                rounded-xl
+                border
+                border-dashed
+                border-zinc-300
+                bg-white
+                px-6
+                py-12
+                text-center
+              "
+            >
+
               <h3 className="font-bold">
                 Articles are coming soon.
               </h3>
 
               <p className="mt-2 text-sm text-zinc-500">
-                AnantaGo is preparing useful technology
-                stories.
+                AnantaGo is preparing useful
+                technology stories.
               </p>
+
             </div>
+
           )}
+
         </div>
       </section>
 
       {/* =====================================================
           CATEGORY SECTIONS
-      ====================================================== */}
+      ===================================================== */}
 
       {categories.map((category) => (
         <CategorySection
           key={category.href}
           category={category}
-          articles={categoryArticles[category.name] || []}
+          articles={
+            categoryArticles[
+              category.name
+            ] || []
+          }
         />
       ))}
 
       {/* =====================================================
           BROWSE TOPICS
-      ====================================================== */}
+      ===================================================== */}
 
       <section className="border-t border-zinc-200 bg-zinc-50">
-        <div className="mx-auto max-w-[1280px] px-5 py-14 sm:px-6 sm:py-16 lg:px-8">
+
+        <div
+          className="
+            mx-auto
+            max-w-[1280px]
+            px-5
+            py-14
+            sm:px-6
+            sm:py-16
+            lg:px-8
+          "
+        >
+
           <div className="mb-7">
+
             <div className="flex items-center gap-2">
+
               <span className="h-1.5 w-1.5 rounded-full bg-zinc-950" />
 
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">
                 Explore
               </p>
+
             </div>
 
             <h2 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">
@@ -506,63 +843,134 @@ export default async function HomePage() {
             </h2>
 
             <p className="mt-2 max-w-xl text-sm leading-6 text-zinc-500">
-              Find useful stories and guides across the
-              topics covered by AnantaGo.
+              Find useful stories and guides across
+              the topics covered by AnantaGo.
             </p>
+
           </div>
 
-          <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-zinc-200 bg-white sm:grid-cols-3">
-            {categories.map((category, index) => (
-              <Link
-                key={category.href}
-                href={category.href}
-                className={`group border-zinc-200 p-5 transition hover:bg-zinc-50 sm:p-6 ${
-                  index < 4 ? "border-b" : ""
-                } ${
-                  index % 3 !== 2
-                    ? "sm:border-r"
-                    : ""
-                } ${
-                  index % 2 === 0
-                    ? "border-r sm:border-r"
-                    : ""
-                }`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-lg font-black text-zinc-950">
-                    {category.name}
-                  </h3>
+          <div
+            className="
+              grid
+              grid-cols-2
+              overflow-hidden
+              rounded-xl
+              border
+              border-zinc-200
+              bg-white
+              sm:grid-cols-3
+            "
+          >
 
-                  <span className="text-zinc-400 transition-transform group-hover:translate-x-1">
-                    →
-                  </span>
-                </div>
+            {categories.map(
+              (category, index) => (
 
-                <p className="mt-2 text-xs leading-5 text-zinc-500 sm:text-sm">
-                  {category.description}
-                </p>
-              </Link>
-            ))}
+                <Link
+                  key={category.href}
+                  href={category.href}
+                  className={`
+                    group
+                    border-zinc-200
+                    p-5
+                    transition
+                    hover:bg-zinc-50
+                    sm:p-6
+
+                    ${
+                      index < 4
+                        ? "border-b"
+                        : ""
+                    }
+
+                    ${
+                      index % 3 !== 2
+                        ? "sm:border-r"
+                        : ""
+                    }
+
+                    ${
+                      index % 2 === 0
+                        ? "border-r sm:border-r"
+                        : ""
+                    }
+                  `}
+                >
+
+                  <div className="flex items-center justify-between gap-3">
+
+                    <h3 className="text-lg font-black text-zinc-950">
+                      {category.name}
+                    </h3>
+
+                    <span className="text-zinc-400 transition-transform group-hover:translate-x-1">
+                      →
+                    </span>
+
+                  </div>
+
+                  <p className="mt-2 text-xs leading-5 text-zinc-500 sm:text-sm">
+                    {category.description}
+                  </p>
+
+                </Link>
+
+              )
+            )}
+
           </div>
+
         </div>
       </section>
 
       {/* =====================================================
           EDITORIAL
-      ====================================================== */}
+      ===================================================== */}
 
       <section className="bg-zinc-950 text-white">
-        <div className="mx-auto max-w-4xl px-5 py-16 text-center sm:px-6 sm:py-20 lg:px-8">
+
+        <div
+          className="
+            mx-auto
+            max-w-4xl
+            px-5
+            py-16
+            text-center
+            sm:px-6
+            sm:py-20
+            lg:px-8
+          "
+        >
+
           <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500">
             Our approach
           </p>
 
-          <h2 className="mt-4 text-3xl font-black leading-tight tracking-tight text-white sm:text-4xl">
+          <h2
+            className="
+              mt-4
+              text-3xl
+              font-black
+              leading-tight
+              tracking-tight
+              text-white
+              sm:text-4xl
+            "
+          >
             Useful technology content without
             unnecessary noise.
           </h2>
 
-          <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-zinc-400 sm:text-base">
+          <p
+            className="
+              mx-auto
+              mt-4
+              max-w-2xl
+              text-sm
+              leading-7
+              text-zinc-400
+              sm:text-base
+            "
+          >
             Clear information, practical guides and
             genuinely useful stories for the rapidly
             changing digital world.
@@ -570,13 +978,34 @@ export default async function HomePage() {
 
           <Link
             href="/about"
-            className="mt-6 inline-flex h-10 items-center rounded-lg border border-white/20 px-4 text-sm font-bold text-white transition hover:bg-white hover:text-black"
+            className="
+              mt-6
+              inline-flex
+              h-10
+              items-center
+              rounded-lg
+              border
+              border-white/20
+              px-4
+              text-sm
+              font-bold
+              text-white
+              transition
+              hover:bg-white
+              hover:text-black
+            "
           >
             Learn about AnantaGo
-            <span className="ml-2">→</span>
+
+            <span className="ml-2">
+              →
+            </span>
           </Link>
+
         </div>
+
       </section>
+
     </main>
   );
 }
