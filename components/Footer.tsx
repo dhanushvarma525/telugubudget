@@ -1,3 +1,4 @@
+
 import Link from "next/link";
 import FooterAd from "@/components/FooterAd";
 
@@ -22,22 +23,16 @@ export default function Footer() {
     <>
       {/* =====================================================
           FOOTER AD
-          
-          Desktop:
-          728 × 90
-
-          Mobile:
-          300 × 250
-      ====================================================== */}
+      ===================================================== */}
 
       <FooterAd />
 
       {/* =====================================================
           MAIN FOOTER
-      ====================================================== */}
+      ===================================================== */}
 
       <footer className="border-t border-gray-200 bg-white">
-        <div className="mx-auto max-w-7xl px-5 py-14 lg:px-8">
+        <div className="mx-auto max-w-7xl px-5 py-14 sm:px-6 lg:px-8">
 
           {/* =================================================
               MAIN FOOTER GRID
@@ -113,7 +108,6 @@ export default function Footer() {
                 ))}
               </div>
             </div>
-
           </div>
 
           {/* =================================================
@@ -139,3 +133,4 @@ export default function Footer() {
     </>
   );
 }
+

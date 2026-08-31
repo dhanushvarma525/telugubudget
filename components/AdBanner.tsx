@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -8,185 +9,187 @@ type AdBannerProps = {
   position?: AdPosition;
 };
 
-const AD_CONFIG = {
-  top: {
-    width: 728,
-    height: 90,
-    key: "b53e3e6d7e72e1f3b43e3f65c3f21ea3",
-  },
-
-  footer: {
-    width: 728,
-    height: 90,
-    key: "b53e3e6d7e72e1f3b43e3f65c3f21ea3",
-  },
-} as const;
-
 export default function AdBanner({
   position = "top",
 }: AdBannerProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const config = AD_CONFIG[position];
+  const adRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const container = containerRef.current;
+    const container = adRef.current;
 
     if (!container) {
       return;
     }
 
+    // Prevent duplicate loading
     if (container.dataset.loaded === "true") {
       return;
     }
 
     container.dataset.loaded = "true";
 
+    const isMobile = window.innerWidth < 768;
+
     /*
-     * Adsterra options
+     * =====================================================
+     * MOBILE
+     * 300 × 250
+     * =====================================================
      */
-    const optionsScript = document.createElement("script");
+
+    if (isMobile) {
+      const optionsScript =
+        document.createElement("script");
+
+      optionsScript.type = "text/javascript";
+
+      optionsScript.text = `
+        atOptions = {
+          'key' : '7895ae40aafabc66215193a80161e143',
+          'format' : 'iframe',
+          'height' : 250,
+          'width' : 300,
+          'params' : {}
+        };
+      `;
+
+      const invokeScript =
+        document.createElement("script");
+
+      invokeScript.type = "text/javascript";
+      invokeScript.src =
+        "https://www.highrevenueformat.com/7895ae40aafabc66215193a80161e143/invoke.js";
+      invokeScript.async = true;
+
+      container.appendChild(optionsScript);
+      container.appendChild(invokeScript);
+
+      return;
+    }
+
+    /*
+     * =====================================================
+     * DESKTOP
+     * 728 × 90
+     * =====================================================
+     */
+
+    const optionsScript =
+      document.createElement("script");
 
     optionsScript.type = "text/javascript";
 
     optionsScript.text = `
-      var atOptions = {
-        'key': '${config.key}',
-        'format': 'iframe',
-        'height': ${config.height},
-        'width': ${config.width},
-        'params': {}
+      atOptions = {
+        'key' : 'b53e3e6d7e72e1f3b43e3f65c3f21ea3',
+        'format' : 'iframe',
+        'height' : 90,
+        'width' : 728,
+        'params' : {}
       };
     `;
 
-    /*
-     * Adsterra invoke script
-     */
-    const adScript = document.createElement("script");
+    const invokeScript =
+      document.createElement("script");
 
-    adScript.type = "text/javascript";
-    adScript.src =
-      `https://www.highrevenueformat.com/${config.key}/invoke.js`;
-
-    adScript.async = false;
+    invokeScript.type = "text/javascript";
+    invokeScript.src =
+      "https://www.highrevenueformat.com/b53e3e6d7e72e1f3b43e3f65c3f21ea3/invoke.js";
+    invokeScript.async = true;
 
     container.appendChild(optionsScript);
-    container.appendChild(adScript);
+    container.appendChild(invokeScript);
 
     return () => {
-      container.innerHTML = "";
-      delete container.dataset.loaded;
+      if (container) {
+        container.innerHTML = "";
+        delete container.dataset.loaded;
+      }
     };
   }, []);
 
+  /*
+   * =====================================================
+   * TOP HOMEPAGE AD
+   * =====================================================
+   */
+
+  if (position === "top") {
+    return (
+      <section
+        aria-label="Advertisement"
+        className="
+          w-full
+          border-y
+          border-zinc-100
+          bg-white
+        "
+      >
+        <div
+          className="
+            mx-auto
+            flex
+            w-full
+            items-center
+            justify-center
+            overflow-hidden
+            px-3
+            py-6
+            sm:px-6
+            sm:py-8
+            lg:px-8
+          "
+        >
+          <div
+            ref={adRef}
+            className="
+              flex
+              h-[250px]
+              w-[300px]
+              items-center
+              justify-center
+              overflow-hidden
+
+              md:h-[90px]
+              md:w-[728px]
+            "
+          />
+        </div>
+      </section>
+    );
+  }
+
+  /*
+   * =====================================================
+   * FOOTER POSITION
+   *
+   * Kept for compatibility.
+   * Your actual footer currently uses FooterAd.tsx.
+   * =====================================================
+   */
+
   return (
     <section
-      className={`ad-wrapper ad-${position}`}
       aria-label="Advertisement"
+      className="w-full bg-white"
     >
-      <div className="ad-label">
-        Advertisement
-      </div>
-
-      <div className="ad-viewport">
+      <div className="mx-auto flex w-full justify-center px-3 py-6">
         <div
-          ref={containerRef}
-          className="ad-slot"
+          ref={adRef}
+          className="
+            flex
+            h-[250px]
+            w-[300px]
+            items-center
+            justify-center
+            overflow-hidden
+
+            md:h-[90px]
+            md:w-[728px]
+          "
         />
       </div>
-
-      <style jsx>{`
-        .ad-wrapper {
-          width: 100%;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          margin: 32px auto;
-          overflow: hidden;
-        }
-
-        .ad-label {
-          margin-bottom: 8px;
-          font-size: 9px;
-          line-height: 1;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          color: #a1a1aa;
-        }
-
-        .ad-viewport {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          overflow: hidden;
-        }
-
-        .ad-slot {
-          width: 728px;
-          height: 90px;
-          min-width: 728px;
-          min-height: 90px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          overflow: hidden;
-          flex-shrink: 0;
-        }
-
-        .ad-slot iframe {
-          display: block;
-          border: 0;
-        }
-
-        /*
-         * MOBILE
-         *
-         * The actual Adsterra unit remains 728x90.
-         * We only scale it visually so it fits the
-         * phone screen.
-         */
-        @media (max-width: 767px) {
-          .ad-wrapper {
-            margin: 24px auto;
-            padding: 0 10px;
-          }
-
-          .ad-viewport {
-            height: 90px;
-          }
-
-          .ad-slot {
-            transform: scale(
-              min(
-                1,
-                calc((100vw - 20px) / 728)
-              )
-            );
-
-            transform-origin: center center;
-          }
-        }
-
-        /*
-         * VERY SMALL PHONES
-         */
-        @media (max-width: 380px) {
-          .ad-wrapper {
-            padding: 0 5px;
-          }
-
-          .ad-slot {
-            transform: scale(
-              min(
-                1,
-                calc((100vw - 10px) / 728)
-              )
-            );
-          }
-        }
-      `}</style>
     </section>
   );
 }
+

@@ -1,116 +1,95 @@
+
 "use client";
 
 import { useEffect, useRef } from "react";
 
 export default function FooterAd() {
-  const desktopRef = useRef<HTMLDivElement>(null);
-  const mobileRef = useRef<HTMLDivElement>(null);
+  const adRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let desktopScript: HTMLScriptElement | null = null;
-    let mobileScript: HTMLScriptElement | null = null;
+    const container = adRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    // Prevent duplicate loading
+    if (container.dataset.loaded === "true") {
+      return;
+    }
+
+    container.dataset.loaded = "true";
+
+    const isMobile = window.innerWidth < 768;
 
     /*
-     * Load desktop ad only on desktop
+     * MOBILE
+     * 300 × 250
      */
-    const loadDesktopAd = () => {
-      if (!desktopRef.current) return;
+    if (isMobile) {
+      const optionsScript =
+        document.createElement("script");
 
-      // Prevent duplicate loading
-      if (desktopRef.current.dataset.loaded === "true") {
-        return;
-      }
+      optionsScript.type = "text/javascript";
 
-      desktopRef.current.dataset.loaded = "true";
-
-      const win = window as typeof window & {
-        atOptions?: {
-          key: string;
-          format: string;
-          height: number;
-          width: number;
-          params: Record<string, unknown>;
+      optionsScript.text = `
+        atOptions = {
+          'key' : '7895ae40aafabc66215193a80161e143',
+          'format' : 'iframe',
+          'height' : 250,
+          'width' : 300,
+          'params' : {}
         };
-      };
+      `;
 
-      win.atOptions = {
-        key: "b53e3e6d7e72e1f3b43e3f65c3f21ea3",
-        format: "iframe",
-        height: 90,
-        width: 728,
-        params: {},
-      };
+      const invokeScript =
+        document.createElement("script");
 
-      desktopScript = document.createElement("script");
-      desktopScript.src =
-        "https://www.highrevenueformat.com/b53e3e6d7e72e1f3b43e3f65c3f21ea3/invoke.js";
-      desktopScript.async = true;
-
-      desktopRef.current.appendChild(desktopScript);
-    };
-
-    /*
-     * Load mobile ad only on mobile
-     */
-    const loadMobileAd = () => {
-      if (!mobileRef.current) return;
-
-      // Prevent duplicate loading
-      if (mobileRef.current.dataset.loaded === "true") {
-        return;
-      }
-
-      mobileRef.current.dataset.loaded = "true";
-
-      const win = window as typeof window & {
-        atOptions?: {
-          key: string;
-          format: string;
-          height: number;
-          width: number;
-          params: Record<string, unknown>;
-        };
-      };
-
-      win.atOptions = {
-        key: "7895ae40aafabc66215193a80161e143",
-        format: "iframe",
-        height: 250,
-        width: 300,
-        params: {},
-      };
-
-      mobileScript = document.createElement("script");
-      mobileScript.src =
+      invokeScript.type = "text/javascript";
+      invokeScript.src =
         "https://www.highrevenueformat.com/7895ae40aafabc66215193a80161e143/invoke.js";
-      mobileScript.async = true;
+      invokeScript.async = true;
 
-      mobileRef.current.appendChild(mobileScript);
-    };
+      container.appendChild(optionsScript);
+      container.appendChild(invokeScript);
+
+      return;
+    }
 
     /*
-     * Use the actual screen size.
-     *
-     * Desktop: 768px and above
-     * Mobile: below 768px
+     * DESKTOP
+     * 728 × 90
      */
-    const loadCorrectAd = () => {
-      if (window.innerWidth >= 768) {
-        loadDesktopAd();
-      } else {
-        loadMobileAd();
-      }
-    };
+    const optionsScript =
+      document.createElement("script");
 
-    loadCorrectAd();
+    optionsScript.type = "text/javascript";
+
+    optionsScript.text = `
+      atOptions = {
+        'key' : 'b53e3e6d7e72e1f3b43e3f65c3f21ea3',
+        'format' : 'iframe',
+        'height' : 90,
+        'width' : 728,
+        'params' : {}
+      };
+    `;
+
+    const invokeScript =
+      document.createElement("script");
+
+    invokeScript.type = "text/javascript";
+    invokeScript.src =
+      "https://www.highrevenueformat.com/b53e3e6d7e72e1f3b43e3f65c3f21ea3/invoke.js";
+    invokeScript.async = true;
+
+    container.appendChild(optionsScript);
+    container.appendChild(invokeScript);
 
     return () => {
-      if (desktopScript) {
-        desktopScript.remove();
-      }
-
-      if (mobileScript) {
-        mobileScript.remove();
+      if (container) {
+        container.innerHTML = "";
+        delete container.dataset.loaded;
       }
     };
   }, []);
@@ -121,24 +100,23 @@ export default function FooterAd() {
       className="w-full border-t border-zinc-200 bg-white"
     >
       <div className="mx-auto flex w-full justify-center px-3 py-8 sm:px-6 lg:px-8">
-        {/* =========================================
-            DESKTOP
-            728 × 90
-        ========================================== */}
         <div
-          ref={desktopRef}
-          className="hidden h-[90px] w-[728px] items-center justify-center overflow-hidden md:flex"
-        />
+          ref={adRef}
+          className="
+            flex
+            items-center
+            justify-center
+            overflow-hidden
 
-        {/* =========================================
-            MOBILE
-            300 × 250
-        ========================================== */}
-        <div
-          ref={mobileRef}
-          className="flex h-[250px] w-[300px] items-center justify-center overflow-hidden md:hidden"
+            h-[250px]
+            w-[300px]
+
+            md:h-[90px]
+            md:w-[728px]
+          "
         />
       </div>
     </section>
   );
 }
+
