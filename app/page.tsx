@@ -1,3 +1,4 @@
+
 import Link from "next/link";
 import FeaturedSlider from "@/components/FeaturedSlider";
 import AdBanner from "@/components/AdBanner";
@@ -144,7 +145,7 @@ function ArticleCard({
       className="
         group
         overflow-hidden
-        rounded-lg
+        rounded-xl
         border
         border-zinc-200
         bg-white
@@ -161,6 +162,8 @@ function ArticleCard({
         className="block"
         aria-label={`Read ${article.title}`}
       >
+        {/* IMAGE */}
+
         <div className="relative aspect-[16/10] overflow-hidden bg-zinc-100">
           {article.cover_image ? (
             <img
@@ -187,16 +190,25 @@ function ArticleCard({
           )}
         </div>
 
-        <div className="p-2 sm:p-5">
+        {/* CONTENT */}
+
+        <div
+          className="
+            p-3
+            sm:p-5
+          "
+        >
+          {/* CATEGORY */}
+
           {article.category && (
             <span
               className="
                 block
                 truncate
-                text-[7px]
+                text-[8px]
                 font-bold
                 uppercase
-                tracking-[0.1em]
+                tracking-[0.12em]
                 text-zinc-500
                 sm:text-[10px]
                 sm:tracking-[0.14em]
@@ -206,13 +218,15 @@ function ArticleCard({
             </span>
           )}
 
+          {/* TITLE */}
+
           <h3
             className="
-              mt-1
+              mt-1.5
               line-clamp-2
-              text-[10px]
+              text-[12px]
               font-black
-              leading-[1.25]
+              leading-[1.35]
               tracking-tight
               text-zinc-950
               sm:mt-2
@@ -222,6 +236,8 @@ function ArticleCard({
           >
             {article.title}
           </h3>
+
+          {/* EXCERPT */}
 
           {article.excerpt && (
             <p
@@ -241,13 +257,15 @@ function ArticleCard({
             </p>
           )}
 
+          {/* DATE / READING TIME */}
+
           <div
             className="
-              mt-2
+              mt-2.5
               flex
               items-center
-              gap-1
-              text-[7px]
+              gap-1.5
+              text-[8px]
               font-medium
               text-zinc-400
               sm:mt-4
@@ -274,6 +292,8 @@ function ArticleCard({
               </>
             )}
           </div>
+
+          {/* READ MORE — DESKTOP */}
 
           <div className="mt-3 hidden text-sm font-bold text-zinc-950 sm:block">
             Read more
@@ -328,6 +348,8 @@ function CategorySection({
           lg:py-16
         "
       >
+        {/* CATEGORY HEADER */}
+
         <div
           className="
             mb-5
@@ -389,11 +411,19 @@ function CategorySection({
           </Link>
         </div>
 
+        {/* 
+          MOBILE:
+          2 ARTICLES PER ROW
+
+          DESKTOP:
+          3 ARTICLES PER ROW
+        */}
+
         <div
           className="
             grid
-            grid-cols-3
-            gap-2
+            grid-cols-2
+            gap-3
             sm:grid-cols-2
             sm:gap-5
             lg:grid-cols-3
@@ -419,6 +449,10 @@ function CategorySection({
 export default async function HomePage() {
   const blogs = await getBlogs();
 
+  /* =======================================================
+     FEATURED
+  ======================================================= */
+
   const featuredBlogs = blogs
     .filter((blog) => blog.featured)
     .slice(0, 5);
@@ -427,11 +461,29 @@ export default async function HomePage() {
     featuredBlogs.map((blog) => blog.id)
   );
 
+  /* =======================================================
+     LATEST
+  ======================================================= */
+
   const latestArticles = blogs
     .filter(
       (blog) => !featuredIds.has(blog.id)
     )
     .slice(0, 6);
+
+  /* =======================================================
+     CATEGORY ARTICLES
+
+     EACH CATEGORY = LATEST 4 ARTICLES
+
+     Mobile:
+     1  2
+     3  4
+
+     Desktop:
+     1  2  3
+     4
+  ======================================================= */
 
   const categoryArticles: Record<
     string,
@@ -448,7 +500,7 @@ export default async function HomePage() {
               .toLowerCase() ===
             category.name.toLowerCase()
         )
-        .slice(0, 3);
+        .slice(0, 4);
   });
 
   return (
@@ -665,7 +717,6 @@ export default async function HomePage() {
       {/* =====================================================
           HOMEPAGE AD
           ONLY ONE HOMEPAGE AD
-          728 × 90
       ===================================================== */}
 
       <AdBanner position="top" />
@@ -741,8 +792,8 @@ export default async function HomePage() {
             <div
               className="
                 grid
-                grid-cols-3
-                gap-2
+                grid-cols-2
+                gap-3
                 sm:grid-cols-2
                 sm:gap-5
                 lg:grid-cols-3
@@ -1009,3 +1060,4 @@ export default async function HomePage() {
     </main>
   );
 }
+
