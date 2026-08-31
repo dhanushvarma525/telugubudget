@@ -3,6 +3,12 @@
 
 import { useEffect, useRef } from "react";
 
+const MOBILE_KEY =
+  "7895ae40aafabc66215193a80161e143";
+
+const DESKTOP_KEY =
+  "b53e3e6d7e72e1f3b43e3f65c3f21ea3";
+
 export default function FooterAd() {
   const adRef = useRef<HTMLDivElement>(null);
 
@@ -13,52 +19,38 @@ export default function FooterAd() {
       return;
     }
 
-    // Prevent duplicate loading
+    /*
+     * Prevent duplicate loading
+     */
     if (container.dataset.loaded === "true") {
       return;
     }
 
     container.dataset.loaded = "true";
 
+    /*
+     * Detect screen size
+     */
     const isMobile = window.innerWidth < 768;
 
-    /*
-     * MOBILE
-     * 300 × 250
-     */
-    if (isMobile) {
-      const optionsScript =
-        document.createElement("script");
+    const key = isMobile
+      ? MOBILE_KEY
+      : DESKTOP_KEY;
 
-      optionsScript.type = "text/javascript";
+    const width = isMobile
+      ? 300
+      : 728;
 
-      optionsScript.text = `
-        atOptions = {
-          'key' : '7895ae40aafabc66215193a80161e143',
-          'format' : 'iframe',
-          'height' : 250,
-          'width' : 300,
-          'params' : {}
-        };
-      `;
-
-      const invokeScript =
-        document.createElement("script");
-
-      invokeScript.type = "text/javascript";
-      invokeScript.src =
-        "https://www.highrevenueformat.com/7895ae40aafabc66215193a80161e143/invoke.js";
-      invokeScript.async = true;
-
-      container.appendChild(optionsScript);
-      container.appendChild(invokeScript);
-
-      return;
-    }
+    const height = isMobile
+      ? 250
+      : 90;
 
     /*
-     * DESKTOP
-     * 728 × 90
+     * Create Adsterra options
+     *
+     * IMPORTANT:
+     * atOptions must be created BEFORE
+     * invoke.js is loaded.
      */
     const optionsScript =
       document.createElement("script");
@@ -66,26 +58,46 @@ export default function FooterAd() {
     optionsScript.type = "text/javascript";
 
     optionsScript.text = `
-      atOptions = {
-        'key' : 'b53e3e6d7e72e1f3b43e3f65c3f21ea3',
-        'format' : 'iframe',
-        'height' : 90,
-        'width' : 728,
-        'params' : {}
+      var atOptions = {
+        'key': '${key}',
+        'format': 'iframe',
+        'height': ${height},
+        'width': ${width},
+        'params': {}
       };
     `;
 
+    /*
+     * Create invoke script
+     */
     const invokeScript =
       document.createElement("script");
 
     invokeScript.type = "text/javascript";
-    invokeScript.src =
-      "https://www.highrevenueformat.com/b53e3e6d7e72e1f3b43e3f65c3f21ea3/invoke.js";
-    invokeScript.async = true;
 
+    invokeScript.src =
+      `https://www.highrevenueformat.com/${key}/invoke.js`;
+
+    /*
+     * Do NOT make this async.
+     *
+     * The options script must execute first.
+     */
+    invokeScript.async = false;
+
+    /*
+     * Add options first
+     */
     container.appendChild(optionsScript);
+
+    /*
+     * Add invoke second
+     */
     container.appendChild(invokeScript);
 
+    /*
+     * Cleanup
+     */
     return () => {
       if (container) {
         container.innerHTML = "";
@@ -99,17 +111,28 @@ export default function FooterAd() {
       aria-label="Advertisement"
       className="w-full border-t border-zinc-200 bg-white"
     >
-      <div className="mx-auto flex w-full justify-center px-3 py-8 sm:px-6 lg:px-8">
+      <div
+        className="
+          mx-auto
+          flex
+          w-full
+          justify-center
+          overflow-hidden
+          px-3
+          py-8
+          sm:px-6
+          lg:px-8
+        "
+      >
         <div
           ref={adRef}
           className="
             flex
+            h-[250px]
+            w-[300px]
             items-center
             justify-center
             overflow-hidden
-
-            h-[250px]
-            w-[300px]
 
             md:h-[90px]
             md:w-[728px]
