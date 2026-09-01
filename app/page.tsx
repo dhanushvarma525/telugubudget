@@ -1,4 +1,3 @@
-
 import Link from "next/link";
 import FeaturedSlider from "@/components/FeaturedSlider";
 import AdBanner from "@/components/AdBanner";
@@ -54,18 +53,27 @@ type Blog = {
 
 /* =========================================================
    BLOG FETCH
+
+   Performance:
+   - Uses Next.js ISR caching
+   - Revalidates every 60 seconds
+   - Fetches only 40 articles instead of 100
+   - Avoids no-store
 ========================================================= */
 
 async function getBlogs(): Promise<Blog[]> {
   try {
     const baseUrl =
       process.env.NEXT_PUBLIC_SITE_URL ||
-      "https://www.anatago.com";
+      "https://anatago.com";
 
     const response = await fetch(
-      `${baseUrl}/api/blogs?published=true&limit=100`,
+      `${baseUrl}/api/blogs?published=true&limit=40`,
       {
-        cache: "no-store",
+        next: {
+          revalidate: 60,
+          tags: ["homepage-blogs"],
+        },
       }
     );
 
@@ -84,10 +92,14 @@ async function getBlogs(): Promise<Blog[]> {
       ? data.blogs
       : [];
 
+    /*
+      The API should already return published articles.
+      We keep this safety check but avoid unnecessary sorting
+      if the API is already ordered correctly.
+    */
+
     return articles
-      .filter(
-        (article) => article.published !== false
-      )
+      .filter((article) => article.published !== false)
       .sort((a, b) => {
         const dateA = new Date(
           a.published_at || a.created_at
@@ -137,8 +149,10 @@ function formatDate(
 
 function ArticleCard({
   article,
+  priority = false,
 }: {
   article: Blog;
+  priority?: boolean;
 }) {
   return (
     <article
@@ -172,7 +186,8 @@ function ArticleCard({
                 article.cover_image_alt ||
                 article.title
               }
-              loading="lazy"
+              loading={priority ? "eager" : "lazy"}
+              fetchPriority={priority ? "high" : "low"}
               decoding="async"
               className="
                 h-full
@@ -411,13 +426,7 @@ function CategorySection({
           </Link>
         </div>
 
-        {/* 
-          MOBILE:
-          2 ARTICLES PER ROW
-
-          DESKTOP:
-          3 ARTICLES PER ROW
-        */}
+        {/* ARTICLES */}
 
         <div
           className="
@@ -451,6 +460,8 @@ export default async function HomePage() {
 
   /* =======================================================
      FEATURED
+
+     Maximum 5
   ======================================================= */
 
   const featuredBlogs = blogs
@@ -463,26 +474,28 @@ export default async function HomePage() {
 
   /* =======================================================
      LATEST
+
+     Maximum 6
   ======================================================= */
 
-  const latestArticles = blogs
-    .filter(
-      (blog) => !featuredIds.has(blog.id)
-    )
-    .slice(0, 6);
+  const latestArticles: Blog[] = [];
+
+  for (const blog of blogs) {
+    if (featuredIds.has(blog.id)) {
+      continue;
+    }
+
+    latestArticles.push(blog);
+
+    if (latestArticles.length === 6) {
+      break;
+    }
+  }
 
   /* =======================================================
      CATEGORY ARTICLES
 
-     EACH CATEGORY = LATEST 4 ARTICLES
-
-     Mobile:
-     1  2
-     3  4
-
-     Desktop:
-     1  2  3
-     4
+     Maximum 4 per category
   ======================================================= */
 
   const categoryArticles: Record<
@@ -490,34 +503,60 @@ export default async function HomePage() {
     Blog[]
   > = {};
 
-  categories.forEach((category) => {
-    categoryArticles[category.name] =
-      blogs
-        .filter(
-          (blog) =>
-            blog.category
-              ?.trim()
-              .toLowerCase() ===
-            category.name.toLowerCase()
-        )
-        .slice(0, 4);
-  });
+  /*
+    Initialize category arrays.
+  */
+
+  for (const category of categories) {
+    categoryArticles[category.name] = [];
+  }
+
+  /*
+    One pass through blogs instead of repeatedly running
+    .filter() for every category.
+  */
+
+  for (const blog of blogs) {
+    const categoryName =
+      blog.category?.trim();
+
+    if (!categoryName) {
+      continue;
+    }
+
+    const matchingCategory =
+      categories.find(
+        (category) =>
+          category.name.toLowerCase() ===
+          categoryName.toLowerCase()
+      );
+
+    if (!matchingCategory) {
+      continue;
+    }
+
+    const current =
+      categoryArticles[
+        matchingCategory.name
+      ];
+
+    if (current.length < 4) {
+      current.push(blog);
+    }
+  }
 
   return (
     <main className="bg-white text-zinc-950">
-
       {/* =====================================================
           HERO
       ===================================================== */}
 
       <section className="relative overflow-hidden bg-[#0b0b0d] text-white">
-
         <div className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full bg-white/[0.035] blur-3xl" />
 
         <div className="pointer-events-none absolute -bottom-32 -left-32 h-80 w-80 rounded-full bg-white/[0.025] blur-3xl" />
 
         <div className="relative mx-auto max-w-[1280px] px-5 sm:px-6 lg:px-8">
-
           <div
             className="
               grid
@@ -529,9 +568,7 @@ export default async function HomePage() {
               lg:py-20
             "
           >
-
             <div className="animate-home-fade-up max-w-3xl">
-
               <div
                 className="
                   inline-flex
@@ -544,7 +581,6 @@ export default async function HomePage() {
                   py-1.5
                 "
               >
-
                 <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-300">
                   AI
                 </span>
@@ -560,7 +596,6 @@ export default async function HomePage() {
                 <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-300">
                   DIGITAL LIFE
                 </span>
-
               </div>
 
               <h1
@@ -590,7 +625,6 @@ export default async function HomePage() {
               </p>
 
               <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-
                 <Link
                   href="/ai"
                   className="
@@ -640,25 +674,18 @@ export default async function HomePage() {
                     →
                   </span>
                 </Link>
-
               </div>
-
             </div>
 
             {/* DESKTOP HERO VISUAL */}
 
             <div className="hidden justify-end animate-home-fade-in lg:flex">
-
               <div className="relative w-full max-w-[390px]">
-
                 <div className="absolute inset-8 rounded-full bg-white/[0.04] blur-3xl" />
 
                 <div className="relative rounded-3xl border border-white/10 bg-white/[0.035] p-2 shadow-2xl">
-
                   <div className="rounded-2xl border border-white/10 bg-[#111114] p-7">
-
                     <div className="flex items-center justify-between">
-
                       <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
                         ANANTAGO
                       </span>
@@ -666,11 +693,9 @@ export default async function HomePage() {
                       <span className="rounded-full border border-white/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-zinc-400">
                         Digital
                       </span>
-
                     </div>
 
                     <div className="my-12">
-
                       <div className="mb-4 h-px w-12 bg-white/30" />
 
                       <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
@@ -687,11 +712,9 @@ export default async function HomePage() {
                         Clear stories. Useful guides.
                         Better digital decisions.
                       </p>
-
                     </div>
 
                     <div className="flex items-center justify-between border-t border-white/10 pt-4">
-
                       <span className="text-[10px] text-zinc-500">
                         AI & Technology
                       </span>
@@ -699,24 +722,18 @@ export default async function HomePage() {
                       <span className="text-sm text-white">
                         →
                       </span>
-
                     </div>
-
                   </div>
-
                 </div>
-
               </div>
-
             </div>
-
           </div>
         </div>
       </section>
 
       {/* =====================================================
           HOMEPAGE AD
-          ONLY ONE HOMEPAGE AD
+          ONE AD ONLY
       ===================================================== */}
 
       <AdBanner position="top" />
@@ -736,7 +753,6 @@ export default async function HomePage() {
       ===================================================== */}
 
       <section className="border-y border-zinc-200 bg-zinc-50">
-
         <div
           className="
             mx-auto
@@ -749,25 +765,19 @@ export default async function HomePage() {
             lg:py-16
           "
         >
-
           <div className="mb-6 flex items-end justify-between gap-4 sm:mb-7">
-
             <div>
-
               <div className="flex items-center gap-2">
-
                 <span className="h-1.5 w-1.5 rounded-full bg-zinc-950" />
 
                 <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">
                   Latest
                 </p>
-
               </div>
 
               <h2 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">
                 Latest stories
               </h2>
-
             </div>
 
             <Link
@@ -784,11 +794,9 @@ export default async function HomePage() {
             >
               View all →
             </Link>
-
           </div>
 
           {latestArticles.length > 0 ? (
-
             <div
               className="
                 grid
@@ -800,20 +808,17 @@ export default async function HomePage() {
                 lg:gap-6
               "
             >
-
               {latestArticles.map(
-                (article) => (
+                (article, index) => (
                   <ArticleCard
                     key={article.id}
                     article={article}
+                    priority={index === 0}
                   />
                 )
               )}
-
             </div>
-
           ) : (
-
             <div
               className="
                 rounded-xl
@@ -826,7 +831,6 @@ export default async function HomePage() {
                 text-center
               "
             >
-
               <h3 className="font-bold">
                 Articles are coming soon.
               </h3>
@@ -835,11 +839,8 @@ export default async function HomePage() {
                 AnantaGo is preparing useful
                 technology stories.
               </p>
-
             </div>
-
           )}
-
         </div>
       </section>
 
@@ -864,7 +865,6 @@ export default async function HomePage() {
       ===================================================== */}
 
       <section className="border-t border-zinc-200 bg-zinc-50">
-
         <div
           className="
             mx-auto
@@ -876,17 +876,13 @@ export default async function HomePage() {
             lg:px-8
           "
         >
-
           <div className="mb-7">
-
             <div className="flex items-center gap-2">
-
               <span className="h-1.5 w-1.5 rounded-full bg-zinc-950" />
 
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">
                 Explore
               </p>
-
             </div>
 
             <h2 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">
@@ -897,7 +893,6 @@ export default async function HomePage() {
               Find useful stories and guides across
               the topics covered by AnantaGo.
             </p>
-
           </div>
 
           <div
@@ -912,10 +907,8 @@ export default async function HomePage() {
               sm:grid-cols-3
             "
           >
-
             {categories.map(
               (category, index) => (
-
                 <Link
                   key={category.href}
                   href={category.href}
@@ -946,9 +939,7 @@ export default async function HomePage() {
                     }
                   `}
                 >
-
                   <div className="flex items-center justify-between gap-3">
-
                     <h3 className="text-lg font-black text-zinc-950">
                       {category.name}
                     </h3>
@@ -956,20 +947,15 @@ export default async function HomePage() {
                     <span className="text-zinc-400 transition-transform group-hover:translate-x-1">
                       →
                     </span>
-
                   </div>
 
                   <p className="mt-2 text-xs leading-5 text-zinc-500 sm:text-sm">
                     {category.description}
                   </p>
-
                 </Link>
-
               )
             )}
-
           </div>
-
         </div>
       </section>
 
@@ -978,7 +964,6 @@ export default async function HomePage() {
       ===================================================== */}
 
       <section className="bg-zinc-950 text-white">
-
         <div
           className="
             mx-auto
@@ -991,7 +976,6 @@ export default async function HomePage() {
             lg:px-8
           "
         >
-
           <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500">
             Our approach
           </p>
@@ -1052,12 +1036,8 @@ export default async function HomePage() {
               →
             </span>
           </Link>
-
         </div>
-
       </section>
-
     </main>
   );
 }
-

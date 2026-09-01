@@ -1,39 +1,46 @@
+
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import Script from "next/script";
+import { Suspense } from "react";
+import { unstable_cache } from "next/cache";
 import { supabase } from "@/lib/supabase";
 import AdOne from "@/components/AdOne";
+
+/* =========================================================
+   TYPES
+========================================================= */
 
 type Blog = {
   id: number;
   title: string;
   slug: string;
   excerpt: string | null;
-  content: string | null;
   introduction: string | null;
-
   cover_image: string | null;
-  cover_image_alt: string | null;
-
   category: string | null;
   author: string | null;
   tags: string[] | null;
-
   published: boolean;
   featured: boolean;
-
-  reading_time: number | null;
   views: number | null;
-
   content_blocks: unknown;
   faqs: unknown;
-
   published_at: string | null;
   created_at: string;
   updated_at: string;
+  meta_title: string | null;
+  meta_description: string | null;
+};
 
-  seo_title: string | null;
-  seo_description: string | null;
+type RelatedBlog = {
+  id: number;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  cover_image: string | null;
+  category: string | null;
+  published_at: string | null;
+  created_at: string;
 };
 
 type PageProps = {
@@ -42,14 +49,17 @@ type PageProps = {
   }>;
 };
 
+type NormalizedFAQ = {
+  question: string;
+  answer: string;
+};
+
 /* =========================================================
-   HELPERS
+   BASIC HELPERS
 ========================================================= */
 
 function formatDate(date: string | null) {
-  if (!date) {
-    return "";
-  }
+  if (!date) return "";
 
   const parsedDate = new Date(date);
 
@@ -94,6 +104,13 @@ function getString(
     ) {
       return value.trim();
     }
+
+    if (
+      typeof value === "number" ||
+      typeof value === "boolean"
+    ) {
+      return String(value);
+    }
   }
 
   return "";
@@ -115,7 +132,7 @@ function getArray(
 }
 
 /* =========================================================
-   JSON PARSER
+   SAFE JSON PARSER
 ========================================================= */
 
 function parseJsonValue(value: unknown): unknown {
@@ -137,183 +154,145 @@ function parseJsonValue(value: unknown): unknown {
 }
 
 /* =========================================================
-   FAQ NORMALIZER
+   FAQ HELPERS
 ========================================================= */
 
-type NormalizedFAQ = {
-  question: string;
-  answer: string;
-};
+/*
+  Converts many possible FAQ object formats into one format.
 
-function normalizeFaqs(value: unknown): NormalizedFAQ[] {
-  if (value === null || value === undefined) {
-    return [];
+  Supported examples:
+
+  {
+    question: "...",
+    answer: "..."
   }
 
-  let parsed: unknown = value;
+  {
+    q: "...",
+    a: "..."
+  }
 
-  /*
-   * If Supabase returns JSON as a string,
-   * try to parse it.
-   */
-  if (typeof parsed === "string") {
-    const trimmed = parsed.trim();
+  {
+    title: "...",
+    content: "..."
+  }
 
-    if (!trimmed) {
-      return [];
+  {
+    Question: "...",
+    Answer: "..."
+  }
+
+  {
+    faq: {
+      question: "...",
+      answer: "..."
     }
+  }
 
-    try {
-      parsed = JSON.parse(trimmed);
-    } catch {
-      /*
-       * Plain text FAQ fallback.
-       *
-       * Example:
-       *
-       * Question: What is AI?
-       * Answer: AI means Artificial Intelligence.
-       *
-       * Question: Is AI useful?
-       * Answer: Yes.
-       */
-
-      const lines = trimmed
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean);
-
-      const faqList: NormalizedFAQ[] = [];
-
-      let currentQuestion = "";
-      let currentAnswer = "";
-
-      for (const line of lines) {
-        const lower = line.toLowerCase();
-
-        if (
-          lower.startsWith("question:") ||
-          lower.startsWith("q:")
-        ) {
-          if (currentQuestion && currentAnswer) {
-            faqList.push({
-              question: currentQuestion,
-              answer: currentAnswer,
-            });
-          }
-
-          currentQuestion = line
-            .substring(line.indexOf(":") + 1)
-            .trim();
-
-          currentAnswer = "";
-        } else if (
-          lower.startsWith("answer:") ||
-          lower.startsWith("a:")
-        ) {
-          currentAnswer = line
-            .substring(line.indexOf(":") + 1)
-            .trim();
-        } else if (currentQuestion) {
-          currentAnswer +=
-            (currentAnswer ? " " : "") + line;
-        }
-      }
-
-      if (currentQuestion && currentAnswer) {
-        faqList.push({
-          question: currentQuestion,
-          answer: currentAnswer,
-        });
-      }
-
-      return faqList;
+  {
+    data: {
+      question: "...",
+      answer: "..."
     }
+  }
+*/
+
+function extractFaqFromObject(
+  object: Record<string, unknown>
+): NormalizedFAQ | null {
+  const question = getString(object, [
+    "question",
+    "Question",
+    "questions",
+    "q",
+    "Q",
+    "title",
+    "Title",
+    "heading",
+    "Heading",
+    "prompt",
+    "Prompt",
+  ]);
+
+  const answer = getString(object, [
+    "answer",
+    "Answer",
+    "answers",
+    "a",
+    "A",
+    "content",
+    "Content",
+    "description",
+    "Description",
+    "response",
+    "Response",
+    "text",
+    "Text",
+    "body",
+    "Body",
+  ]);
+
+  if (question && answer) {
+    return {
+      question,
+      answer,
+    };
   }
 
   /*
-   * Handle:
-   *
-   * {
-   *   "faqs": [...]
-   * }
-   *
-   * {
-   *   "items": [...]
-   * }
-   *
-   * {
-   *   "questions": [...]
-   * }
-   *
-   * {
-   *   "data": [...]
-   * }
-   */
+    Some older records may wrap the actual FAQ
+    inside another property.
+  */
 
-  if (isObject(parsed)) {
-    if (Array.isArray(parsed.faqs)) {
-      parsed = parsed.faqs;
-    } else if (Array.isArray(parsed.items)) {
-      parsed = parsed.items;
-    } else if (Array.isArray(parsed.questions)) {
-      parsed = parsed.questions;
-    } else if (Array.isArray(parsed.data)) {
-      parsed = parsed.data;
+  const nestedKeys = [
+    "faq",
+    "FAQ",
+    "item",
+    "data",
+    "value",
+    "content",
+    "details",
+  ];
+
+  for (const key of nestedKeys) {
+    const nested = object[key];
+
+    if (isObject(nested)) {
+      const nestedFaq =
+        extractFaqFromObject(nested);
+
+      if (nestedFaq) {
+        return nestedFaq;
+      }
+    }
+
+    if (Array.isArray(nested)) {
+      const nestedFaqs =
+        normalizeFaqArray(nested);
+
+      if (nestedFaqs.length > 0) {
+        return nestedFaqs[0];
+      }
     }
   }
 
-  if (!Array.isArray(parsed)) {
-    return [];
-  }
+  return null;
+}
 
+/* =========================================================
+   FAQ ARRAY NORMALIZER
+========================================================= */
+
+function normalizeFaqArray(
+  items: unknown[]
+): NormalizedFAQ[] {
   const result: NormalizedFAQ[] = [];
 
-  for (const item of parsed) {
+  for (const item of items) {
     /*
-     * Object format:
-     *
-     * {
-     *   question: "...",
-     *   answer: "..."
-     * }
-     */
-
-    if (isObject(item)) {
-      const question = getString(item, [
-        "question",
-        "title",
-        "q",
-        "Question",
-      ]);
-
-      const answer = getString(item, [
-        "answer",
-        "content",
-        "a",
-        "description",
-        "Answer",
-      ]);
-
-      if (question && answer) {
-        result.push({
-          question,
-          answer,
-        });
-      }
-
-      continue;
-    }
-
-    /*
-     * Array format:
-     *
-     * [
-     *   ["Question", "Answer"],
-     *   ["Question 2", "Answer 2"]
-     * ]
-     */
-
+      Format:
+      ["Question", "Answer"]
+    */
     if (Array.isArray(item)) {
       const question =
         typeof item[0] === "string"
@@ -331,6 +310,20 @@ function normalizeFaqs(value: unknown): NormalizedFAQ[] {
           answer,
         });
       }
+
+      continue;
+    }
+
+    /*
+      Normal object FAQ.
+    */
+    if (isObject(item)) {
+      const faq =
+        extractFaqFromObject(item);
+
+      if (faq) {
+        result.push(faq);
+      }
     }
   }
 
@@ -338,23 +331,340 @@ function normalizeFaqs(value: unknown): NormalizedFAQ[] {
 }
 
 /* =========================================================
-   BLOG FETCH
+   FAQ STRING PARSER
 ========================================================= */
 
-async function getBlog(
+function parseFaqString(
+  value: string
+): NormalizedFAQ[] {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return [];
+  }
+
+  /*
+    First try JSON.
+  */
+  try {
+    const parsed = JSON.parse(trimmed);
+
+    const normalized =
+      normalizeFaqValue(parsed);
+
+    if (normalized.length > 0) {
+      return normalized;
+    }
+  } catch {
+    // Continue with plain-text parsing.
+  }
+
+  /*
+    Handle:
+
+    Question: ...
+    Answer: ...
+
+    Question: ...
+    Answer: ...
+  */
+
+  const lines = trimmed
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const result: NormalizedFAQ[] = [];
+
+  let currentQuestion = "";
+  let currentAnswer = "";
+
+  const pushCurrent = () => {
+    if (
+      currentQuestion &&
+      currentAnswer
+    ) {
+      result.push({
+        question: currentQuestion,
+        answer: currentAnswer,
+      });
+    }
+
+    currentQuestion = "";
+    currentAnswer = "";
+  };
+
+  for (const line of lines) {
+    const lower = line.toLowerCase();
+
+    if (
+      lower.startsWith("question:") ||
+      lower.startsWith("q:")
+    ) {
+      pushCurrent();
+
+      currentQuestion = line
+        .substring(
+          line.indexOf(":") + 1
+        )
+        .trim();
+
+      continue;
+    }
+
+    if (
+      lower.startsWith("answer:") ||
+      lower.startsWith("a:")
+    ) {
+      currentAnswer = line
+        .substring(
+          line.indexOf(":") + 1
+        )
+        .trim();
+
+      continue;
+    }
+
+    /*
+      Support numbered FAQ formats such as:
+
+      1. What is AI?
+      AI means...
+
+      2. How does AI work?
+      ...
+    */
+
+    const numberedQuestion =
+      line.match(
+        /^(\d+)[.)]\s*(.+)$/
+      );
+
+    if (numberedQuestion) {
+      pushCurrent();
+
+      currentQuestion =
+        numberedQuestion[2].trim();
+
+      continue;
+    }
+
+    /*
+      If we already have a question,
+      additional lines belong to the answer.
+    */
+    if (currentQuestion) {
+      currentAnswer +=
+        (currentAnswer ? " " : "") +
+        line;
+    }
+  }
+
+  pushCurrent();
+
+  return result;
+}
+
+/* =========================================================
+   MASTER FAQ NORMALIZER
+========================================================= */
+
+function normalizeFaqValue(
+  value: unknown
+): NormalizedFAQ[] {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return [];
+  }
+
+  /*
+    String
+  */
+  if (typeof value === "string") {
+    return parseFaqString(value);
+  }
+
+  /*
+    Array
+  */
+  if (Array.isArray(value)) {
+    return normalizeFaqArray(value);
+  }
+
+  /*
+    Object
+  */
+  if (isObject(value)) {
+    /*
+      Direct FAQ object.
+    */
+    const directFaq =
+      extractFaqFromObject(value);
+
+    if (directFaq) {
+      return [directFaq];
+    }
+
+    /*
+      Common wrapper properties.
+    */
+    const wrapperKeys = [
+      "faqs",
+      "FAQ",
+      "faq",
+      "items",
+      "questions",
+      "data",
+      "results",
+      "list",
+    ];
+
+    for (const key of wrapperKeys) {
+      const nested = value[key];
+
+      if (
+        Array.isArray(nested)
+      ) {
+        const normalized =
+          normalizeFaqArray(
+            nested
+          );
+
+        if (
+          normalized.length > 0
+        ) {
+          return normalized;
+        }
+      }
+
+      if (
+        typeof nested === "string"
+      ) {
+        const normalized =
+          parseFaqString(nested);
+
+        if (
+          normalized.length > 0
+        ) {
+          return normalized;
+        }
+      }
+
+      if (isObject(nested)) {
+        const normalized =
+          normalizeFaqValue(
+            nested
+          );
+
+        if (
+          normalized.length > 0
+        ) {
+          return normalized;
+        }
+      }
+    }
+  }
+
+  return [];
+}
+
+/* =========================================================
+   FINAL FAQ NORMALIZER
+========================================================= */
+
+function normalizeFaqs(
+  value: unknown
+): NormalizedFAQ[] {
+  const parsed =
+    parseJsonValue(value);
+
+  const faqs =
+    normalizeFaqValue(parsed);
+
+  /*
+    Remove duplicates.
+  */
+  const seen =
+    new Set<string>();
+
+  const unique: NormalizedFAQ[] =
+    [];
+
+  for (const faq of faqs) {
+    const question =
+      faq.question.trim();
+
+    const answer =
+      faq.answer.trim();
+
+    if (!question || !answer) {
+      continue;
+    }
+
+    const key =
+      question.toLowerCase();
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+
+    unique.push({
+      question,
+      answer,
+    });
+  }
+
+  return unique;
+}
+
+/* =========================================================
+   BLOG DATABASE QUERY
+========================================================= */
+
+async function fetchBlog(
   slug: string
 ): Promise<Blog | null> {
-  const decodedSlug = decodeURIComponent(slug);
+  const decodedSlug =
+    decodeURIComponent(slug);
 
-  const { data, error } = await supabase
-    .from("blogs")
-    .select("*")
-    .eq("slug", decodedSlug)
-    .eq("published", true)
-    .maybeSingle();
+  const { data, error } =
+    await supabase
+      .from("blogs")
+      .select(`
+        id,
+        title,
+        slug,
+        excerpt,
+        introduction,
+        cover_image,
+        category,
+        author,
+        tags,
+        published,
+        featured,
+        views,
+        content_blocks,
+        faqs,
+        published_at,
+        created_at,
+        updated_at,
+        meta_title,
+        meta_description
+      `)
+      .eq("slug", decodedSlug)
+      .eq("published", true)
+      .maybeSingle();
 
   if (error) {
-    console.error("BLOG FETCH ERROR:", error);
+    console.error(
+      "BLOG FETCH ERROR:",
+      error
+    );
+
     return null;
   }
 
@@ -362,101 +672,112 @@ async function getBlog(
 }
 
 /* =========================================================
+   CACHED BLOG FETCH
+========================================================= */
+
+async function getBlog(
+  slug: string
+): Promise<Blog | null> {
+  const decodedSlug =
+    decodeURIComponent(slug);
+
+  const getCached =
+    unstable_cache(
+      async () =>
+        fetchBlog(decodedSlug),
+      ["blog", decodedSlug],
+      {
+        revalidate: 60,
+        tags: [
+          "blogs",
+          `blog-${decodedSlug}`,
+        ],
+      }
+    );
+
+  return getCached();
+}
+
+/* =========================================================
    RELATED BLOGS
 ========================================================= */
 
-async function getRelatedBlogs(
+async function fetchRelatedBlogs(
   blog: Blog
-): Promise<Blog[]> {
-  let related: Blog[] = [];
+): Promise<RelatedBlog[]> {
+  let related: RelatedBlog[] =
+    [];
 
   if (blog.category) {
-    const { data } = await supabase
-      .from("blogs")
-      .select(`
-        id,
-        title,
-        slug,
-        excerpt,
-        cover_image,
-        cover_image_alt,
-        category,
-        author,
-        tags,
-        published,
-        featured,
-        reading_time,
-        views,
-        published_at,
-        created_at,
-        updated_at,
-        content_blocks,
-        faqs,
-        introduction,
-        content,
-        seo_title,
-        seo_description
-      `)
-      .eq("published", true)
-      .eq("category", blog.category)
-      .neq("id", blog.id)
-      .order("published_at", {
-        ascending: false,
-        nullsFirst: false,
-      })
-      .limit(6);
+    const { data } =
+      await supabase
+        .from("blogs")
+        .select(`
+          id,
+          title,
+          slug,
+          excerpt,
+          cover_image,
+          category,
+          published_at,
+          created_at
+        `)
+        .eq("published", true)
+        .eq(
+          "category",
+          blog.category
+        )
+        .neq("id", blog.id)
+        .order("published_at", {
+          ascending: false,
+          nullsFirst: false,
+        })
+        .limit(6);
 
     if (data) {
-      related = data as Blog[];
+      related =
+        data as RelatedBlog[];
     }
   }
 
   if (related.length < 6) {
-    const existingIds = [
-      blog.id,
-      ...related.map((item) => item.id),
-    ];
+    const existingIds =
+      new Set([
+        blog.id,
+        ...related.map(
+          (item) => item.id
+        ),
+      ]);
 
-    const { data } = await supabase
-      .from("blogs")
-      .select(`
-        id,
-        title,
-        slug,
-        excerpt,
-        cover_image,
-        cover_image_alt,
-        category,
-        author,
-        tags,
-        published,
-        featured,
-        reading_time,
-        views,
-        published_at,
-        created_at,
-        updated_at,
-        content_blocks,
-        faqs,
-        introduction,
-        content,
-        seo_title,
-        seo_description
-      `)
-      .eq("published", true)
-      .order("published_at", {
-        ascending: false,
-        nullsFirst: false,
-      })
-      .limit(12);
+    const { data } =
+      await supabase
+        .from("blogs")
+        .select(`
+          id,
+          title,
+          slug,
+          excerpt,
+          cover_image,
+          category,
+          published_at,
+          created_at
+        `)
+        .eq("published", true)
+        .order("published_at", {
+          ascending: false,
+          nullsFirst: false,
+        })
+        .limit(12);
 
     if (data) {
-      const additional = (
-        data as Blog[]
-      ).filter(
-        (item) =>
-          !existingIds.includes(item.id)
-      );
+      const additional =
+        (data as RelatedBlog[])
+          .filter(
+            (item) =>
+              !existingIds.has(
+                item.id
+              )
+          );
 
       related = [
         ...related,
@@ -466,6 +787,34 @@ async function getRelatedBlogs(
   }
 
   return related;
+}
+
+/* =========================================================
+   CACHED RELATED BLOGS
+========================================================= */
+
+async function getRelatedBlogs(
+  blog: Blog
+): Promise<RelatedBlog[]> {
+  const getCached =
+    unstable_cache(
+      async () =>
+        fetchRelatedBlogs(blog),
+      [
+        "related-blogs",
+        String(blog.id),
+        blog.category || "none",
+      ],
+      {
+        revalidate: 300,
+        tags: [
+          "blogs",
+          "related-blogs",
+        ],
+      }
+    );
+
+  return getCached();
 }
 
 /* =========================================================
@@ -483,7 +832,7 @@ function RenderBlock({
     return (
       <p
         key={index}
-        className="my-6 whitespace-pre-line"
+        className="my-5 whitespace-pre-line"
       >
         {block}
       </p>
@@ -494,11 +843,12 @@ function RenderBlock({
     return null;
   }
 
-  const type = getString(block, [
-    "type",
-    "block_type",
-    "kind",
-  ]).toLowerCase();
+  const type =
+    getString(block, [
+      "type",
+      "block_type",
+      "kind",
+    ]).toLowerCase();
 
   /* TEXT */
 
@@ -508,13 +858,14 @@ function RenderBlock({
     type === "rich-text" ||
     type === "richtext"
   ) {
-    const text = getString(block, [
-      "text",
-      "content",
-      "value",
-      "body",
-      "html",
-    ]);
+    const text =
+      getString(block, [
+        "text",
+        "content",
+        "value",
+        "body",
+        "html",
+      ]);
 
     if (!text) {
       return null;
@@ -529,7 +880,7 @@ function RenderBlock({
       return (
         <div
           key={index}
-          className="my-6"
+          className="my-5"
           dangerouslySetInnerHTML={{
             __html: text,
           }}
@@ -540,7 +891,7 @@ function RenderBlock({
     return (
       <p
         key={index}
-        className="my-6 whitespace-pre-line"
+        className="my-5 whitespace-pre-line"
       >
         {text}
       </p>
@@ -554,13 +905,14 @@ function RenderBlock({
     type === "h2" ||
     type === "section"
   ) {
-    const heading = getString(block, [
-      "text",
-      "content",
-      "title",
-      "heading",
-      "value",
-    ]);
+    const heading =
+      getString(block, [
+        "text",
+        "content",
+        "title",
+        "heading",
+        "value",
+      ]);
 
     if (!heading) {
       return null;
@@ -569,7 +921,7 @@ function RenderBlock({
     return (
       <h2
         key={index}
-        className="mt-14 mb-5 text-2xl font-black leading-tight tracking-tight sm:text-3xl"
+        className="mt-12 mb-4 text-2xl font-black leading-tight tracking-tight sm:text-3xl"
       >
         {heading}
       </h2>
@@ -582,13 +934,14 @@ function RenderBlock({
     type === "h3" ||
     type === "subheading"
   ) {
-    const heading = getString(block, [
-      "text",
-      "content",
-      "title",
-      "heading",
-      "value",
-    ]);
+    const heading =
+      getString(block, [
+        "text",
+        "content",
+        "title",
+        "heading",
+        "value",
+      ]);
 
     if (!heading) {
       return null;
@@ -597,7 +950,7 @@ function RenderBlock({
     return (
       <h3
         key={index}
-        className="mt-10 mb-4 text-xl font-extrabold leading-tight sm:text-2xl"
+        className="mt-9 mb-3 text-xl font-extrabold leading-tight sm:text-2xl"
       >
         {heading}
       </h3>
@@ -611,13 +964,14 @@ function RenderBlock({
     type === "photo" ||
     type === "picture"
   ) {
-    const image = getString(block, [
-      "url",
-      "src",
-      "image",
-      "image_url",
-      "value",
-    ]);
+    const image =
+      getString(block, [
+        "url",
+        "src",
+        "image",
+        "image_url",
+        "value",
+      ]);
 
     const alt =
       getString(block, [
@@ -628,10 +982,11 @@ function RenderBlock({
       ]) ||
       "AnantaGo article image";
 
-    const caption = getString(block, [
-      "caption",
-      "description",
-    ]);
+    const caption =
+      getString(block, [
+        "caption",
+        "description",
+      ]);
 
     if (!image) {
       return null;
@@ -640,19 +995,22 @@ function RenderBlock({
     return (
       <figure
         key={index}
-        className="my-10"
+        className="my-8"
       >
-        <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-100">
+        <div className="overflow-hidden rounded-xl border border-zinc-200 bg-zinc-100 sm:rounded-2xl">
           <img
             src={image}
             alt={alt}
-            className="block h-auto w-full object-contain"
+            width={1200}
+            height={675}
             loading="lazy"
+            decoding="async"
+            className="block h-auto w-full object-contain"
           />
         </div>
 
         {caption && (
-          <figcaption className="mt-3 text-center text-sm leading-6 text-zinc-500">
+          <figcaption className="mt-2 text-center text-xs leading-5 text-zinc-500">
             {caption}
           </figcaption>
         )}
@@ -668,12 +1026,13 @@ function RenderBlock({
     type === "unordered-list" ||
     type === "list"
   ) {
-    const items = getArray(block, [
-      "items",
-      "list",
-      "content",
-      "values",
-    ]);
+    const items =
+      getArray(block, [
+        "items",
+        "list",
+        "content",
+        "values",
+      ]);
 
     if (items.length === 0) {
       return null;
@@ -682,7 +1041,7 @@ function RenderBlock({
     return (
       <ul
         key={index}
-        className="my-7 list-disc space-y-3 pl-6 text-[1.08rem] leading-8"
+        className="my-6 list-disc space-y-2 pl-6 text-base leading-7 sm:text-[1.05rem] sm:leading-8"
       >
         {items.map(
           (item, itemIndex) => {
@@ -697,15 +1056,20 @@ function RenderBlock({
               );
             }
 
-            if (isObject(item)) {
+            if (
+              isObject(item)
+            ) {
               return (
                 <li key={itemIndex}>
-                  {getString(item, [
-                    "text",
-                    "content",
-                    "value",
-                    "title",
-                  ])}
+                  {getString(
+                    item,
+                    [
+                      "text",
+                      "content",
+                      "value",
+                      "title",
+                    ]
+                  )}
                 </li>
               );
             }
@@ -724,12 +1088,13 @@ function RenderBlock({
     type === "numbered-list" ||
     type === "steps"
   ) {
-    const items = getArray(block, [
-      "items",
-      "list",
-      "content",
-      "values",
-    ]);
+    const items =
+      getArray(block, [
+        "items",
+        "list",
+        "content",
+        "values",
+      ]);
 
     if (items.length === 0) {
       return null;
@@ -738,7 +1103,7 @@ function RenderBlock({
     return (
       <ol
         key={index}
-        className="my-7 list-decimal space-y-3 pl-6 text-[1.08rem] leading-8"
+        className="my-6 list-decimal space-y-2 pl-6 text-base leading-7 sm:text-[1.05rem] sm:leading-8"
       >
         {items.map(
           (item, itemIndex) => {
@@ -753,15 +1118,20 @@ function RenderBlock({
               );
             }
 
-            if (isObject(item)) {
+            if (
+              isObject(item)
+            ) {
               return (
                 <li key={itemIndex}>
-                  {getString(item, [
-                    "text",
-                    "content",
-                    "value",
-                    "title",
-                  ])}
+                  {getString(
+                    item,
+                    [
+                      "text",
+                      "content",
+                      "value",
+                      "title",
+                    ]
+                  )}
                 </li>
               );
             }
@@ -779,34 +1149,36 @@ function RenderBlock({
     type === "quote" ||
     type === "blockquote"
   ) {
-    const text = getString(block, [
-      "text",
-      "content",
-      "quote",
-      "value",
-    ]);
+    const text =
+      getString(block, [
+        "text",
+        "content",
+        "quote",
+        "value",
+      ]);
 
     if (!text) {
       return null;
     }
 
-    const author = getString(block, [
-      "author",
-      "source",
-      "name",
-    ]);
+    const author =
+      getString(block, [
+        "author",
+        "source",
+        "name",
+      ]);
 
     return (
       <blockquote
         key={index}
-        className="my-10 rounded-r-2xl border-l-4 border-zinc-900 bg-zinc-50 px-6 py-5"
+        className="my-8 rounded-r-xl border-l-4 border-zinc-900 bg-zinc-50 px-5 py-4 sm:rounded-r-2xl sm:px-6 sm:py-5"
       >
-        <p className="text-lg font-medium italic leading-8 text-zinc-600">
+        <p className="text-base font-medium italic leading-7 text-zinc-600 sm:text-lg sm:leading-8">
           {text}
         </p>
 
         {author && (
-          <footer className="mt-3 text-sm font-semibold text-zinc-500">
+          <footer className="mt-2 text-sm font-semibold text-zinc-500">
             — {author}
           </footer>
         )}
@@ -822,18 +1194,20 @@ function RenderBlock({
     type === "tip" ||
     type === "warning"
   ) {
-    const title = getString(block, [
-      "title",
-      "heading",
-      "label",
-    ]);
+    const title =
+      getString(block, [
+        "title",
+        "heading",
+        "label",
+      ]);
 
-    const text = getString(block, [
-      "text",
-      "content",
-      "message",
-      "description",
-    ]);
+    const text =
+      getString(block, [
+        "text",
+        "content",
+        "message",
+        "description",
+      ]);
 
     if (!text && !title) {
       return null;
@@ -842,7 +1216,7 @@ function RenderBlock({
     return (
       <aside
         key={index}
-        className="my-9 rounded-2xl border border-zinc-200 bg-zinc-50 p-6"
+        className="my-8 rounded-xl border border-zinc-200 bg-zinc-50 p-5 sm:rounded-2xl sm:p-6"
       >
         {title && (
           <h3 className="mb-2 text-base font-extrabold text-zinc-950">
@@ -851,7 +1225,7 @@ function RenderBlock({
         )}
 
         {text && (
-          <p className="whitespace-pre-line text-[1rem] leading-7 text-zinc-700">
+          <p className="whitespace-pre-line text-[0.98rem] leading-7 text-zinc-700">
             {text}
           </p>
         )}
@@ -862,15 +1236,17 @@ function RenderBlock({
   /* TABLE */
 
   if (type === "table") {
-    const headers = getArray(block, [
-      "headers",
-      "columns",
-    ]);
+    const headers =
+      getArray(block, [
+        "headers",
+        "columns",
+      ]);
 
-    const rows = getArray(block, [
-      "rows",
-      "data",
-    ]);
+    const rows =
+      getArray(block, [
+        "rows",
+        "data",
+      ]);
 
     if (
       headers.length === 0 &&
@@ -882,7 +1258,7 @@ function RenderBlock({
     return (
       <div
         key={index}
-        className="my-10 overflow-x-auto rounded-2xl border border-zinc-200"
+        className="my-8 overflow-x-auto rounded-xl border border-zinc-200 sm:rounded-2xl"
       >
         <table className="w-full min-w-[600px] border-collapse text-sm">
           {headers.length > 0 && (
@@ -897,7 +1273,7 @@ function RenderBlock({
                       key={
                         headerIndex
                       }
-                      className="border-b border-zinc-200 px-5 py-4 text-left font-bold text-zinc-900"
+                      className="border-b border-zinc-200 px-4 py-3 text-left font-bold text-zinc-900"
                     >
                       {typeof header ===
                       "string"
@@ -928,9 +1304,13 @@ function RenderBlock({
                 rowIndex
               ) => {
                 const cells =
-                  Array.isArray(row)
+                  Array.isArray(
+                    row
+                  )
                     ? row
-                    : isObject(row)
+                    : isObject(
+                        row
+                      )
                     ? getArray(
                         row,
                         [
@@ -942,7 +1322,9 @@ function RenderBlock({
 
                 return (
                   <tr
-                    key={rowIndex}
+                    key={
+                      rowIndex
+                    }
                     className="border-b border-zinc-100 last:border-0"
                   >
                     {cells.map(
@@ -954,7 +1336,7 @@ function RenderBlock({
                           key={
                             cellIndex
                           }
-                          className="px-5 py-4 align-top leading-6 text-zinc-700"
+                          className="px-4 py-3 align-top leading-6 text-zinc-700"
                         >
                           {typeof cell ===
                           "string"
@@ -990,11 +1372,12 @@ function RenderBlock({
     type === "html" ||
     type === "raw"
   ) {
-    const html = getString(block, [
-      "html",
-      "content",
-      "value",
-    ]);
+    const html =
+      getString(block, [
+        "html",
+        "content",
+        "value",
+      ]);
 
     if (!html) {
       return null;
@@ -1003,7 +1386,7 @@ function RenderBlock({
     return (
       <div
         key={index}
-        className="my-6"
+        className="my-5"
         dangerouslySetInnerHTML={{
           __html: html,
         }}
@@ -1013,22 +1396,20 @@ function RenderBlock({
 
   /* FALLBACK */
 
-  const fallbackText = getString(
-    block,
-    [
+  const fallbackText =
+    getString(block, [
       "text",
       "content",
       "body",
       "description",
       "value",
-    ]
-  );
+    ]);
 
   if (fallbackText) {
     return (
       <p
         key={index}
-        className="my-6 whitespace-pre-line"
+        className="my-5 whitespace-pre-line"
       >
         {fallbackText}
       </p>
@@ -1039,7 +1420,7 @@ function RenderBlock({
 }
 
 /* =========================================================
-   FAQ RENDERER
+   FAQ DISPLAY
 ========================================================= */
 
 function RenderFAQs({
@@ -1047,16 +1428,19 @@ function RenderFAQs({
 }: {
   faqs: NormalizedFAQ[];
 }) {
-  if (!faqs || faqs.length === 0) {
+  if (
+    !faqs ||
+    faqs.length === 0
+  ) {
     return null;
   }
 
   return (
     <section
       id="faq"
-      className="mt-16 scroll-mt-24 border-t border-zinc-200 pt-12"
+      className="mt-14 scroll-mt-24 border-t border-zinc-200 pt-10 sm:mt-16 sm:pt-12"
     >
-      <div className="mb-8">
+      <div className="mb-7">
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
           FAQ
         </p>
@@ -1066,15 +1450,15 @@ function RenderFAQs({
         </h2>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         {faqs.map(
           (faq, index) => (
             <details
               key={`${faq.question}-${index}`}
-              className="group overflow-hidden rounded-2xl border border-zinc-200 bg-white"
+              className="group overflow-hidden rounded-xl border border-zinc-200 bg-white sm:rounded-2xl"
             >
-              <summary className="cursor-pointer list-none px-5 py-5 font-bold text-zinc-950 sm:px-6">
-                <div className="flex items-center justify-between gap-5">
+              <summary className="cursor-pointer list-none px-4 py-4 font-bold text-zinc-950 sm:px-6 sm:py-5">
+                <div className="flex items-center justify-between gap-4">
                   <span>
                     {faq.question}
                   </span>
@@ -1085,7 +1469,7 @@ function RenderFAQs({
                 </div>
               </summary>
 
-              <div className="border-t border-zinc-100 px-5 py-5 text-base leading-7 text-zinc-600 sm:px-6">
+              <div className="border-t border-zinc-100 px-4 py-4 text-base leading-7 text-zinc-600 sm:px-6 sm:py-5">
                 {faq.answer}
               </div>
             </details>
@@ -1103,23 +1487,23 @@ function RenderFAQs({
 function RelatedBlogCard({
   blog,
 }: {
-  blog: Blog;
+  blog: RelatedBlog;
 }) {
   return (
     <Link
       href={`/blog/${blog.slug}`}
-      className="group block overflow-hidden rounded-2xl border border-zinc-200 bg-white transition hover:-translate-y-1 hover:border-zinc-300 hover:shadow-lg"
+      className="group block overflow-hidden rounded-xl border border-zinc-200 bg-white transition hover:-translate-y-1 hover:border-zinc-300 hover:shadow-lg sm:rounded-2xl"
     >
       {blog.cover_image ? (
-        <div className="aspect-[16/9] overflow-hidden bg-zinc-100">
+        <div className="relative aspect-[16/9] overflow-hidden bg-zinc-100">
           <img
             src={blog.cover_image}
-            alt={
-              blog.cover_image_alt ||
-              blog.title
-            }
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+            alt={blog.title}
+            width={640}
+            height={360}
             loading="lazy"
+            decoding="async"
+            className="block h-full w-full object-cover transition duration-500 group-hover:scale-105"
           />
         </div>
       ) : (
@@ -1128,24 +1512,24 @@ function RelatedBlogCard({
         </div>
       )}
 
-      <div className="p-5">
+      <div className="p-4 sm:p-5">
         {blog.category && (
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">
             {blog.category}
           </p>
         )}
 
-        <h3 className="mt-2 line-clamp-2 text-lg font-extrabold leading-tight tracking-tight text-zinc-950">
+        <h3 className="mt-2 line-clamp-2 text-base font-extrabold leading-tight tracking-tight text-zinc-950 sm:text-lg">
           {blog.title}
         </h3>
 
         {blog.excerpt && (
-          <p className="mt-3 line-clamp-3 text-sm leading-6 text-zinc-500">
+          <p className="mt-2 line-clamp-3 text-sm leading-6 text-zinc-500">
             {blog.excerpt}
           </p>
         )}
 
-        <div className="mt-4 text-xs font-semibold text-zinc-400">
+        <div className="mt-3 text-xs font-semibold text-zinc-400">
           {formatDate(
             blog.published_at ||
               blog.created_at
@@ -1153,6 +1537,104 @@ function RelatedBlogCard({
         </div>
       </div>
     </Link>
+  );
+}
+
+/* =========================================================
+   RELATED ARTICLES
+========================================================= */
+
+async function RelatedArticles({
+  blog,
+}: {
+  blog: Blog;
+}) {
+  const relatedBlogs =
+    await getRelatedBlogs(blog);
+
+  if (
+    relatedBlogs.length === 0
+  ) {
+    return null;
+  }
+
+  return (
+    <section className="border-t border-zinc-200 bg-zinc-50">
+      <div className="mx-auto max-w-6xl px-5 py-12 sm:px-6 sm:py-16 lg:px-8">
+        <div className="mb-7 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
+              Keep Reading
+            </p>
+
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-zinc-950 sm:text-3xl">
+              More from AnantaGo
+            </h2>
+          </div>
+
+          <Link
+            href="/blog"
+            className="text-sm font-bold text-zinc-600"
+          >
+            Explore more →
+          </Link>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {relatedBlogs.map(
+            (relatedBlog) => (
+              <RelatedBlogCard
+                key={
+                  relatedBlog.id
+                }
+                blog={
+                  relatedBlog
+                }
+              />
+            )
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* =========================================================
+   RELATED SKELETON
+========================================================= */
+
+function RelatedArticlesSkeleton() {
+  return (
+    <section className="border-t border-zinc-200 bg-zinc-50">
+      <div className="mx-auto max-w-6xl px-5 py-12 sm:px-6 sm:py-16 lg:px-8">
+        <div className="mb-7">
+          <div className="h-3 w-24 animate-pulse rounded bg-zinc-200" />
+
+          <div className="mt-3 h-8 w-56 animate-pulse rounded bg-zinc-200" />
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map(
+            (item) => (
+              <div
+                key={item}
+                className="overflow-hidden rounded-xl border border-zinc-200 bg-white sm:rounded-2xl"
+              >
+                <div className="aspect-[16/9] animate-pulse bg-zinc-200" />
+
+                <div className="p-5">
+                  <div className="h-3 w-20 animate-pulse rounded bg-zinc-200" />
+
+                  <div className="mt-3 h-5 w-full animate-pulse rounded bg-zinc-200" />
+
+                  <div className="mt-2 h-5 w-4/5 animate-pulse rounded bg-zinc-200" />
+                </div>
+              </div>
+            )
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1165,32 +1647,37 @@ export default async function BlogArticlePage({
 }: PageProps) {
   const { slug } = await params;
 
-  const blog = await getBlog(slug);
+  const blog =
+    await getBlog(slug);
 
   if (!blog) {
     notFound();
   }
 
-  const relatedBlogs =
-    await getRelatedBlogs(blog);
-
   /* =====================================================
      CONTENT BLOCKS
   ===================================================== */
 
-  let contentBlocks: unknown[] = [];
+  let contentBlocks: unknown[] =
+    [];
 
   const parsedBlocks =
     parseJsonValue(
       blog.content_blocks
     );
 
-  if (Array.isArray(parsedBlocks)) {
-    contentBlocks = parsedBlocks;
+  if (
+    Array.isArray(parsedBlocks)
+  ) {
+    contentBlocks =
+      parsedBlocks;
   }
 
   /* =====================================================
      FAQ
+
+     IMPORTANT:
+     Always normalize the database value.
   ===================================================== */
 
   const normalizedFaqs =
@@ -1199,10 +1686,20 @@ export default async function BlogArticlePage({
   const hasFaqs =
     normalizedFaqs.length > 0;
 
+  /*
+    Temporary server-side diagnostic.
+
+    This does NOT appear on the website.
+    It only appears in the Vercel/server terminal.
+  */
   console.log(
-    "BLOG FAQ:",
+    "FAQ DEBUG:",
     blog.slug,
-    normalizedFaqs
+    {
+      rawFaqs: blog.faqs,
+      normalizedCount:
+        normalizedFaqs.length,
+    }
   );
 
   /* =====================================================
@@ -1218,14 +1715,13 @@ export default async function BlogArticlePage({
 
       {/* =================================================
           TOP AD
-          Uses your AdOne.tsx
       ================================================= */}
 
       <section
         className="w-full border-b border-zinc-100 bg-white"
         aria-label="Advertisement"
       >
-        <div className="mx-auto flex w-full max-w-[1100px] justify-center px-2 py-4">
+        <div className="mx-auto flex min-h-[90px] w-full max-w-[1100px] items-center justify-center overflow-hidden px-2 py-3">
           <AdOne />
         </div>
       </section>
@@ -1235,30 +1731,30 @@ export default async function BlogArticlePage({
       ================================================= */}
 
       <header className="border-b border-zinc-200 bg-white">
-        <div className="mx-auto max-w-5xl px-5 pb-10 pt-12 sm:px-6 sm:pb-14 sm:pt-16 lg:px-8 lg:pt-20">
+        <div className="mx-auto max-w-5xl px-5 pb-9 pt-10 sm:px-6 sm:pb-14 sm:pt-16 lg:px-8 lg:pt-20">
 
           {blog.category && (
             <Link
               href={`/${getCategorySlug(
                 blog.category
               )}`}
-              className="inline-flex rounded-full bg-zinc-950 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white transition hover:opacity-80"
+              className="inline-flex rounded-full bg-zinc-950 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white transition hover:opacity-80 sm:text-xs"
             >
               {blog.category}
             </Link>
           )}
 
-          <h1 className="mt-6 max-w-4xl text-4xl font-black leading-[1.05] tracking-[-0.04em] text-zinc-950 sm:text-5xl lg:text-6xl">
+          <h1 className="mt-5 max-w-4xl text-3xl font-black leading-[1.08] tracking-[-0.04em] text-zinc-950 sm:mt-6 sm:text-5xl lg:text-6xl">
             {blog.title}
           </h1>
 
           {blog.excerpt && (
-            <p className="mt-6 max-w-3xl text-lg leading-8 text-zinc-600 sm:text-xl sm:leading-9">
+            <p className="mt-5 max-w-3xl text-base leading-7 text-zinc-600 sm:mt-6 sm:text-xl sm:leading-9">
               {blog.excerpt}
             </p>
           )}
 
-          <div className="mt-7 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-zinc-500">
+          <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-zinc-500 sm:mt-7 sm:gap-x-4 sm:text-sm">
 
             <span className="font-semibold text-zinc-900">
               {blog.author ||
@@ -1270,20 +1766,10 @@ export default async function BlogArticlePage({
             </span>
 
             <time dateTime={articleDate}>
-              {formatDate(articleDate)}
+              {formatDate(
+                articleDate
+              )}
             </time>
-
-            {blog.reading_time && (
-              <>
-                <span className="text-zinc-300">
-                  •
-                </span>
-
-                <span>
-                  {blog.reading_time} min read
-                </span>
-              </>
-            )}
 
           </div>
         </div>
@@ -1294,45 +1780,49 @@ export default async function BlogArticlePage({
       ================================================= */}
 
       {blog.cover_image && (
-        <section className="mx-auto max-w-6xl px-5 pt-8 sm:px-6 sm:pt-10 lg:px-8">
-          <div className="overflow-hidden rounded-2xl bg-zinc-100 sm:rounded-3xl">
+        <section className="mx-auto max-w-6xl px-5 pt-6 sm:px-6 sm:pt-10 lg:px-8">
+          <div className="relative aspect-[16/9] overflow-hidden rounded-xl bg-zinc-100 sm:rounded-3xl">
+
             <img
               src={blog.cover_image}
-              alt={
-                blog.cover_image_alt ||
-                blog.title
-              }
-              className="block h-auto max-h-[650px] w-full object-cover"
+              alt={blog.title}
+              width={1600}
+              height={900}
               loading="eager"
+              fetchPriority="high"
+              decoding="async"
+              className="absolute inset-0 block h-full w-full object-cover"
             />
+
           </div>
         </section>
       )}
 
       {/* =================================================
-          ARTICLE
+          ARTICLE CONTENT
       ================================================= */}
 
-      <article className="mx-auto max-w-3xl px-5 py-10 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
+      <article className="mx-auto max-w-3xl px-5 py-9 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
 
         {/* INTRODUCTION */}
 
         {blog.introduction && (
-          <div className="mb-10 text-[1.08rem] leading-8 text-zinc-700 sm:text-[1.12rem]">
+          <div className="mb-9 text-base leading-7 text-zinc-700 sm:text-[1.12rem] sm:leading-8">
             <p className="whitespace-pre-line">
               {blog.introduction}
             </p>
           </div>
         )}
 
-        {/* =================================================
-            CONTENT BLOCKS
-        ================================================= */}
+        {/* CONTENT BLOCKS */}
 
         {contentBlocks.length > 0 && (
           <div className="article-content">
             {contentBlocks.map(
-              (block, index) => (
+              (
+                block,
+                index
+              ) => (
                 <RenderBlock
                   key={index}
                   block={block}
@@ -1344,38 +1834,28 @@ export default async function BlogArticlePage({
         )}
 
         {/* =================================================
-            OLD CONTENT FALLBACK
-        ================================================= */}
-
-        {contentBlocks.length === 0 &&
-          blog.content && (
-            <div
-              className="article-content"
-              dangerouslySetInnerHTML={{
-                __html: blog.content,
-              }}
-            />
-          )}
-
-        {/* =================================================
             FAQ
+
+            This is intentionally rendered directly from
+            normalizedFaqs so every supported old format
+            reaches the same UI.
         ================================================= */}
 
         {hasFaqs && (
           <RenderFAQs
-            faqs={normalizedFaqs}
+            faqs={
+              normalizedFaqs
+            }
           />
         )}
 
-        {/* =================================================
-            TAGS
-        ================================================= */}
+        {/* TAGS */}
 
         {blog.tags &&
           blog.tags.length > 0 && (
-            <div className="mt-16 border-t border-zinc-200 pt-8">
+            <div className="mt-14 border-t border-zinc-200 pt-7">
 
-              <p className="mb-4 text-xs font-bold uppercase tracking-[0.16em] text-zinc-500">
+              <p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-zinc-500">
                 Topics
               </p>
 
@@ -1401,67 +1881,32 @@ export default async function BlogArticlePage({
           RELATED ARTICLES
       ================================================= */}
 
-      {relatedBlogs.length > 0 && (
-        <section className="border-t border-zinc-200 bg-zinc-50">
-          <div className="mx-auto max-w-6xl px-5 py-14 sm:px-6 sm:py-16 lg:px-8">
-
-            <div className="mb-8 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
-                  Keep Reading
-                </p>
-
-                <h2 className="mt-2 text-2xl font-black tracking-tight text-zinc-950 sm:text-3xl">
-                  More from AnantaGo
-                </h2>
-              </div>
-
-              <Link
-                href="/blog"
-                className="text-sm font-bold text-zinc-600"
-              >
-                Explore more →
-              </Link>
-
-            </div>
-
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-
-              {relatedBlogs.map(
-                (relatedBlog) => (
-                  <RelatedBlogCard
-                    key={
-                      relatedBlog.id
-                    }
-                    blog={
-                      relatedBlog
-                    }
-                  />
-                )
-              )}
-
-            </div>
-          </div>
-        </section>
-      )}
+      <Suspense
+        fallback={
+          <RelatedArticlesSkeleton />
+        }
+      >
+        <RelatedArticles
+          blog={blog}
+        />
+      </Suspense>
 
       {/* =================================================
           BOTTOM CTA
       ================================================= */}
 
       <section className="border-t border-zinc-800 bg-zinc-950 text-white">
-        <div className="mx-auto max-w-5xl px-5 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-5xl px-5 py-12 sm:px-6 sm:py-16 lg:px-8">
 
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-400">
             AnantaGo
           </p>
 
-          <h2 className="mt-4 text-3xl font-black tracking-tight text-white sm:text-4xl">
+          <h2 className="mt-3 text-2xl font-black tracking-tight text-white sm:text-4xl">
             Technology, made easier.
           </h2>
 
-          <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-400">
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400 sm:mt-4 sm:text-base sm:leading-7">
             Useful AI and technology
             stories, practical guides
             and clear explanations for
@@ -1470,7 +1915,7 @@ export default async function BlogArticlePage({
 
           <Link
             href="/"
-            className="mt-7 inline-flex items-center rounded-xl bg-white px-5 py-3 text-sm font-bold text-zinc-950 transition hover:opacity-90"
+            className="mt-6 inline-flex items-center rounded-xl bg-white px-5 py-3 text-sm font-bold text-zinc-950 transition hover:opacity-90"
           >
             Explore AnantaGo
 
@@ -1489,31 +1934,31 @@ export default async function BlogArticlePage({
       <style>{`
         .article-content {
           color: #3f3f46;
-          font-size: 1.08rem;
-          line-height: 1.9;
+          font-size: 1.06rem;
+          line-height: 1.85;
           overflow-wrap: break-word;
         }
 
         .article-content p {
-          margin: 1.35rem 0;
+          margin: 1.2rem 0;
           color: #3f3f46;
         }
 
         .article-content h2 {
-          margin-top: 3.75rem;
-          margin-bottom: 1.25rem;
+          margin-top: 3.25rem;
+          margin-bottom: 1rem;
           color: #09090b;
-          font-size: 2rem;
+          font-size: 1.9rem;
           line-height: 1.2;
           font-weight: 850;
           letter-spacing: -0.035em;
         }
 
         .article-content h3 {
-          margin-top: 2.75rem;
-          margin-bottom: 1rem;
+          margin-top: 2.4rem;
+          margin-bottom: 0.8rem;
           color: #09090b;
-          font-size: 1.45rem;
+          font-size: 1.4rem;
           line-height: 1.3;
           font-weight: 800;
           letter-spacing: -0.025em;
@@ -1541,38 +1986,38 @@ export default async function BlogArticlePage({
         }
 
         .article-content ul {
-          margin: 1.5rem 0;
-          padding-left: 1.6rem;
+          margin: 1.3rem 0;
+          padding-left: 1.5rem;
           list-style: disc;
         }
 
         .article-content ol {
-          margin: 1.5rem 0;
-          padding-left: 1.6rem;
+          margin: 1.3rem 0;
+          padding-left: 1.5rem;
           list-style: decimal;
         }
 
         .article-content li {
-          margin: 0.55rem 0;
-          padding-left: 0.3rem;
+          margin: 0.45rem 0;
+          padding-left: 0.25rem;
         }
 
         .article-content blockquote {
-          margin: 2.5rem 0;
+          margin: 2rem 0;
           border-left: 4px solid #18181b;
-          border-radius: 0 1rem 1rem 0;
+          border-radius: 0 0.9rem 0.9rem 0;
           background: #f4f4f5;
-          padding: 1.25rem 1.5rem;
+          padding: 1rem 1.25rem;
           color: #52525b;
           font-style: italic;
         }
 
         .article-content pre {
-          margin: 2rem 0;
+          margin: 1.75rem 0;
           overflow-x: auto;
-          border-radius: 1rem;
+          border-radius: 0.9rem;
           background: #18181b;
-          padding: 1.25rem;
+          padding: 1rem;
           color: #f4f4f5;
           font-family:
             ui-monospace,
@@ -1581,14 +2026,14 @@ export default async function BlogArticlePage({
             Monaco,
             Consolas,
             monospace;
-          font-size: 0.9rem;
-          line-height: 1.7;
+          font-size: 0.88rem;
+          line-height: 1.65;
         }
 
         .article-content code {
           border-radius: 0.35rem;
           background: #f4f4f5;
-          padding: 0.15rem 0.35rem;
+          padding: 0.15rem 0.3rem;
           color: #18181b;
           font-family:
             ui-monospace,
@@ -1613,35 +2058,35 @@ export default async function BlogArticlePage({
           height: auto;
           max-height: 700px;
           object-fit: contain;
-          border-radius: 1rem;
+          border-radius: 0.9rem;
           margin: 0 auto;
         }
 
         .article-content figure {
           width: 100%;
-          margin: 3rem 0;
+          margin: 2.5rem 0;
         }
 
         .article-content figcaption {
-          margin-top: 0.75rem;
+          margin-top: 0.6rem;
           text-align: center;
           color: #71717a;
-          font-size: 0.8rem;
+          font-size: 0.78rem;
           line-height: 1.5;
         }
 
         .article-content table {
           width: 100%;
-          margin: 2.5rem 0;
+          margin: 2rem 0;
           border-collapse: collapse;
           border: 1px solid #e4e4e7;
-          font-size: 0.95rem;
+          font-size: 0.92rem;
         }
 
         .article-content th,
         .article-content td {
           border: 1px solid #e4e4e7;
-          padding: 0.8rem 0.9rem;
+          padding: 0.7rem 0.8rem;
           text-align: left;
           vertical-align: top;
         }
@@ -1661,7 +2106,7 @@ export default async function BlogArticlePage({
         }
 
         .article-content hr {
-          margin: 3rem 0;
+          margin: 2.5rem 0;
           border: 0;
           border-top: 1px solid #e4e4e7;
         }
@@ -1671,8 +2116,8 @@ export default async function BlogArticlePage({
           display: block;
           width: 100%;
           max-width: 100%;
-          margin: 2rem 0;
-          border-radius: 1rem;
+          margin: 1.75rem 0;
+          border-radius: 0.9rem;
         }
 
         @media (max-width: 640px) {
@@ -1682,7 +2127,8 @@ export default async function BlogArticlePage({
           }
 
           .article-content h2 {
-            margin-top: 3rem;
+            margin-top: 2.75rem;
+            margin-bottom: 0.9rem;
             font-size: 1.55rem;
           }
 
@@ -1696,6 +2142,10 @@ export default async function BlogArticlePage({
             border-radius: 0.75rem;
           }
 
+          .article-content figure {
+            margin: 2rem 0;
+          }
+
           .article-content table {
             display: block;
             overflow-x: auto;
@@ -1703,6 +2153,8 @@ export default async function BlogArticlePage({
           }
         }
       `}</style>
+
     </main>
   );
 }
+

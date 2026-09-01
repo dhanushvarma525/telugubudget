@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -17,14 +16,12 @@ declare global {
 
 export default function AdOne() {
   const [isMobile, setIsMobile] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const [shouldLoad, setShouldLoad] = useState(false);
 
-  const desktopAdRef = useRef<HTMLDivElement | null>(null);
-  const mobileAdRef = useRef<HTMLDivElement | null>(null);
+  const adRef = useRef<HTMLDivElement | null>(null);
+  const loadedRef = useRef(false);
 
   useEffect(() => {
-    setMounted(true);
-
     const checkScreen = () => {
       setIsMobile(window.innerWidth < 768);
     };
@@ -39,20 +36,27 @@ export default function AdOne() {
   }, []);
 
   useEffect(() => {
-    if (!mounted) return;
+    const timer = window.setTimeout(() => {
+      setShouldLoad(true);
+    }, 2500);
 
-    const container = isMobile
-      ? mobileAdRef.current
-      : desktopAdRef.current;
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, []);
 
-    if (!container) return;
-
-    // Prevent loading the ad multiple times
-    if (container.dataset.loaded === "true") {
+  useEffect(() => {
+    if (!shouldLoad || loadedRef.current) {
       return;
     }
 
-    container.dataset.loaded = "true";
+    const container = adRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    loadedRef.current = true;
 
     const key = isMobile
       ? "7895ae40aafabc66215193a80161e143"
@@ -61,9 +65,6 @@ export default function AdOne() {
     const width = isMobile ? 300 : 728;
     const height = isMobile ? 250 : 90;
 
-    /*
-     * Ad network configuration
-     */
     window.atOptions = {
       key,
       format: "iframe",
@@ -72,13 +73,9 @@ export default function AdOne() {
       params: {},
     };
 
-    /*
-     * Create the ad script
-     */
     const script = document.createElement("script");
 
     script.src = `https://www.highrevenueformat.com/${key}/invoke.js`;
-
     script.async = true;
 
     script.onload = () => {
@@ -89,12 +86,9 @@ export default function AdOne() {
 
     script.onerror = () => {
       console.error(
-        `AnantaGo ${isMobile ? "mobile" : "desktop"} ad failed to load`
+        `AnantaGo ${isMobile ? "mobile" : "desktop"} ad failed`
       );
 
-      /*
-       * Remove empty ad space if the network fails.
-       */
       container.style.minHeight = "0";
       container.style.height = "0";
     };
@@ -104,19 +98,8 @@ export default function AdOne() {
     return () => {
       script.remove();
     };
-  }, [mounted, isMobile]);
+  }, [shouldLoad, isMobile]);
 
-  /*
-   * Don't render anything during SSR.
-   */
-  if (!mounted) {
-    return null;
-  }
-
-  /*
-   * MOBILE
-   * 300 x 250
-   */
   if (isMobile) {
     return (
       <div
@@ -124,41 +107,33 @@ export default function AdOne() {
         aria-label="Advertisement"
       >
         <div
-          ref={mobileAdRef}
-          id="anantago-ad-mobile"
-          className="flex w-[300px] items-center justify-center overflow-hidden"
+          ref={adRef}
+          className="flex w-[300px] min-w-[300px] items-center justify-center overflow-hidden"
           style={{
             width: "300px",
-            minWidth: "300px",
-            minHeight: "250px",
             height: "250px",
+            minHeight: "250px",
           }}
         />
       </div>
     );
   }
 
-  /*
-   * DESKTOP
-   * 728 x 90
-   */
   return (
     <div
       className="flex w-full justify-center overflow-hidden"
       aria-label="Advertisement"
     >
       <div
-        ref={desktopAdRef}
-        id="anantago-ad-desktop"
-        className="flex items-center justify-center overflow-hidden"
+        ref={adRef}
+        className="flex w-full max-w-[728px] items-center justify-center overflow-hidden"
         style={{
           width: "728px",
           maxWidth: "100%",
-          minHeight: "90px",
           height: "90px",
+          minHeight: "90px",
         }}
       />
     </div>
   );
 }
-

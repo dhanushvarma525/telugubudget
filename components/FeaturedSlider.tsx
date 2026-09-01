@@ -4,6 +4,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
@@ -46,16 +47,19 @@ function formatDate(dateString?: string | null) {
 export default function FeaturedSlider({
   blogs,
 }: Props) {
+  const router = useRouter();
+
   const [current, setCurrent] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [loadingSlug, setLoadingSlug] = useState<string | null>(
+    null
+  );
 
   const totalSlides = blogs.length;
 
-  /*
-   * ==========================================================
-   * SAFETY
-   * ==========================================================
-   */
+  /* =========================================================
+     SAFETY
+  ========================================================= */
 
   useEffect(() => {
     if (totalSlides === 0) {
@@ -68,19 +72,12 @@ export default function FeaturedSlider({
     }
   }, [current, totalSlides]);
 
-  /*
-   * ==========================================================
-   * AUTO SLIDE
-   * ==========================================================
-   *
-   * Automatically changes the featured article
-   * every 4 seconds.
-   *
-   * Pauses while the user is hovering over the slider.
-   */
+  /* =========================================================
+     AUTO SLIDE
+  ========================================================= */
 
   useEffect(() => {
-    if (totalSlides <= 1 || paused) {
+    if (totalSlides <= 1 || paused || loadingSlug) {
       return;
     }
 
@@ -95,16 +92,14 @@ export default function FeaturedSlider({
     return () => {
       window.clearInterval(timer);
     };
-  }, [paused, totalSlides]);
+  }, [paused, totalSlides, loadingSlug]);
 
-  /*
-   * ==========================================================
-   * NAVIGATION
-   * ==========================================================
-   */
+  /* =========================================================
+     NAVIGATION
+  ========================================================= */
 
   function previousSlide() {
-    if (totalSlides <= 1) return;
+    if (totalSlides <= 1 || loadingSlug) return;
 
     setCurrent((previous) =>
       previous === 0
@@ -114,7 +109,7 @@ export default function FeaturedSlider({
   }
 
   function nextSlide() {
-    if (totalSlides <= 1) return;
+    if (totalSlides <= 1 || loadingSlug) return;
 
     setCurrent((previous) =>
       previous >= totalSlides - 1
@@ -124,14 +119,29 @@ export default function FeaturedSlider({
   }
 
   function goToSlide(index: number) {
+    if (loadingSlug) return;
+
     setCurrent(index);
   }
 
-  /*
-   * ==========================================================
-   * EMPTY STATE
-   * ==========================================================
-   */
+  /* =========================================================
+     OPEN ARTICLE
+     
+     We use router.push so the user gets immediate visual
+     feedback before Next.js loads the article.
+  ========================================================= */
+
+  function openArticle(slug: string) {
+    if (loadingSlug) return;
+
+    setLoadingSlug(slug);
+
+    router.push(`/blog/${slug}`);
+  }
+
+  /* =========================================================
+     EMPTY STATE
+  ========================================================= */
 
   if (!blogs.length) {
     return null;
@@ -139,7 +149,17 @@ export default function FeaturedSlider({
 
   return (
     <section
-      className="mx-auto w-full max-w-[1280px] px-5 py-10 sm:px-6 sm:py-12 lg:px-8 lg:py-14"
+      className="
+        mx-auto
+        w-full
+        max-w-[1280px]
+        px-5
+        py-10
+        sm:px-6
+        sm:py-12
+        lg:px-8
+        lg:py-14
+      "
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
@@ -164,7 +184,15 @@ export default function FeaturedSlider({
 
         <Link
           href="/blog"
-          className="hidden text-sm font-bold text-zinc-500 transition-colors hover:text-zinc-950 sm:block"
+          className="
+            hidden
+            text-sm
+            font-bold
+            text-zinc-500
+            transition-colors
+            hover:text-zinc-950
+            sm:block
+          "
         >
           View all →
         </Link>
@@ -204,242 +232,370 @@ export default function FeaturedSlider({
             }%, 0, 0)`,
           }}
         >
-          {blogs.map((blog, index) => (
-            <article
-              key={blog.id}
-              className="
-                grid
-                w-full
-                min-w-full
-                shrink-0
-                lg:grid-cols-[0.95fr_1.05fr]
-              "
-            >
-              {/* =================================================
-                  CONTENT
-              ================================================== */}
+          {blogs.map((blog, index) => {
+            const isLoading =
+              loadingSlug === blog.slug;
 
-              <div
+            return (
+              <article
+                key={blog.id}
                 className="
-                  order-2
-                  flex
-                  min-h-[290px]
-                  flex-col
-                  justify-center
-                  px-5
-                  py-7
-                  sm:min-h-[320px]
-                  sm:px-8
-                  sm:py-9
-                  lg:order-1
-                  lg:min-h-[390px]
-                  lg:px-10
-                  xl:px-12
+                  relative
+                  grid
+                  w-full
+                  min-w-full
+                  shrink-0
+                  lg:grid-cols-[0.95fr_1.05fr]
                 "
               >
-                {/* CATEGORY */}
+                {/* =================================================
+                    ENTIRE CONTENT AREA CLICKABLE
+                ================================================== */}
 
-                {blog.category && (
-                  <span
-                    className="
-                      w-fit
-                      rounded-full
-                      bg-zinc-950
-                      px-3
-                      py-1.5
-                      text-[9px]
-                      font-bold
-                      uppercase
-                      tracking-[0.14em]
-                      text-white
-                      sm:text-[10px]
-                    "
-                  >
-                    {blog.category}
-                  </span>
-                )}
-
-                {/* TITLE */}
-
-                <h3
+                <button
+                  type="button"
+                  onClick={() =>
+                    openArticle(blog.slug)
+                  }
+                  disabled={Boolean(loadingSlug)}
+                  aria-label={`Read ${blog.title}`}
                   className="
-                    mt-4
-                    line-clamp-3
-                    max-w-[650px]
-                    text-[24px]
-                    font-black
-                    leading-[1.12]
-                    tracking-[-0.035em]
-                    text-zinc-950
-                    sm:text-3xl
-                    lg:text-[34px]
-                    xl:text-[39px]
-                  "
-                >
-                  {blog.title}
-                </h3>
-
-                {/* EXCERPT */}
-
-                {blog.excerpt && (
-                  <p
-                    className="
-                      mt-3
-                      line-clamp-3
-                      max-w-[590px]
-                      text-sm
-                      leading-6
-                      text-zinc-600
-                      sm:text-base
-                      sm:leading-7
-                    "
-                  >
-                    {blog.excerpt}
-                  </p>
-                )}
-
-                {/* META */}
-
-                <div
-                  className="
-                    mt-4
+                    group
+                    order-2
                     flex
-                    flex-wrap
-                    items-center
-                    gap-2
-                    text-[10px]
-                    font-medium
-                    text-zinc-500
-                    sm:text-xs
+                    min-h-[290px]
+                    w-full
+                    cursor-pointer
+                    flex-col
+                    justify-center
+                    px-5
+                    py-7
+                    text-left
+                    outline-none
+                    transition-colors
+                    sm:min-h-[320px]
+                    sm:px-8
+                    sm:py-9
+                    lg:order-1
+                    lg:min-h-[390px]
+                    lg:px-10
+                    xl:px-12
+                    disabled:cursor-wait
+                    focus-visible:ring-2
+                    focus-visible:ring-inset
+                    focus-visible:ring-zinc-950
                   "
                 >
-                  {blog.author && (
-                    <>
-                      <span>{blog.author}</span>
+                  {/* CATEGORY */}
 
-                      <span className="text-zinc-300">
-                        •
-                      </span>
-                    </>
-                  )}
-
-                  <span>
-                    {formatDate(
-                      blog.published_at ||
-                        blog.created_at
-                    )}
-                  </span>
-
-                  {blog.reading_time && (
-                    <>
-                      <span className="text-zinc-300">
-                        •
-                      </span>
-
-                      <span>
-                        {blog.reading_time} min read
-                      </span>
-                    </>
-                  )}
-                </div>
-
-                {/* BUTTON */}
-
-                <div className="mt-5">
-                  <Link
-                    href={`/blog/${blog.slug}`}
-                    className="
-                      group
-                      inline-flex
-                      h-10
-                      items-center
-                      rounded-lg
-                      bg-zinc-950
-                      px-4
-                      text-sm
-                      font-bold
-                      text-white
-                      transition-all
-                      duration-200
-                      hover:bg-zinc-800
-                      hover:shadow-md
-                      active:scale-[0.98]
-                    "
-                  >
-                    Read article
-
+                  {blog.category && (
                     <span
                       className="
-                        ml-2
-                        transition-transform
-                        duration-200
-                        group-hover:translate-x-1
+                        w-fit
+                        rounded-full
+                        bg-zinc-950
+                        px-3
+                        py-1.5
+                        text-[9px]
+                        font-bold
+                        uppercase
+                        tracking-[0.14em]
+                        text-white
+                        sm:text-[10px]
                       "
                     >
-                      →
+                      {blog.category}
                     </span>
-                  </Link>
-                </div>
-              </div>
+                  )}
 
-              {/* =================================================
-                  IMAGE
-              ================================================== */}
+                  {/* TITLE */}
 
-              <Link
-                href={`/blog/${blog.slug}`}
-                className="
-                  group
-                  relative
-                  order-1
-                  block
-                  aspect-[16/10]
-                  w-full
-                  overflow-hidden
-                  bg-zinc-100
-                  lg:order-2
-                  lg:aspect-auto
-                  lg:min-h-[390px]
-                "
-              >
-                {blog.cover_image ? (
-                  <Image
-                    src={blog.cover_image}
-                    alt={
-                      blog.cover_image_alt ||
-                      blog.title
-                    }
-                    fill
-                    priority={index === 0}
-                    sizes="(max-width: 1023px) 100vw, 52vw"
+                  <h3
                     className="
-                      object-cover
-                      transition-transform
-                      duration-700
-                      ease-out
-                      group-hover:scale-[1.025]
+                      mt-4
+                      line-clamp-3
+                      max-w-[650px]
+                      text-[24px]
+                      font-black
+                      leading-[1.12]
+                      tracking-[-0.035em]
+                      text-zinc-950
+                      transition-opacity
+                      duration-200
+                      group-hover:opacity-80
+                      sm:text-3xl
+                      lg:text-[34px]
+                      xl:text-[39px]
+                    "
+                  >
+                    {blog.title}
+                  </h3>
+
+                  {/* EXCERPT */}
+
+                  {blog.excerpt && (
+                    <p
+                      className="
+                        mt-3
+                        line-clamp-3
+                        max-w-[590px]
+                        text-sm
+                        leading-6
+                        text-zinc-600
+                        sm:text-base
+                        sm:leading-7
+                      "
+                    >
+                      {blog.excerpt}
+                    </p>
+                  )}
+
+                  {/* META */}
+
+                  <div
+                    className="
+                      mt-4
+                      flex
+                      flex-wrap
+                      items-center
+                      gap-2
+                      text-[10px]
+                      font-medium
+                      text-zinc-500
+                      sm:text-xs
+                    "
+                  >
+                    {blog.author && (
+                      <>
+                        <span>
+                          {blog.author}
+                        </span>
+
+                        <span className="text-zinc-300">
+                          •
+                        </span>
+                      </>
+                    )}
+
+                    <span>
+                      {formatDate(
+                        blog.published_at ||
+                          blog.created_at
+                      )}
+                    </span>
+
+                    {blog.reading_time && (
+                      <>
+                        <span className="text-zinc-300">
+                          •
+                        </span>
+
+                        <span>
+                          {blog.reading_time} min read
+                        </span>
+                      </>
+                    )}
+                  </div>
+
+                  {/* READ ARTICLE BUTTON */}
+
+                  <div className="mt-5">
+                    <span
+                      className="
+                        inline-flex
+                        h-10
+                        items-center
+                        rounded-lg
+                        bg-zinc-950
+                        px-4
+                        text-sm
+                        font-bold
+                        text-white
+                        shadow-sm
+                        transition-all
+                        duration-200
+                        group-hover:bg-zinc-800
+                        group-hover:shadow-md
+                        group-active:scale-[0.98]
+                      "
+                    >
+                      {isLoading ? (
+                        <>
+                          <span
+                            className="
+                              mr-2
+                              h-3.5
+                              w-3.5
+                              animate-spin
+                              rounded-full
+                              border-2
+                              border-white/30
+                              border-t-white
+                            "
+                          />
+
+                          Opening...
+                        </>
+                      ) : (
+                        <>
+                          Read article
+
+                          <span
+                            className="
+                              ml-2
+                              transition-transform
+                              duration-200
+                              group-hover:translate-x-1
+                            "
+                          >
+                            →
+                          </span>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                </button>
+
+                {/* =================================================
+                    IMAGE
+                ================================================== */}
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    openArticle(blog.slug)
+                  }
+                  disabled={Boolean(loadingSlug)}
+                  aria-label={`Read ${blog.title}`}
+                  className="
+                    group
+                    relative
+                    order-1
+                    block
+                    aspect-[16/10]
+                    w-full
+                    cursor-pointer
+                    overflow-hidden
+                    bg-zinc-100
+                    text-left
+                    outline-none
+                    lg:order-2
+                    lg:aspect-auto
+                    lg:min-h-[390px]
+                    disabled:cursor-wait
+                    focus-visible:ring-2
+                    focus-visible:ring-inset
+                    focus-visible:ring-zinc-950
+                  "
+                >
+                  {blog.cover_image ? (
+                    <Image
+                      src={blog.cover_image}
+                      alt={
+                        blog.cover_image_alt ||
+                        blog.title
+                      }
+                      fill
+                      priority={index === 0}
+                      fetchPriority={
+                        index === 0
+                          ? "high"
+                          : "auto"
+                      }
+                      sizes="
+                        (max-width: 1023px) 100vw,
+                        52vw
+                      "
+                      className="
+                        object-cover
+                        transition-transform
+                        duration-500
+                        ease-out
+                        group-hover:scale-[1.025]
+                      "
+                    />
+                  ) : (
+                    <div
+                      className="
+                        absolute
+                        inset-0
+                        flex
+                        items-center
+                        justify-center
+                        bg-zinc-100
+                        text-sm
+                        font-bold
+                        text-zinc-400
+                      "
+                    >
+                      AnantaGo
+                    </div>
+                  )}
+
+                  {/* IMAGE OVERLAY */}
+
+                  <div
+                    className="
+                      pointer-events-none
+                      absolute
+                      inset-0
+                      bg-gradient-to-t
+                      from-black/25
+                      via-transparent
+                      to-transparent
                     "
                   />
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center bg-zinc-100 text-sm font-bold text-zinc-400">
-                    AnantaGo
-                  </div>
-                )}
 
-                <div
-                  className="
-                    pointer-events-none
-                    absolute
-                    inset-0
-                    bg-gradient-to-t
-                    from-black/25
-                    via-transparent
-                    to-transparent
-                  "
-                />
-              </Link>
-            </article>
-          ))}
+                  {/* IMAGE LOADING INDICATOR */}
+
+                  {isLoading && (
+                    <div
+                      className="
+                        absolute
+                        inset-0
+                        z-10
+                        flex
+                        items-center
+                        justify-center
+                        bg-black/20
+                        backdrop-blur-[2px]
+                      "
+                    >
+                      <div
+                        className="
+                          flex
+                          items-center
+                          gap-2
+                          rounded-full
+                          bg-white/95
+                          px-4
+                          py-2.5
+                          text-xs
+                          font-bold
+                          text-zinc-900
+                          shadow-xl
+                        "
+                      >
+                        <span
+                          className="
+                            h-3.5
+                            w-3.5
+                            animate-spin
+                            rounded-full
+                            border-2
+                            border-zinc-300
+                            border-t-zinc-950
+                          "
+                        />
+
+                        Opening article...
+                      </div>
+                    </div>
+                  )}
+                </button>
+              </article>
+            );
+          })}
         </div>
 
         {/* =====================================================
@@ -449,13 +605,18 @@ export default function FeaturedSlider({
         {totalSlides > 1 && (
           <button
             type="button"
-            onClick={previousSlide}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              previousSlide();
+            }}
+            disabled={Boolean(loadingSlug)}
             aria-label="Previous featured article"
             className="
               absolute
               left-3
               top-[38%]
-              z-20
+              z-30
               flex
               h-9
               w-9
@@ -473,6 +634,8 @@ export default function FeaturedSlider({
               duration-200
               hover:bg-black/65
               active:scale-95
+              disabled:cursor-wait
+              disabled:opacity-50
               sm:left-4
               sm:h-10
               sm:w-10
@@ -493,13 +656,18 @@ export default function FeaturedSlider({
         {totalSlides > 1 && (
           <button
             type="button"
-            onClick={nextSlide}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              nextSlide();
+            }}
+            disabled={Boolean(loadingSlug)}
             aria-label="Next featured article"
             className="
               absolute
               right-3
               top-[38%]
-              z-20
+              z-30
               flex
               h-9
               w-9
@@ -517,6 +685,8 @@ export default function FeaturedSlider({
               duration-200
               hover:bg-black/65
               active:scale-95
+              disabled:cursor-wait
+              disabled:opacity-50
               sm:right-4
               sm:h-10
               sm:w-10
@@ -541,7 +711,10 @@ export default function FeaturedSlider({
             <button
               key={blog.id}
               type="button"
-              onClick={() => goToSlide(index)}
+              onClick={() =>
+                goToSlide(index)
+              }
+              disabled={Boolean(loadingSlug)}
               aria-label={`Show featured article ${
                 index + 1
               }`}
@@ -555,6 +728,7 @@ export default function FeaturedSlider({
                 rounded-full
                 transition-all
                 duration-300
+                disabled:opacity-50
                 ${
                   current === index
                     ? "w-7 bg-zinc-950"
@@ -587,3 +761,4 @@ export default function FeaturedSlider({
     </section>
   );
 }
+
