@@ -1,10 +1,17 @@
 
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { unstable_cache } from "next/cache";
 import { supabase } from "@/lib/supabase";
 import AdOne from "@/components/AdOne";
+
+/* =========================================================
+   SITE
+========================================================= */
+
+const BASE_URL = "https://anatago.com";
 
 /* =========================================================
    TYPES
@@ -157,46 +164,6 @@ function parseJsonValue(value: unknown): unknown {
    FAQ HELPERS
 ========================================================= */
 
-/*
-  Converts many possible FAQ object formats into one format.
-
-  Supported examples:
-
-  {
-    question: "...",
-    answer: "..."
-  }
-
-  {
-    q: "...",
-    a: "..."
-  }
-
-  {
-    title: "...",
-    content: "..."
-  }
-
-  {
-    Question: "...",
-    Answer: "..."
-  }
-
-  {
-    faq: {
-      question: "...",
-      answer: "..."
-    }
-  }
-
-  {
-    data: {
-      question: "...",
-      answer: "..."
-    }
-  }
-*/
-
 function extractFaqFromObject(
   object: Record<string, unknown>
 ): NormalizedFAQ | null {
@@ -238,11 +205,6 @@ function extractFaqFromObject(
       answer,
     };
   }
-
-  /*
-    Some older records may wrap the actual FAQ
-    inside another property.
-  */
 
   const nestedKeys = [
     "faq",
@@ -289,10 +251,6 @@ function normalizeFaqArray(
   const result: NormalizedFAQ[] = [];
 
   for (const item of items) {
-    /*
-      Format:
-      ["Question", "Answer"]
-    */
     if (Array.isArray(item)) {
       const question =
         typeof item[0] === "string"
@@ -314,9 +272,6 @@ function normalizeFaqArray(
       continue;
     }
 
-    /*
-      Normal object FAQ.
-    */
     if (isObject(item)) {
       const faq =
         extractFaqFromObject(item);
@@ -343,9 +298,6 @@ function parseFaqString(
     return [];
   }
 
-  /*
-    First try JSON.
-  */
   try {
     const parsed = JSON.parse(trimmed);
 
@@ -358,16 +310,6 @@ function parseFaqString(
   } catch {
     // Continue with plain-text parsing.
   }
-
-  /*
-    Handle:
-
-    Question: ...
-    Answer: ...
-
-    Question: ...
-    Answer: ...
-  */
 
   const lines = trimmed
     .split(/\r?\n/)
@@ -425,16 +367,6 @@ function parseFaqString(
       continue;
     }
 
-    /*
-      Support numbered FAQ formats such as:
-
-      1. What is AI?
-      AI means...
-
-      2. How does AI work?
-      ...
-    */
-
     const numberedQuestion =
       line.match(
         /^(\d+)[.)]\s*(.+)$/
@@ -449,10 +381,6 @@ function parseFaqString(
       continue;
     }
 
-    /*
-      If we already have a question,
-      additional lines belong to the answer.
-    */
     if (currentQuestion) {
       currentAnswer +=
         (currentAnswer ? " " : "") +
@@ -479,27 +407,15 @@ function normalizeFaqValue(
     return [];
   }
 
-  /*
-    String
-  */
   if (typeof value === "string") {
     return parseFaqString(value);
   }
 
-  /*
-    Array
-  */
   if (Array.isArray(value)) {
     return normalizeFaqArray(value);
   }
 
-  /*
-    Object
-  */
   if (isObject(value)) {
-    /*
-      Direct FAQ object.
-    */
     const directFaq =
       extractFaqFromObject(value);
 
@@ -507,9 +423,6 @@ function normalizeFaqValue(
       return [directFaq];
     }
 
-    /*
-      Common wrapper properties.
-    */
     const wrapperKeys = [
       "faqs",
       "FAQ",
@@ -524,13 +437,9 @@ function normalizeFaqValue(
     for (const key of wrapperKeys) {
       const nested = value[key];
 
-      if (
-        Array.isArray(nested)
-      ) {
+      if (Array.isArray(nested)) {
         const normalized =
-          normalizeFaqArray(
-            nested
-          );
+          normalizeFaqArray(nested);
 
         if (
           normalized.length > 0
@@ -554,9 +463,7 @@ function normalizeFaqValue(
 
       if (isObject(nested)) {
         const normalized =
-          normalizeFaqValue(
-            nested
-          );
+          normalizeFaqValue(nested);
 
         if (
           normalized.length > 0
@@ -583,9 +490,6 @@ function normalizeFaqs(
   const faqs =
     normalizeFaqValue(parsed);
 
-  /*
-    Remove duplicates.
-  */
   const seen =
     new Set<string>();
 
@@ -696,6 +600,102 @@ async function getBlog(
     );
 
   return getCached();
+}
+
+/* =========================================================
+   SEO METADATA
+========================================================= */
+
+export async function generateMetadata({
+  params,
+}: PageProps): Promise<Metadata> {
+  const { slug } = await params;
+
+  const blog = await getBlog(slug);
+
+  if (!blog) {
+    return {
+      title: "Article Not Found | AnantaGo",
+      robots: {
+        index: false,
+        follow: false,
+      },
+    };
+  }
+
+  const title =
+    blog.meta_title?.trim() ||
+    blog.title;
+
+  const description =
+    blog.meta_description?.trim() ||
+    blog.excerpt?.trim() ||
+    blog.introduction?.trim() ||
+    "Read the latest technology insights, practical guides and clear explanations on AnantaGo.";
+
+  const canonicalUrl =
+    `${BASE_URL}/blog/${blog.slug}`;
+
+  const metadata: Metadata = {
+    title,
+    description,
+
+    alternates: {
+      canonical: canonicalUrl,
+    },
+
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+      },
+    },
+
+    openGraph: {
+      title,
+      description,
+      url: canonicalUrl,
+      type: "article",
+      siteName: "AnantaGo",
+      publishedTime:
+        blog.published_at || undefined,
+      modifiedTime:
+        blog.updated_at || undefined,
+      authors: [
+        blog.author ||
+          "AnantaGo Editorial",
+      ],
+    },
+
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+    },
+  };
+
+  if (blog.cover_image) {
+    metadata.openGraph = {
+      ...metadata.openGraph,
+      images: [
+        {
+          url: blog.cover_image,
+          width: 1200,
+          height: 675,
+          alt: blog.title,
+        },
+      ],
+    };
+
+    metadata.twitter = {
+      ...metadata.twitter,
+      images: [blog.cover_image],
+    };
+  }
+
+  return metadata;
 }
 
 /* =========================================================
@@ -1675,9 +1675,6 @@ export default async function BlogArticlePage({
 
   /* =====================================================
      FAQ
-
-     IMPORTANT:
-     Always normalize the database value.
   ===================================================== */
 
   const normalizedFaqs =
@@ -1685,22 +1682,6 @@ export default async function BlogArticlePage({
 
   const hasFaqs =
     normalizedFaqs.length > 0;
-
-  /*
-    Temporary server-side diagnostic.
-
-    This does NOT appear on the website.
-    It only appears in the Vercel/server terminal.
-  */
-  console.log(
-    "FAQ DEBUG:",
-    blog.slug,
-    {
-      rawFaqs: blog.faqs,
-      normalizedCount:
-        normalizedFaqs.length,
-    }
-  );
 
   /* =====================================================
      DATE
@@ -1835,10 +1816,6 @@ export default async function BlogArticlePage({
 
         {/* =================================================
             FAQ
-
-            This is intentionally rendered directly from
-            normalizedFaqs so every supported old format
-            reaches the same UI.
         ================================================= */}
 
         {hasFaqs && (

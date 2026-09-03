@@ -1,44 +1,15 @@
 import { MetadataRoute } from "next";
 
+const BASE_URL = "https://anatago.com";
 
-export default function robots()
-: MetadataRoute.Robots {
-
-
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    "http://localhost:3000";
-
-
-
+export default function robots(): MetadataRoute.Robots {
   return {
-
-
-    rules:{
-
-      userAgent:"*",
-
-
-      allow:"/",
-
-
-      disallow:[
-
-        "/admin",
-
-        "/api"
-
-      ]
-
+    rules: {
+      userAgent: "*",
+      allow: "/",
+      disallow: ["/admin/", "/api/"],
     },
 
-
-
-    sitemap:
-    `${baseUrl}/sitemap.xml`
-
-
+    sitemap: `${BASE_URL}/sitemap.xml`,
   };
-
-
 }

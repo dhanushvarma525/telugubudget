@@ -1,6 +1,12 @@
 import { MetadataRoute } from "next";
 import { supabase } from "@/lib/supabase";
 
+// Always generate the sitemap dynamically.
+// This helps ensure newly published blogs appear without
+// waiting for a stale sitemap cache.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const BASE_URL = "https://anatago.com";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -11,46 +17,35 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticPages: MetadataRoute.Sitemap = [
     {
       url: BASE_URL,
-      lastModified: new Date(),
     },
     {
       url: `${BASE_URL}/blog`,
-      lastModified: new Date(),
     },
     {
       url: `${BASE_URL}/categories`,
-      lastModified: new Date(),
     },
     {
       url: `${BASE_URL}/about`,
-      lastModified: new Date(),
     },
     {
       url: `${BASE_URL}/contact`,
-      lastModified: new Date(),
     },
     {
       url: `${BASE_URL}/privacy`,
-      lastModified: new Date(),
     },
     {
       url: `${BASE_URL}/terms`,
-      lastModified: new Date(),
     },
     {
       url: `${BASE_URL}/disclaimer`,
-      lastModified: new Date(),
     },
   ];
 
   /* =========================================================
      BLOG CATEGORY PAGES
-     
-     Keep these only if these routes actually exist
-     on your website.
   ========================================================= */
 
-  const categoryPages = [
+  const categories = [
     "ai",
     "tech",
     "how-to",
@@ -59,11 +54,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "explained",
   ];
 
-  const categoryUrls: MetadataRoute.Sitemap =
-    categoryPages.map((category) => ({
+  const categoryUrls: MetadataRoute.Sitemap = categories.map(
+    (category) => ({
       url: `${BASE_URL}/${category}`,
-      lastModified: new Date(),
-    }));
+    })
+  );
 
   /* =========================================================
      PUBLISHED BLOG ARTICLES
@@ -75,51 +70,60 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const { data: blogs, error } = await supabase
       .from("blogs")
       .select(
-        "slug, published, updated_at, created_at, published_at"
+        "slug, published, published_at, updated_at, created_at"
       )
       .eq("published", true)
+      .not("slug", "is", null)
       .order("published_at", {
         ascending: false,
       });
 
     if (error) {
-      console.error(
-        "Sitemap blogs error:",
-        error
-      );
+      console.error("Sitemap blogs error:", error);
     } else {
-      blogUrls = (blogs || [])
+      blogUrls = (blogs ?? [])
         .filter(
           (blog) =>
             typeof blog.slug === "string" &&
-            blog.slug.trim() !== ""
+            blog.slug.trim().length > 0
         )
-        .map((blog) => ({
-          url: `${BASE_URL}/blog/${blog.slug}`,
+        .map((blog) => {
+          const lastModified =
+            blog.updated_at ||
+            blog.published_at ||
+            blog.created_at;
 
-          lastModified: blog.updated_at
-            ? new Date(blog.updated_at)
-            : blog.published_at
-              ? new Date(blog.published_at)
-              : blog.created_at
-                ? new Date(blog.created_at)
-                : new Date(),
-        }));
+          return {
+            url: `${BASE_URL}/blog/${blog.slug.trim()}`,
+            lastModified: lastModified
+              ? new Date(lastModified)
+              : undefined,
+          };
+        });
     }
   } catch (error) {
-    console.error(
-      "Sitemap blogs exception:",
-      error
-    );
+    console.error("Sitemap blogs exception:", error);
   }
+
+  /* =========================================================
+     REMOVE DUPLICATE URLs
+  ========================================================= */
+
+  const allUrls = [
+    ...staticPages,
+    ...categoryUrls,
+    ...blogUrls,
+  ];
+
+  const uniqueUrls = Array.from(
+    new Map(
+      allUrls.map((item) => [item.url, item])
+    ).values()
+  );
 
   /* =========================================================
      FINAL SITEMAP
   ========================================================= */
 
-  return [
-    ...staticPages,
-    ...categoryUrls,
-    ...blogUrls,
-  ];
+  return uniqueUrls;
 }
