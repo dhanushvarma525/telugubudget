@@ -1,18 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  Plus,
-  Pencil,
-  Trash2,
-  Star,
   FileText,
+  CheckCircle2,
+  Clock3,
+  Plus,
+  List,
   RefreshCw,
-  Search,
   LogOut,
-  ChevronLeft,
-  ChevronRight,
+  Sparkles,
+  Cpu,
+  Lightbulb,
+  Smartphone,
+  ShieldCheck,
+  BookOpen,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -20,20 +23,14 @@ import { supabase } from "@/lib/supabase";
 type Blog = {
   id: number;
   title: string;
-  slug: string;
-  excerpt: string | null;
-  category: string | null;
-  author: string | null;
+  category: string;
   published: boolean;
-  featured: boolean;
-  views: number | null;
+  published_at: string | null;
   created_at: string;
   updated_at: string;
 };
 
-const BLOGS_PER_PAGE = 20;
-
-const categories = [
+const CATEGORIES = [
   "AI",
   "Tech",
   "How-To",
@@ -42,26 +39,33 @@ const categories = [
   "Explained",
 ];
 
+const CATEGORY_ICONS: Record<
+  string,
+  React.ComponentType<{ className?: string }>
+> = {
+  AI: Sparkles,
+  Tech: Cpu,
+  "How-To": Lightbulb,
+  Apps: Smartphone,
+  Security: ShieldCheck,
+  Explained: BookOpen,
+};
+
 export default function AdminBlogsPage() {
   const router = useRouter();
 
   const [blogs, setBlogs] = useState<Blog[]>([]);
   const [loading, setLoading] = useState(true);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
-
-  const [search, setSearch] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-
   const [userEmail, setUserEmail] = useState("");
 
   // =====================================================
-  // AUTHENTICATION
+  // AUTH + LOAD
   // =====================================================
 
   useEffect(() => {
     let mounted = true;
 
-    async function checkAuth() {
+    async function initialize() {
       try {
         const {
           data: { user },
@@ -69,8 +73,6 @@ export default function AdminBlogsPage() {
         } = await supabase.auth.getUser();
 
         if (error || !user) {
-          console.log("No authenticated admin user.");
-
           router.replace("/admin/login");
           return;
         }
@@ -84,7 +86,7 @@ export default function AdminBlogsPage() {
         await loadBlogs();
       } catch (error) {
         console.error(
-          "Authentication check failed:",
+          "Admin initialization error:",
           error
         );
 
@@ -96,7 +98,7 @@ export default function AdminBlogsPage() {
       }
     }
 
-    checkAuth();
+    initialize();
 
     return () => {
       mounted = false;
@@ -111,21 +113,8 @@ export default function AdminBlogsPage() {
     try {
       setLoading(true);
 
-      /*
-       * IMPORTANT:
-       *
-       * admin=true tells the API that this is the
-       * admin dashboard and drafts must also be returned.
-       *
-       * Previously this was:
-       *
-       * /api/blogs?limit=1000
-       *
-       * which only returned published articles.
-       */
-
       const response = await fetch(
-        "/api/blogs?admin=true&limit=1000",
+        "/api/blogs?admin=true&limit=100",
         {
           method: "GET",
           cache: "no-store",
@@ -135,30 +124,24 @@ export default function AdminBlogsPage() {
         }
       );
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(
-          () => null
-        );
+      const data = await response.json().catch(() => null);
 
+      if (!response.ok) {
         throw new Error(
-          errorData?.error ||
-            "Failed to load blogs."
+          data?.error || "Failed to load articles."
         );
       }
 
-      const data = await response.json();
-
-      const blogList = Array.isArray(data)
+      const blogList = Array.isArray(data?.blogs)
+        ? data.blogs
+        : Array.isArray(data)
         ? data
-        : Array.isArray(data.blogs)
-          ? data.blogs
-          : [];
+        : [];
 
       setBlogs(blogList);
-      setCurrentPage(1);
     } catch (error) {
       console.error(
-        "Error loading blogs:",
+        "Dashboard load error:",
         error
       );
 
@@ -167,7 +150,7 @@ export default function AdminBlogsPage() {
       alert(
         error instanceof Error
           ? error.message
-          : "Failed to load articles."
+          : "Failed to load dashboard."
       );
     } finally {
       setLoading(false);
@@ -193,254 +176,26 @@ export default function AdminBlogsPage() {
   }
 
   // =====================================================
-  // DELETE BLOG
+  // STATISTICS
   // =====================================================
 
-  async function handleDelete(
-    id: number,
-    title: string
-  ) {
-    const confirmed = window.confirm(
-      `Are you sure you want to delete "${title}"?\n\nThis action cannot be undone.`
-    );
+  const totalArticles = blogs.length;
 
-    if (!confirmed) {
-      return;
-    }
+  const publishedArticles = blogs.filter(
+    (blog) => blog.published === true
+  ).length;
 
-    try {
-      setDeletingId(id);
+  const draftArticles = blogs.filter(
+    (blog) => blog.published === false
+  ).length;
 
-      const response = await fetch(
-        `/api/blogs?id=${id}`,
-        {
-          method: "DELETE",
-          cache: "no-store",
-        }
-      );
-
-      const data = await response
-        .json()
-        .catch(() => null);
-
-      if (!response.ok) {
-        throw new Error(
-          data?.error ||
-            "Failed to delete article."
-        );
-      }
-
-      setBlogs((currentBlogs) =>
-        currentBlogs.filter(
-          (blog) => blog.id !== id
-        )
-      );
-
-      /*
-       * Keep pagination valid after deletion.
-       */
-
-      setCurrentPage((page) => {
-        const remaining =
-          blogs.length - 1;
-
-        const newTotalPages = Math.max(
-          1,
-          Math.ceil(
-            remaining / BLOGS_PER_PAGE
-          )
-        );
-
-        return Math.min(
-          page,
-          newTotalPages
-        );
-      });
-    } catch (error) {
-      console.error(
-        "Error deleting blog:",
-        error
-      );
-
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to delete the article. Please try again."
-      );
-    } finally {
-      setDeletingId(null);
-    }
+  function categoryCount(category: string) {
+    return blogs.filter(
+      (blog) =>
+        blog.category?.toLowerCase() ===
+        category.toLowerCase()
+    ).length;
   }
-
-  // =====================================================
-  // SEARCH
-  // =====================================================
-
-  const filteredBlogs = useMemo(() => {
-    const query = search
-      .toLowerCase()
-      .trim();
-
-    if (!query) {
-      return blogs;
-    }
-
-    return blogs.filter((blog) => {
-      return (
-        blog.title
-          ?.toLowerCase()
-          .includes(query) ||
-        blog.slug
-          ?.toLowerCase()
-          .includes(query) ||
-        blog.category
-          ?.toLowerCase()
-          .includes(query) ||
-        blog.author
-          ?.toLowerCase()
-          .includes(query) ||
-        blog.excerpt
-          ?.toLowerCase()
-          .includes(query)
-      );
-    });
-  }, [blogs, search]);
-
-  // =====================================================
-  // RESET PAGE WHEN SEARCH CHANGES
-  // =====================================================
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search]);
-
-  // =====================================================
-  // STATS
-  // =====================================================
-
-  const totalBlogs = blogs.length;
-
-  const publishedCount = blogs.filter(
-    (blog) => blog.published
-  ).length;
-
-  const draftCount = blogs.filter(
-    (blog) => !blog.published
-  ).length;
-
-  const featuredCount = blogs.filter(
-    (blog) => blog.featured
-  ).length;
-
-  // =====================================================
-  // CATEGORY COUNTS
-  // =====================================================
-
-  const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-
-    categories.forEach((category) => {
-      counts[category] = blogs.filter(
-        (blog) =>
-          blog.category
-            ?.trim()
-            .toLowerCase() ===
-          category.toLowerCase()
-      ).length;
-    });
-
-    return counts;
-  }, [blogs]);
-
-  // =====================================================
-  // PAGINATION
-  // =====================================================
-
-  const totalPages = Math.max(
-    1,
-    Math.ceil(
-      filteredBlogs.length /
-        BLOGS_PER_PAGE
-    )
-  );
-
-  const safeCurrentPage = Math.min(
-    currentPage,
-    totalPages
-  );
-
-  const startIndex =
-    (safeCurrentPage - 1) *
-    BLOGS_PER_PAGE;
-
-  const endIndex = Math.min(
-    startIndex + BLOGS_PER_PAGE,
-    filteredBlogs.length
-  );
-
-  const paginatedBlogs =
-    filteredBlogs.slice(
-      startIndex,
-      endIndex
-    );
-
-  // =====================================================
-  // PAGE NUMBERS
-  // =====================================================
-
-  const pageNumbers = useMemo(() => {
-    const pages: number[] = [];
-
-    if (totalPages <= 7) {
-      for (
-        let page = 1;
-        page <= totalPages;
-        page++
-      ) {
-        pages.push(page);
-      }
-
-      return pages;
-    }
-
-    pages.push(1);
-
-    if (safeCurrentPage > 4) {
-      pages.push(-1);
-    }
-
-    const start = Math.max(
-      2,
-      safeCurrentPage - 1
-    );
-
-    const end = Math.min(
-      totalPages - 1,
-      safeCurrentPage + 1
-    );
-
-    for (
-      let page = start;
-      page <= end;
-      page++
-    ) {
-      pages.push(page);
-    }
-
-    if (
-      safeCurrentPage <
-      totalPages - 3
-    ) {
-      pages.push(-1);
-    }
-
-    pages.push(totalPages);
-
-    return pages;
-  }, [
-    totalPages,
-    safeCurrentPage,
-  ]);
 
   // =====================================================
   // LOADING
@@ -452,7 +207,7 @@ export default function AdminBlogsPage() {
         <div className="flex items-center gap-3 text-sm text-zinc-500">
           <RefreshCw className="h-4 w-4 animate-spin" />
 
-          Checking admin access...
+          Loading publishing dashboard...
         </div>
       </main>
     );
@@ -470,31 +225,27 @@ export default function AdminBlogsPage() {
       ================================================= */}
 
       <header className="border-b border-zinc-200 bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
 
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
 
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-
-            {/* TITLE */}
+            {/* BRAND / TITLE */}
 
             <div>
-
               <div className="mb-2 flex items-center gap-2">
-
                 <span className="h-2 w-2 rounded-full bg-zinc-950" />
 
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
                   AnantaGo Publishing
                 </p>
-
               </div>
 
               <h1 className="text-2xl font-bold tracking-tight text-zinc-950 sm:text-3xl">
-                Articles
+                Dashboard
               </h1>
 
               <p className="mt-1 text-sm text-zinc-500">
-                Manage and publish your technology stories.
+                Manage your articles and publishing activity.
               </p>
 
               {userEmail && (
@@ -502,14 +253,11 @@ export default function AdminBlogsPage() {
                   {userEmail}
                 </p>
               )}
-
             </div>
 
-            {/* ACTIONS */}
+            {/* HEADER ACTIONS */}
 
-            <div className="flex flex-wrap items-center gap-2">
-
-              {/* REFRESH */}
+            <div className="flex items-center gap-2">
 
               <button
                 type="button"
@@ -517,26 +265,25 @@ export default function AdminBlogsPage() {
                 disabled={loading}
                 className="
                   inline-flex
-                  h-11
+                  h-10
                   items-center
                   justify-center
                   gap-2
-                  rounded-xl
+                  rounded-lg
                   border
                   border-zinc-200
                   bg-white
-                  px-4
+                  px-3
                   text-sm
                   font-medium
                   text-zinc-700
                   transition
-                  hover:border-zinc-300
                   hover:bg-zinc-50
                   disabled:cursor-not-allowed
                   disabled:opacity-50
                 "
+                title="Refresh dashboard"
               >
-
                 <RefreshCw
                   className={`h-4 w-4 ${
                     loading
@@ -548,894 +295,409 @@ export default function AdminBlogsPage() {
                 <span className="hidden sm:inline">
                   Refresh
                 </span>
-
               </button>
-
-              {/* NEW ARTICLE */}
 
               <Link
                 href="/admin/blogs/new"
                 className="
                   inline-flex
-                  h-11
+                  h-10
                   items-center
                   justify-center
-                  gap-3
-                  rounded-xl
+                  gap-2
+                  rounded-lg
                   bg-zinc-950
-                  px-5
+                  px-4
                   text-sm
                   font-semibold
                   text-white
-                  shadow-sm
-                  transition-all
-                  duration-200
-                  hover:-translate-y-0.5
+                  transition
                   hover:bg-zinc-800
-                  hover:shadow-lg
-                  active:translate-y-0
                 "
               >
+                <Plus className="h-4 w-4" />
 
-                <span
-                  className="
-                    flex
-                    h-7
-                    w-7
-                    shrink-0
-                    items-center
-                    justify-center
-                    rounded-lg
-                    bg-white
-                    text-zinc-950
-                  "
-                >
-
-                  <Plus
-                    className="h-4 w-4"
-                    strokeWidth={2.5}
-                  />
-
-                </span>
-
-                <span className="whitespace-nowrap text-white">
-                  New Article
-                </span>
-
+                New Article
               </Link>
-
-              {/* SIGN OUT */}
 
               <button
                 type="button"
                 onClick={handleSignOut}
                 className="
                   inline-flex
-                  h-11
+                  h-10
+                  w-10
                   items-center
                   justify-center
-                  gap-2
-                  rounded-xl
+                  rounded-lg
                   border
                   border-red-200
                   bg-white
-                  px-4
-                  text-sm
-                  font-medium
                   text-red-600
                   transition
                   hover:bg-red-50
                 "
+                title="Sign out"
               >
-
                 <LogOut className="h-4 w-4" />
-
-                <span className="hidden sm:inline">
-                  Sign Out
-                </span>
-
               </button>
 
             </div>
-
           </div>
 
         </div>
-
       </header>
 
       {/* =================================================
           MAIN
       ================================================= */}
 
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
 
         {/* =================================================
-            STATS
+            PRIMARY STATISTICS
         ================================================= */}
 
-        <section className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
 
           {/* TOTAL */}
 
-          <div className="rounded-xl border border-zinc-200 bg-white p-5">
+          <Link
+            href="/admin/blogs/all"
+            className="
+              group
+              rounded-xl
+              border
+              border-zinc-200
+              bg-white
+              p-5
+              transition
+              hover:border-zinc-300
+              hover:shadow-sm
+            "
+          >
+            <div className="flex items-start justify-between">
 
-            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-zinc-500">
+                  Total Articles
+                </p>
 
-              <span className="text-sm font-medium text-zinc-500">
-                Total Articles
-              </span>
+                <p className="mt-2 text-3xl font-bold tracking-tight text-zinc-950">
+                  {totalArticles}
+                </p>
+              </div>
 
-              <FileText className="h-5 w-5 text-zinc-400" />
+              <div className="rounded-lg bg-zinc-100 p-2.5">
+                <FileText className="h-5 w-5 text-zinc-700" />
+              </div>
 
             </div>
 
-            <p className="text-2xl font-bold text-zinc-950">
-              {totalBlogs}
+            <p className="mt-4 text-xs font-medium text-zinc-500 group-hover:text-zinc-900">
+              View all articles →
             </p>
-
-          </div>
+          </Link>
 
           {/* PUBLISHED */}
 
-          <div className="rounded-xl border border-zinc-200 bg-white p-5">
+          <Link
+            href="/admin/blogs/all?status=published"
+            className="
+              group
+              rounded-xl
+              border
+              border-zinc-200
+              bg-white
+              p-5
+              transition
+              hover:border-zinc-300
+              hover:shadow-sm
+            "
+          >
+            <div className="flex items-start justify-between">
 
-            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-zinc-500">
+                  Published
+                </p>
 
-              <span className="text-sm font-medium text-zinc-500">
-                Published
-              </span>
+                <p className="mt-2 text-3xl font-bold tracking-tight text-zinc-950">
+                  {publishedArticles}
+                </p>
+              </div>
 
-              <span className="h-2.5 w-2.5 rounded-full bg-green-500" />
+              <div className="rounded-lg bg-zinc-100 p-2.5">
+                <CheckCircle2 className="h-5 w-5 text-zinc-700" />
+              </div>
 
             </div>
 
-            <p className="text-2xl font-bold text-zinc-950">
-              {publishedCount}
+            <p className="mt-4 text-xs font-medium text-zinc-500 group-hover:text-zinc-900">
+              View published articles →
             </p>
-
-          </div>
+          </Link>
 
           {/* DRAFTS */}
 
-          <div className="rounded-xl border border-zinc-200 bg-white p-5">
+          <Link
+            href="/admin/blogs/drafts"
+            className="
+              group
+              rounded-xl
+              border
+              border-zinc-200
+              bg-white
+              p-5
+              transition
+              hover:border-zinc-300
+              hover:shadow-sm
+            "
+          >
+            <div className="flex items-start justify-between">
 
-            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-zinc-500">
+                  Drafts
+                </p>
 
-              <span className="text-sm font-medium text-zinc-500">
-                Drafts
-              </span>
+                <p className="mt-2 text-3xl font-bold tracking-tight text-zinc-950">
+                  {draftArticles}
+                </p>
+              </div>
 
-              <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+              <div className="rounded-lg bg-zinc-100 p-2.5">
+                <Clock3 className="h-5 w-5 text-zinc-700" />
+              </div>
 
             </div>
 
-            <p className="text-2xl font-bold text-zinc-950">
-              {draftCount}
+            <p className="mt-4 text-xs font-medium text-zinc-500 group-hover:text-zinc-900">
+              Manage drafts →
             </p>
-
-          </div>
-
-          {/* FEATURED */}
-
-          <div className="rounded-xl border border-zinc-200 bg-white p-5">
-
-            <div className="mb-3 flex items-center justify-between">
-
-              <span className="text-sm font-medium text-zinc-500">
-                Featured
-              </span>
-
-              <Star className="h-5 w-5 text-zinc-400" />
-
-            </div>
-
-            <p className="text-2xl font-bold text-zinc-950">
-              {featuredCount}
-            </p>
-
-          </div>
+          </Link>
 
         </section>
 
         {/* =================================================
-            CATEGORY COUNTS
+            CATEGORY STATISTICS
         ================================================= */}
 
-        <section className="mb-6 rounded-xl border border-zinc-200 bg-white p-5">
+        <section className="mt-6">
 
           <div className="mb-4">
-
-            <h2 className="font-semibold text-zinc-950">
+            <h2 className="text-lg font-bold tracking-tight text-zinc-950">
               Articles by Category
             </h2>
 
             <p className="mt-1 text-sm text-zinc-500">
-              Total articles currently stored in each category.
+              Overview of your publishing categories.
             </p>
-
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
 
-            {categories.map(
-              (category) => (
-                <div
+            {CATEGORIES.map((category) => {
+              const Icon =
+                CATEGORY_ICONS[category];
+
+              const count =
+                categoryCount(category);
+
+              return (
+                <Link
                   key={category}
+                  href={`/admin/blogs/all?category=${encodeURIComponent(
+                    category
+                  )}`}
                   className="
+                    group
                     rounded-xl
                     border
                     border-zinc-200
-                    bg-zinc-50
-                    px-4
-                    py-4
+                    bg-white
+                    p-4
+                    transition
+                    hover:border-zinc-300
+                    hover:shadow-sm
                   "
                 >
 
-                  <p className="truncate text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                  <div className="flex items-center justify-between">
+
+                    <div className="rounded-lg bg-zinc-100 p-2">
+                      <Icon className="h-4 w-4 text-zinc-700" />
+                    </div>
+
+                    <span className="text-2xl font-bold text-zinc-950">
+                      {count}
+                    </span>
+
+                  </div>
+
+                  <p className="mt-4 text-sm font-semibold text-zinc-900">
                     {category}
                   </p>
 
-                  <p className="mt-2 text-2xl font-bold text-zinc-950">
-                    {categoryCounts[
-                      category
-                    ] || 0}
-                  </p>
-
-                  <p className="mt-1 text-xs text-zinc-400">
-                    {categoryCounts[
-                      category
-                    ] === 1
+                  <p className="mt-0.5 text-xs text-zinc-500">
+                    {count === 1
                       ? "article"
                       : "articles"}
                   </p>
 
-                </div>
-              )
-            )}
+                </Link>
+              );
+            })}
 
           </div>
 
         </section>
 
         {/* =================================================
-            ARTICLES
+            MANAGEMENT
         ================================================= */}
 
-        <section className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
+        <section className="mt-6">
 
-          {/* HEADER */}
+          <div className="mb-4">
+            <h2 className="text-lg font-bold tracking-tight text-zinc-950">
+              Manage Content
+            </h2>
 
-          <div className="border-b border-zinc-200 px-4 py-4 sm:px-6">
+            <p className="mt-1 text-sm text-zinc-500">
+              Keep article management separate from your dashboard.
+            </p>
+          </div>
 
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
 
-              <div>
+            {/* ALL ARTICLES */}
 
-                <h2 className="font-semibold text-zinc-950">
+            <Link
+              href="/admin/blogs/all"
+              className="
+                group
+                flex
+                items-center
+                gap-4
+                rounded-xl
+                border
+                border-zinc-200
+                bg-white
+                p-5
+                transition
+                hover:border-zinc-300
+                hover:shadow-sm
+              "
+            >
+              <div className="rounded-xl bg-zinc-100 p-3">
+                <List className="h-5 w-5 text-zinc-700" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold text-zinc-950">
                   All Articles
-                </h2>
+                </h3>
 
-                <p className="mt-1 text-sm text-zinc-500">
-
-                  {search.trim()
-                    ? `${filteredBlogs.length} matching article${
-                        filteredBlogs.length === 1
-                          ? ""
-                          : "s"
-                      }`
-                    : `${totalBlogs} article${
-                        totalBlogs === 1
-                          ? ""
-                          : "s"
-                      } total`}
-
+                <p className="mt-1 text-xs text-zinc-500">
+                  Search, edit and delete articles
                 </p>
-
               </div>
 
-              {/* SEARCH */}
+              <span className="text-zinc-400 transition group-hover:translate-x-1 group-hover:text-zinc-900">
+                →
+              </span>
+            </Link>
 
-              <div className="relative w-full lg:w-80">
+            {/* DRAFTS */}
 
-                <Search
-                  className="
-                    pointer-events-none
-                    absolute
-                    left-3
-                    top-1/2
-                    h-4
-                    w-4
-                    -translate-y-1/2
-                    text-zinc-400
-                  "
-                />
-
-                <input
-                  type="search"
-                  value={search}
-                  onChange={(event) =>
-                    setSearch(
-                      event.target.value
-                    )
-                  }
-                  placeholder="Search title, category, author..."
-                  className="
-                    h-11
-                    w-full
-                    rounded-lg
-                    border
-                    border-zinc-200
-                    bg-zinc-50
-                    pl-9
-                    pr-9
-                    text-sm
-                    text-zinc-900
-                    outline-none
-                    transition
-                    placeholder:text-zinc-400
-                    focus:border-zinc-400
-                    focus:bg-white
-                  "
-                />
-
-                {search && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSearch("")
-                    }
-                    aria-label="Clear search"
-                    className="
-                      absolute
-                      right-3
-                      top-1/2
-                      -translate-y-1/2
-                      text-xs
-                      font-semibold
-                      text-zinc-400
-                      hover:text-zinc-700
-                    "
-                  >
-                    ×
-                  </button>
-                )}
-
+            <Link
+              href="/admin/blogs/drafts"
+              className="
+                group
+                flex
+                items-center
+                gap-4
+                rounded-xl
+                border
+                border-zinc-200
+                bg-white
+                p-5
+                transition
+                hover:border-zinc-300
+                hover:shadow-sm
+              "
+            >
+              <div className="rounded-xl bg-zinc-100 p-3">
+                <Clock3 className="h-5 w-5 text-zinc-700" />
               </div>
 
-            </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold text-zinc-950">
+                  Drafts
+                </h3>
+
+                <p className="mt-1 text-xs text-zinc-500">
+                  Review and publish drafts
+                </p>
+              </div>
+
+              <span className="text-zinc-400 transition group-hover:translate-x-1 group-hover:text-zinc-900">
+                →
+              </span>
+            </Link>
+
+            {/* NEW ARTICLE */}
+
+            <Link
+              href="/admin/blogs/new"
+              className="
+                group
+                flex
+                items-center
+                gap-4
+                rounded-xl
+                border
+                border-zinc-900
+                bg-zinc-950
+                p-5
+                text-white
+                transition
+                hover:bg-zinc-800
+              "
+            >
+              <div className="rounded-xl bg-white/10 p-3">
+                <Plus className="h-5 w-5 text-white" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold">
+                  New Article
+                </h3>
+
+                <p className="mt-1 text-xs text-zinc-400">
+                  Create a new publication
+                </p>
+              </div>
+
+              <span className="text-zinc-400 transition group-hover:translate-x-1">
+                →
+              </span>
+            </Link>
 
           </div>
 
-          {/* RESULTS INFO */}
-
-          {filteredBlogs.length > 0 && (
-            <div className="border-b border-zinc-100 bg-zinc-50/50 px-4 py-3 sm:px-6">
-
-              <div className="flex flex-col gap-1 text-xs text-zinc-500 sm:flex-row sm:items-center sm:justify-between">
-
-                <p>
-                  Showing{" "}
-                  <span className="font-semibold text-zinc-800">
-                    {startIndex + 1}
-                  </span>
-                  {" – "}
-                  <span className="font-semibold text-zinc-800">
-                    {endIndex}
-                  </span>{" "}
-                  of{" "}
-                  <span className="font-semibold text-zinc-800">
-                    {filteredBlogs.length}
-                  </span>
-                  {search.trim()
-                    ? " matching articles"
-                    : " articles"}
-                </p>
-
-                <p>
-                  Page{" "}
-                  <span className="font-semibold text-zinc-800">
-                    {safeCurrentPage}
-                  </span>{" "}
-                  of{" "}
-                  <span className="font-semibold text-zinc-800">
-                    {totalPages}
-                  </span>
-                </p>
-
-              </div>
-
-            </div>
-          )}
-
-          {/* EMPTY */}
-
-          {filteredBlogs.length === 0 ? (
-
-            <div className="flex min-h-64 flex-col items-center justify-center px-6 text-center">
-
-              <FileText className="mb-3 h-8 w-8 text-zinc-300" />
-
-              <h3 className="font-semibold text-zinc-950">
-                {search
-                  ? "No articles found"
-                  : "No articles yet"}
-              </h3>
-
-              <p className="mt-1 max-w-md text-sm text-zinc-500">
-
-                {search
-                  ? "Try a different title, category, author, slug, or search term."
-                  : "Create your first AnantaGo article to get started."}
-
-              </p>
-
-              {!search && (
-                <Link
-                  href="/admin/blogs/new"
-                  className="
-                    mt-4
-                    inline-flex
-                    h-10
-                    items-center
-                    gap-2
-                    rounded-lg
-                    bg-zinc-950
-                    px-4
-                    text-sm
-                    font-semibold
-                    text-white
-                    transition
-                    hover:bg-zinc-800
-                  "
-                >
-
-                  <Plus className="h-4 w-4" />
-
-                  <span className="text-white">
-                    Create Article
-                  </span>
-
-                </Link>
-              )}
-
-            </div>
-
-          ) : (
-
-            <>
-
-              {/* TABLE */}
-
-              <div className="overflow-x-auto">
-
-                <table className="w-full min-w-[850px] text-left">
-
-                  <thead className="border-b border-zinc-200 bg-zinc-50">
-
-                    <tr>
-
-                      <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                        Article
-                      </th>
-
-                      <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                        Category
-                      </th>
-
-                      <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                        Status
-                      </th>
-
-                      <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                        Date
-                      </th>
-
-                      <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                        Actions
-                      </th>
-
-                    </tr>
-
-                  </thead>
-
-                  <tbody className="divide-y divide-zinc-100">
-
-                    {paginatedBlogs.map(
-                      (blog) => (
-
-                        <tr
-                          key={blog.id}
-                          className="transition hover:bg-zinc-50/70"
-                        >
-
-                          {/* ARTICLE */}
-
-                          <td className="px-6 py-4">
-
-                            <div className="max-w-lg">
-
-                              <div className="flex items-center gap-2">
-
-                                <h3 className="line-clamp-2 text-sm font-semibold text-zinc-900">
-                                  {blog.title ||
-                                    "Untitled Article"}
-                                </h3>
-
-                                {blog.featured && (
-                                  <Star
-                                    className="
-                                      h-4
-                                      w-4
-                                      shrink-0
-                                      fill-current
-                                      text-amber-500
-                                    "
-                                  />
-                                )}
-
-                              </div>
-
-                              <p className="mt-1 truncate text-xs text-zinc-400">
-                                /{blog.slug}
-                              </p>
-
-                            </div>
-
-                          </td>
-
-                          {/* CATEGORY */}
-
-                          <td className="px-6 py-4">
-
-                            <span className="inline-flex rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700">
-                              {blog.category ||
-                                "Uncategorized"}
-                            </span>
-
-                          </td>
-
-                          {/* STATUS */}
-
-                          <td className="px-6 py-4">
-
-                            {blog.published ? (
-
-                              <span className="inline-flex items-center gap-2 text-xs font-semibold text-green-700">
-
-                                <span className="h-2 w-2 rounded-full bg-green-500" />
-
-                                Published
-
-                              </span>
-
-                            ) : (
-
-                              <span className="inline-flex items-center gap-2 text-xs font-semibold text-amber-700">
-
-                                <span className="h-2 w-2 rounded-full bg-amber-500" />
-
-                                Draft
-
-                              </span>
-
-                            )}
-
-                          </td>
-
-                          {/* DATE */}
-
-                          <td className="px-6 py-4 text-sm text-zinc-500">
-
-                            {blog.updated_at
-                              ? new Date(
-                                  blog.updated_at
-                                ).toLocaleDateString(
-                                  "en-IN",
-                                  {
-                                    day: "numeric",
-                                    month: "short",
-                                    year: "numeric",
-                                  }
-                                )
-                              : "—"}
-
-                          </td>
-
-                          {/* ACTIONS */}
-
-                          <td className="px-6 py-4">
-
-                            <div className="flex items-center justify-end gap-2">
-
-                              {/* EDIT */}
-
-                              <Link
-                                href={`/admin/blogs/${blog.id}/edit`}
-                                title="Edit article"
-                                className="
-                                  inline-flex
-                                  h-9
-                                  w-9
-                                  items-center
-                                  justify-center
-                                  rounded-lg
-                                  border
-                                  border-zinc-200
-                                  text-zinc-600
-                                  transition
-                                  hover:border-zinc-300
-                                  hover:bg-zinc-100
-                                  hover:text-zinc-900
-                                "
-                              >
-
-                                <Pencil className="h-4 w-4" />
-
-                              </Link>
-
-                              {/* DELETE */}
-
-                              <button
-                                type="button"
-                                title="Delete article"
-                                onClick={() =>
-                                  handleDelete(
-                                    blog.id,
-                                    blog.title
-                                  )
-                                }
-                                disabled={
-                                  deletingId ===
-                                  blog.id
-                                }
-                                className="
-                                  inline-flex
-                                  h-9
-                                  w-9
-                                  items-center
-                                  justify-center
-                                  rounded-lg
-                                  border
-                                  border-red-100
-                                  text-red-500
-                                  transition
-                                  hover:bg-red-50
-                                  hover:text-red-600
-                                  disabled:cursor-not-allowed
-                                  disabled:opacity-50
-                                "
-                              >
-
-                                {deletingId ===
-                                blog.id ? (
-
-                                  <RefreshCw className="h-4 w-4 animate-spin" />
-
-                                ) : (
-
-                                  <Trash2 className="h-4 w-4" />
-
-                                )}
-
-                              </button>
-
-                            </div>
-
-                          </td>
-
-                        </tr>
-
-                      )
-                    )}
-
-                  </tbody>
-
-                </table>
-
-              </div>
-
-              {/* PAGINATION */}
-
-              {totalPages > 1 && (
-                <div className="border-t border-zinc-200 bg-white px-4 py-4 sm:px-6">
-
-                  <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-
-                    <p className="text-sm text-zinc-500">
-
-                      Page{" "}
-                      <span className="font-semibold text-zinc-900">
-                        {safeCurrentPage}
-                      </span>{" "}
-                      of{" "}
-                      <span className="font-semibold text-zinc-900">
-                        {totalPages}
-                      </span>
-
-                    </p>
-
-                    <nav
-                      aria-label="Admin article pagination"
-                      className="flex items-center gap-1"
-                    >
-
-                      {/* PREVIOUS */}
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setCurrentPage(
-                            (page) =>
-                              Math.max(
-                                1,
-                                page - 1
-                              )
-                          )
-                        }
-                        disabled={
-                          safeCurrentPage ===
-                          1
-                        }
-                        className="
-                          inline-flex
-                          h-9
-                          items-center
-                          gap-1
-                          rounded-lg
-                          border
-                          border-zinc-200
-                          bg-white
-                          px-3
-                          text-sm
-                          font-medium
-                          text-zinc-700
-                          transition
-                          hover:bg-zinc-50
-                          disabled:cursor-not-allowed
-                          disabled:opacity-40
-                        "
-                      >
-
-                        <ChevronLeft className="h-4 w-4" />
-
-                        <span className="hidden sm:inline">
-                          Previous
-                        </span>
-
-                      </button>
-
-                      {/* NUMBERS */}
-
-                      <div className="flex items-center gap-1">
-
-                        {pageNumbers.map(
-                          (
-                            page,
-                            index
-                          ) => {
-
-                            if (
-                              page ===
-                              -1
-                            ) {
-                              return (
-                                <span
-                                  key={`ellipsis-${index}`}
-                                  className="
-                                    flex
-                                    h-9
-                                    w-9
-                                    items-center
-                                    justify-center
-                                    text-sm
-                                    text-zinc-400
-                                  "
-                                >
-                                  ...
-                                </span>
-                              );
-                            }
-
-                            return (
-                              <button
-                                key={page}
-                                type="button"
-                                onClick={() =>
-                                  setCurrentPage(
-                                    page
-                                  )
-                                }
-                                aria-current={
-                                  page ===
-                                  safeCurrentPage
-                                    ? "page"
-                                    : undefined
-                                }
-                                className={`
-                                  inline-flex
-                                  h-9
-                                  min-w-9
-                                  items-center
-                                  justify-center
-                                  rounded-lg
-                                  px-2
-                                  text-sm
-                                  font-medium
-                                  transition
-                                  ${
-                                    page ===
-                                    safeCurrentPage
-                                      ? "bg-zinc-950 text-white"
-                                      : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
-                                  }
-                                `}
-                              >
-                                {page}
-                              </button>
-                            );
-                          }
-                        )}
-
-                      </div>
-
-                      {/* NEXT */}
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setCurrentPage(
-                            (page) =>
-                              Math.min(
-                                totalPages,
-                                page + 1
-                              )
-                          )
-                        }
-                        disabled={
-                          safeCurrentPage ===
-                          totalPages
-                        }
-                        className="
-                          inline-flex
-                          h-9
-                          items-center
-                          gap-1
-                          rounded-lg
-                          border
-                          border-zinc-200
-                          bg-white
-                          px-3
-                          text-sm
-                          font-medium
-                          text-zinc-700
-                          transition
-                          hover:bg-zinc-50
-                          disabled:cursor-not-allowed
-                          disabled:opacity-40
-                        "
-                      >
-
-                        <span className="hidden sm:inline">
-                          Next
-                        </span>
-
-                        <ChevronRight className="h-4 w-4" />
-
-                      </button>
-
-                    </nav>
-
-                  </div>
-
-                </div>
-              )}
-
-            </>
-
-          )}
-
         </section>
+
+        {/* =================================================
+            FOOTER NOTE
+        ================================================= */}
+
+        <div className="mt-8 border-t border-zinc-200 pt-5">
+          <p className="text-xs text-zinc-400">
+            AnantaGo Publishing Dashboard
+          </p>
+        </div>
 
       </div>
 

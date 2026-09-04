@@ -1,16 +1,22 @@
 import * as jwt from "jsonwebtoken";
 
-const SECRET = "telugubudget_secret";
+const SECRET = process.env.ADMIN_JWT_SECRET;
 
-export function createToken(payload: any) {
-  return jwt.sign(payload, SECRET, {
-    expiresIn: "1d",
+if (!SECRET) {
+  throw new Error("ADMIN_JWT_SECRET is not configured");
+}
+
+const JWT_SECRET: string = SECRET;
+
+export function createToken(payload: object) {
+  return jwt.sign(payload, JWT_SECRET, {
+    expiresIn: "24h",
   });
 }
 
 export function verifyToken(token: string) {
   try {
-    return jwt.verify(token, SECRET);
+    return jwt.verify(token, JWT_SECRET);
   } catch {
     return null;
   }

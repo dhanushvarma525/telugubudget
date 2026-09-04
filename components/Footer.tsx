@@ -1,6 +1,6 @@
-
 import Link from "next/link";
 import FooterAd from "@/components/FooterAd";
+import { socialLinks } from "@/lib/socialLinks";
 
 const footerLinks = [
   { name: "About", href: "/about" },
@@ -21,34 +21,14 @@ const categories = [
 export default function Footer() {
   return (
     <>
-      {/* =====================================================
-          FOOTER AD
-          
-          Mobile:
-          300 × 250
-
-          Desktop:
-          728 × 90
-      ===================================================== */}
-
       <FooterAd />
-
-      {/* =====================================================
-          MAIN FOOTER
-      ===================================================== */}
 
       <footer className="border-t border-gray-200 bg-white">
         <div className="mx-auto max-w-7xl px-5 py-14 sm:px-6 lg:px-8">
-
-          {/* =================================================
-              MAIN FOOTER GRID
-          ================================================= */}
-
-          <div className="grid gap-12 md:grid-cols-3">
-
+          <div className="grid gap-12 md:grid-cols-4">
             {/* =================================================
                 BRAND
-            ================================================= */}
+            ================================================== */}
 
             <div>
               <Link
@@ -73,7 +53,7 @@ export default function Footer() {
 
             {/* =================================================
                 EXPLORE
-            ================================================= */}
+            ================================================== */}
 
             <div>
               <h3 className="text-xs font-bold uppercase tracking-[0.15em] text-black">
@@ -95,7 +75,7 @@ export default function Footer() {
 
             {/* =================================================
                 COMPANY
-            ================================================= */}
+            ================================================== */}
 
             <div>
               <h3 className="text-xs font-bold uppercase tracking-[0.15em] text-black">
@@ -115,29 +95,71 @@ export default function Footer() {
               </div>
             </div>
 
+            {/* =================================================
+                CONNECT
+            ================================================== */}
+
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-[0.15em] text-black">
+                Connect
+              </h3>
+
+              <p className="mt-5 text-sm leading-6 text-gray-600">
+                Follow AnantaGo or get in touch directly.
+              </p>
+
+              <div className="mt-5 flex flex-col gap-3">
+                <a
+                  href={socialLinks.instagram}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Follow Dhanush Varma on Instagram"
+                  className="inline-flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 transition-colors hover:border-black hover:text-black"
+                >
+                  <span>Instagram</span>
+                  <span aria-hidden="true">↗</span>
+                </a>
+
+                <a
+                  href={socialLinks.facebook}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Follow Dhanush Varma on Facebook"
+                  className="inline-flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 transition-colors hover:border-black hover:text-black"
+                >
+                  <span>Facebook</span>
+                  <span aria-hidden="true">↗</span>
+                </a>
+
+                <a
+                  href={socialLinks.whatsapp}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Message Dhanush Varma directly on WhatsApp"
+                  className="inline-flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 transition-colors hover:border-black hover:text-black"
+                >
+                  <span>Message on WhatsApp</span>
+                  <span aria-hidden="true">↗</span>
+                </a>
+              </div>
+            </div>
           </div>
 
           {/* =================================================
               BOTTOM BAR
-          ================================================= */}
+          ================================================== */}
 
           <div className="mt-14 border-t border-gray-200 pt-7">
             <div className="flex flex-col gap-3 text-sm text-gray-500 sm:flex-row sm:items-center sm:justify-between">
-
               <p>
                 © {new Date().getFullYear()} AnantaGo. All rights reserved.
               </p>
 
-              <p>
-                AI • Technology • Digital Life
-              </p>
-
+              <p>AI • Technology • Digital Life</p>
             </div>
           </div>
-
         </div>
       </footer>
     </>
   );
 }
-

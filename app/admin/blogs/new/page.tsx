@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -22,57 +21,324 @@ function createSlug(value: string) {
     .replace(/-+/g, "-");
 }
 
+/*
+ * =========================================================
+ * TITLE SIMILARITY HELPERS
+ * =========================================================
+ */
+
+function normalizeTitle(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getWords(value: string) {
+  return new Set(
+    normalizeTitle(value)
+      .split(" ")
+      .filter((word) => word.length > 1)
+  );
+}
+
+function calculateTitleSimilarity(
+  titleA: string,
+  titleB: string
+) {
+  const a = normalizeTitle(titleA);
+  const b = normalizeTitle(titleB);
+
+  if (!a || !b) {
+    return 0;
+  }
+
+  if (a === b) {
+    return 100;
+  }
+
+  /*
+   * Exact phrase containment.
+   */
+  if (a.includes(b) || b.includes(a)) {
+    const shorter = a.length < b.length ? a : b;
+    const longer = a.length >= b.length ? a : b;
+
+    return Math.min(
+      99,
+      Math.round(
+        (shorter.length / longer.length) * 100
+      )
+    );
+  }
+
+  /*
+   * Word overlap.
+   */
+  const wordsA = getWords(a);
+  const wordsB = getWords(b);
+
+  if (wordsA.size === 0 || wordsB.size === 0) {
+    return 0;
+  }
+
+  let commonWords = 0;
+
+  wordsA.forEach((word) => {
+    if (wordsB.has(word)) {
+      commonWords++;
+    }
+  });
+
+  const unionSize =
+    new Set([
+      ...Array.from(wordsA),
+      ...Array.from(wordsB),
+    ]).size;
+
+  if (unionSize === 0) {
+    return 0;
+  }
+
+  return Math.round(
+    (commonWords / unionSize) * 100
+  );
+}
+
+/*
+ * =========================================================
+ * TYPES
+ * =========================================================
+ */
+
+type ExistingBlogTitle = {
+  id: number;
+  title: string;
+};
+
+/*
+ * =========================================================
+ * PAGE
+ * =========================================================
+ */
+
 export default function NewBlogPage() {
   const router = useRouter();
 
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
   const [category, setCategory] = useState("");
-  const [author, setAuthor] = useState("AnantaGo");
+  const [author, setAuthor] = useState("Dhanush Varma");
   const [tags, setTags] = useState("");
   const [excerpt, setExcerpt] = useState("");
   const [introduction, setIntroduction] = useState("");
 
-  const [coverImage, setCoverImage] = useState<File | null>(null);
-  const [coverImagePreview, setCoverImagePreview] = useState("");
+  const [coverImage, setCoverImage] =
+    useState<File | null>(null);
+
+  const [coverImagePreview, setCoverImagePreview] =
+    useState("");
 
   const [contentBlocks, setContentBlocks] =
     useState<BlogContentBlock[]>([]);
 
-  const [faqs, setFaqs] = useState<BlogFAQ[]>([]);
+  const [faqs, setFaqs] =
+    useState<BlogFAQ[]>([]);
 
   const [metaTitle, setMetaTitle] = useState("");
-  const [metaDescription, setMetaDescription] = useState("");
+  const [metaDescription, setMetaDescription] =
+    useState("");
 
-  const [featured, setFeatured] = useState(false);
+  const [featured, setFeatured] =
+    useState(false);
 
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [saving, setSaving] =
+    useState(false);
 
-  const [showPreview, setShowPreview] = useState(false);
+  const [error, setError] =
+    useState("");
+
+  const [success, setSuccess] =
+    useState("");
+
+  const [showPreview, setShowPreview] =
+    useState(false);
 
   /*
-   * =========================
+   * =========================================================
+   * EXISTING ARTICLE TITLES
+   * =========================================================
+   */
+
+  const [existingTitles, setExistingTitles] =
+    useState<ExistingBlogTitle[]>([]);
+
+  const [titlesLoading, setTitlesLoading] =
+    useState(true);
+
+  /*
+   * =========================================================
+   * LOAD EXISTING TITLES
+   * =========================================================
+   */
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadExistingTitles() {
+      try {
+        setTitlesLoading(true);
+
+        const response = await fetch(
+          "/api/blogs?admin=true&limit=1000",
+          {
+            method: "GET",
+            cache: "no-store",
+            headers: {
+              "Cache-Control": "no-cache",
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            "Failed to load previous article titles."
+          );
+        }
+
+        const data = await response.json();
+
+        const blogList = Array.isArray(data)
+          ? data
+          : Array.isArray(data.blogs)
+            ? data.blogs
+            : [];
+
+        const titles: ExistingBlogTitle[] =
+          blogList
+            .filter(
+              (blog: unknown) =>
+                blog &&
+                typeof blog === "object" &&
+                typeof (
+                  blog as {
+                    id?: unknown;
+                  }
+                ).id === "number" &&
+                typeof (
+                  blog as {
+                    title?: unknown;
+                  }
+                ).title === "string"
+            )
+            .map(
+              (blog: {
+                id: number;
+                title: string;
+              }) => ({
+                id: blog.id,
+                title: blog.title.trim(),
+              })
+            )
+            .filter(
+              (blog: ExistingBlogTitle) =>
+                blog.title.length > 0
+            );
+
+        if (mounted) {
+          setExistingTitles(titles);
+        }
+      } catch (err) {
+        console.error(
+          "TITLE LOAD ERROR:",
+          err
+        );
+
+        if (mounted) {
+          setExistingTitles([]);
+        }
+      } finally {
+        if (mounted) {
+          setTitlesLoading(false);
+        }
+      }
+    }
+
+    loadExistingTitles();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  /*
+   * =========================================================
+   * TITLE MATCHES
+   * =========================================================
+   */
+
+  const titleMatches = useMemo(() => {
+    const currentTitle = title.trim();
+
+    if (!currentTitle) {
+      return [];
+    }
+
+    return existingTitles
+      .map((blog) => ({
+        ...blog,
+        similarity:
+          calculateTitleSimilarity(
+            currentTitle,
+            blog.title
+          ),
+      }))
+      .filter(
+        (blog) => blog.similarity >= 35
+      )
+      .sort(
+        (a, b) =>
+          b.similarity -
+          a.similarity
+      )
+      .slice(0, 8);
+  }, [title, existingTitles]);
+
+  const highestTitleMatch =
+    titleMatches.length > 0
+      ? titleMatches[0].similarity
+      : 0;
+
+  /*
+   * =========================================================
    * CLEANUP IMAGE PREVIEW
-   * =========================
+   * =========================================================
    */
 
   useEffect(() => {
     return () => {
-      if (coverImagePreview.startsWith("blob:")) {
-        URL.revokeObjectURL(coverImagePreview);
+      if (
+        coverImagePreview.startsWith(
+          "blob:"
+        )
+      ) {
+        URL.revokeObjectURL(
+          coverImagePreview
+        );
       }
     };
   }, [coverImagePreview]);
 
   /*
-   * =========================
+   * =========================================================
    * TITLE / SLUG
-   * =========================
+   * =========================================================
    */
 
-  function handleTitleChange(value: string) {
+  function handleTitleChange(
+    value: string
+  ) {
     setTitle(value);
 
     if (!slug) {
@@ -81,15 +347,16 @@ export default function NewBlogPage() {
   }
 
   /*
-   * =========================
+   * =========================================================
    * COVER IMAGE
-   * =========================
+   * =========================================================
    */
 
   function handleCoverImageChange(
     event: React.ChangeEvent<HTMLInputElement>
   ) {
-    const file = event.target.files?.[0];
+    const file =
+      event.target.files?.[0];
 
     if (!file) {
       return;
@@ -110,7 +377,8 @@ export default function NewBlogPage() {
       return;
     }
 
-    const maxSize = 5 * 1024 * 1024;
+    const maxSize =
+      5 * 1024 * 1024;
 
     if (file.size > maxSize) {
       setError(
@@ -123,21 +391,36 @@ export default function NewBlogPage() {
 
     setError("");
 
-    if (coverImagePreview.startsWith("blob:")) {
-      URL.revokeObjectURL(coverImagePreview);
+    if (
+      coverImagePreview.startsWith(
+        "blob:"
+      )
+    ) {
+      URL.revokeObjectURL(
+        coverImagePreview
+      );
     }
 
-    const previewUrl = URL.createObjectURL(file);
+    const previewUrl =
+      URL.createObjectURL(file);
 
     setCoverImage(file);
-    setCoverImagePreview(previewUrl);
+    setCoverImagePreview(
+      previewUrl
+    );
 
     event.target.value = "";
   }
 
   function removeCoverImage() {
-    if (coverImagePreview.startsWith("blob:")) {
-      URL.revokeObjectURL(coverImagePreview);
+    if (
+      coverImagePreview.startsWith(
+        "blob:"
+      )
+    ) {
+      URL.revokeObjectURL(
+        coverImagePreview
+      );
     }
 
     setCoverImage(null);
@@ -145,9 +428,9 @@ export default function NewBlogPage() {
   }
 
   /*
-   * =========================
+   * =========================================================
    * FAQ
-   * =========================
+   * =========================================================
    */
 
   function addFAQ() {
@@ -163,98 +446,120 @@ export default function NewBlogPage() {
 
   function updateFAQ(
     index: number,
-    field: "question" | "answer",
+    field:
+      | "question"
+      | "answer",
     value: string
   ) {
     setFaqs((current) =>
-      current.map((faq, faqIndex) =>
-        faqIndex === index
-          ? {
-              ...faq,
-              [field]: value,
-            }
-          : faq
+      current.map(
+        (faq, faqIndex) =>
+          faqIndex === index
+            ? {
+                ...faq,
+                [field]: value,
+              }
+            : faq
       )
     );
   }
 
-  function deleteFAQ(index: number) {
+  function deleteFAQ(
+    index: number
+  ) {
     setFaqs((current) =>
       current.filter(
-        (_, faqIndex) => faqIndex !== index
+        (_, faqIndex) =>
+          faqIndex !== index
       )
     );
   }
 
   /*
-   * =========================
+   * =========================================================
    * PREVIEW BLOG
-   * =========================
+   * =========================================================
    */
 
-  const previewBlog: BlogFormData = useMemo(
-    () => ({
-      title,
-      slug,
-      excerpt,
-      introduction,
+  const previewBlog: BlogFormData =
+    useMemo(
+      () => ({
+        title,
+        slug,
+        excerpt,
+        introduction,
 
-      cover_image: coverImagePreview || null,
+        cover_image:
+          coverImagePreview ||
+          null,
 
-      category,
-      author,
+        category,
+        author,
 
-      tags: tags
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean),
+        tags: tags
+          .split(",")
+          .map((tag) =>
+            tag.trim()
+          )
+          .filter(Boolean),
 
-      content_blocks: contentBlocks,
-      faqs,
+        content_blocks:
+          contentBlocks,
 
-      published: false,
-      featured,
+        faqs,
 
-      views: 0,
+        published: false,
+        featured,
 
-      meta_title: metaTitle || title,
-      meta_description:
-        metaDescription || excerpt,
+        views: 0,
 
-      published_at: null,
-      created_at: null,
-      updated_at: null,
-    }),
-    [
-      title,
-      slug,
-      excerpt,
-      introduction,
-      coverImagePreview,
-      category,
-      author,
-      tags,
-      contentBlocks,
-      faqs,
-      featured,
-      metaTitle,
-      metaDescription,
-    ]
-  );
+        meta_title:
+          metaTitle || title,
+
+        meta_description:
+          metaDescription ||
+          excerpt,
+
+        published_at: null,
+        created_at: null,
+        updated_at: null,
+      }),
+      [
+        title,
+        slug,
+        excerpt,
+        introduction,
+        coverImagePreview,
+        category,
+        author,
+        tags,
+        contentBlocks,
+        faqs,
+        featured,
+        metaTitle,
+        metaDescription,
+      ]
+    );
 
   /*
-   * =========================
+   * =========================================================
    * SAFE API RESPONSE PARSER
-   * =========================
+   * =========================================================
    */
 
   async function readApiResponse(
     response: Response
   ): Promise<{
-    data: Record<string, unknown> | null;
+    data:
+      | Record<
+          string,
+          unknown
+        >
+      | null;
     rawText: string;
   }> {
-    const rawText = await response.text();
+    const rawText =
+      await response.text();
 
     if (!rawText.trim()) {
       return {
@@ -264,15 +569,21 @@ export default function NewBlogPage() {
     }
 
     try {
-      const parsed = JSON.parse(rawText);
+      const parsed =
+        JSON.parse(rawText);
 
       if (
         parsed &&
-        typeof parsed === "object" &&
+        typeof parsed ===
+          "object" &&
         !Array.isArray(parsed)
       ) {
         return {
-          data: parsed as Record<string, unknown>,
+          data:
+            parsed as Record<
+              string,
+              unknown
+            >,
           rawText,
         };
       }
@@ -290,12 +601,14 @@ export default function NewBlogPage() {
   }
 
   /*
-   * =========================
+   * =========================================================
    * SAVE BLOG
-   * =========================
+   * =========================================================
    */
 
-  async function saveBlog(publish: boolean) {
+  async function saveBlog(
+    publish: boolean
+  ) {
     setError("");
     setSuccess("");
 
@@ -304,33 +617,39 @@ export default function NewBlogPage() {
      */
 
     if (!title.trim()) {
-      setError("Please enter a blog title.");
+      setError(
+        "Please enter a blog title."
+      );
       return;
     }
 
     if (!slug.trim()) {
-      setError("Please enter a valid slug.");
+      setError(
+        "Please enter a valid slug."
+      );
       return;
     }
 
     if (!category.trim()) {
-      setError("Please select a category.");
+      setError(
+        "Please select a category."
+      );
       return;
     }
 
     if (!excerpt.trim()) {
-      setError("Please enter an article excerpt.");
+      setError(
+        "Please enter an article excerpt."
+      );
       return;
     }
 
     if (!author.trim()) {
-      setError("Please enter an author name.");
+      setError(
+        "Please enter an author name."
+      );
       return;
     }
-
-    /*
-     * REQUIRE INTRODUCTION
-     */
 
     if (!introduction.trim()) {
       setError(
@@ -343,11 +662,12 @@ export default function NewBlogPage() {
      * FAQ VALIDATION
      */
 
-    const invalidFAQ = faqs.some(
-      (faq) =>
-        !faq.question.trim() ||
-        !faq.answer.trim()
-    );
+    const invalidFAQ =
+      faqs.some(
+        (faq) =>
+          !faq.question.trim() ||
+          !faq.answer.trim()
+      );
 
     if (invalidFAQ) {
       setError(
@@ -356,16 +676,32 @@ export default function NewBlogPage() {
       return;
     }
 
+    /*
+     * DUPLICATE TITLE WARNING
+     *
+     * We do NOT block publishing.
+     * We only warn if another title is
+     * extremely similar.
+     */
+
+    if (
+      highestTitleMatch >= 90
+    ) {
+      const confirmed =
+        window.confirm(
+          `This title is very similar to an existing article:\n\n"${titleMatches[0].title}"\n\nDo you want to continue?`
+        );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
     setSaving(true);
 
     try {
-      /*
-       * =========================
-       * FORM DATA
-       * =========================
-       */
-
-      const formData = new FormData();
+      const formData =
+        new FormData();
 
       formData.append(
         "title",
@@ -401,14 +737,19 @@ export default function NewBlogPage() {
        * TAGS
        */
 
-      const cleanTags = tags
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean);
+      const cleanTags =
+        tags
+          .split(",")
+          .map((tag) =>
+            tag.trim()
+          )
+          .filter(Boolean);
 
       formData.append(
         "tags",
-        JSON.stringify(cleanTags)
+        JSON.stringify(
+          cleanTags
+        )
       );
 
       /*
@@ -416,28 +757,37 @@ export default function NewBlogPage() {
        */
 
       const cleanContentBlocks =
-        contentBlocks.map((block) => ({
-          ...block,
-        }));
+        contentBlocks.map(
+          (block) => ({
+            ...block,
+          })
+        );
 
       formData.append(
         "content_blocks",
-        JSON.stringify(cleanContentBlocks)
+        JSON.stringify(
+          cleanContentBlocks
+        )
       );
 
       /*
        * FAQ
        */
 
-      const cleanFaqs = faqs.map((faq) => ({
-        id: faq.id,
-        question: faq.question.trim(),
-        answer: faq.answer.trim(),
-      }));
+      const cleanFaqs =
+        faqs.map((faq) => ({
+          id: faq.id,
+          question:
+            faq.question.trim(),
+          answer:
+            faq.answer.trim(),
+        }));
 
       formData.append(
         "faqs",
-        JSON.stringify(cleanFaqs)
+        JSON.stringify(
+          cleanFaqs
+        )
       );
 
       /*
@@ -446,12 +796,16 @@ export default function NewBlogPage() {
 
       formData.append(
         "published",
-        publish ? "true" : "false"
+        publish
+          ? "true"
+          : "false"
       );
 
       formData.append(
         "featured",
-        featured ? "true" : "false"
+        featured
+          ? "true"
+          : "false"
       );
 
       /*
@@ -460,7 +814,8 @@ export default function NewBlogPage() {
 
       formData.append(
         "meta_title",
-        metaTitle.trim() || title.trim()
+        metaTitle.trim() ||
+          title.trim()
       );
 
       formData.append(
@@ -493,41 +848,43 @@ export default function NewBlogPage() {
       }
 
       /*
-       * =========================
        * API REQUEST
-       * =========================
        */
 
-      const response = await fetch(
-        "/api/blogs",
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
+      const response =
+        await fetch(
+          "/api/blogs",
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
 
       /*
-       * =========================
        * SAFE RESPONSE
-       * =========================
        */
 
-      const { data, rawText } =
-        await readApiResponse(response);
+      const {
+        data,
+        rawText,
+      } =
+        await readApiResponse(
+          response
+        );
 
       /*
-       * =========================
-       * HANDLE API ERROR
-       * =========================
+       * API ERROR
        */
 
       if (!response.ok) {
         const apiError =
-          typeof data?.error === "string"
+          typeof data?.error ===
+          "string"
             ? data.error
-            : typeof data?.message === "string"
-            ? data.message
-            : rawText.trim();
+            : typeof data?.message ===
+                "string"
+              ? data.message
+              : rawText.trim();
 
         throw new Error(
           apiError ||
@@ -536,9 +893,7 @@ export default function NewBlogPage() {
       }
 
       /*
-       * =========================
        * SUCCESS
-       * =========================
        */
 
       setSuccess(
@@ -552,7 +907,10 @@ export default function NewBlogPage() {
        */
 
       setTimeout(() => {
-        router.push("/admin/blogs");
+        router.push(
+          "/admin/blogs"
+        );
+
         router.refresh();
       }, 700);
     } catch (err) {
@@ -561,8 +919,12 @@ export default function NewBlogPage() {
         err
       );
 
-      if (err instanceof Error) {
-        setError(err.message);
+      if (
+        err instanceof Error
+      ) {
+        setError(
+          err.message
+        );
       } else {
         setError(
           "Something went wrong while saving the article."
@@ -574,9 +936,9 @@ export default function NewBlogPage() {
   }
 
   /*
-   * =========================
+   * =========================================================
    * PREVIEW
-   * =========================
+   * =========================================================
    */
 
   if (showPreview) {
@@ -597,7 +959,9 @@ export default function NewBlogPage() {
             <button
               type="button"
               onClick={() =>
-                setShowPreview(false)
+                setShowPreview(
+                  false
+                )
               }
               className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
             >
@@ -607,16 +971,18 @@ export default function NewBlogPage() {
         </header>
 
         <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-          <BlogPreview blog={previewBlog} />
+          <BlogPreview
+            blog={previewBlog}
+          />
         </div>
       </main>
     );
   }
 
   /*
-   * =========================
+   * =========================================================
    * EDITOR
-   * =========================
+   * =========================================================
    */
 
   return (
@@ -640,7 +1006,9 @@ export default function NewBlogPage() {
               <button
                 type="button"
                 onClick={() =>
-                  setShowPreview(true)
+                  setShowPreview(
+                    true
+                  )
                 }
                 className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
               >
@@ -679,7 +1047,8 @@ export default function NewBlogPage() {
 
       {/* MESSAGES */}
 
-      {(error || success) && (
+      {(error ||
+        success) && (
         <div className="mx-auto max-w-7xl px-4 pt-5 sm:px-6 lg:px-8">
           {error && (
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
@@ -732,14 +1101,87 @@ export default function NewBlogPage() {
                   <input
                     type="text"
                     value={title}
-                    onChange={(event) =>
+                    onChange={(
+                      event
+                    ) =>
                       handleTitleChange(
-                        event.target.value
+                        event.target
+                          .value
                       )
                     }
                     placeholder="Enter article title..."
                     className="w-full rounded-xl border border-gray-300 px-4 py-3 text-base outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10"
                   />
+
+                  {/* TITLE MATCHES */}
+
+                  {title.trim() && (
+                    <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
+                            Previous Title Check
+                          </p>
+
+                          <p className="mt-1 text-xs text-gray-400">
+                            Comparing against all existing articles
+                          </p>
+                        </div>
+
+                        {!titlesLoading && (
+                          <span className="text-xs font-medium text-gray-400">
+                            {existingTitles.length}{" "}
+                            titles checked
+                          </span>
+                        )}
+                      </div>
+
+                      {titlesLoading ? (
+                        <p className="mt-4 text-sm text-gray-500">
+                          Checking previous titles...
+                        </p>
+                      ) : titleMatches.length ===
+                        0 ? (
+                        <p className="mt-4 text-sm font-medium text-green-700">
+                          ✓ No similar article titles found.
+                        </p>
+                      ) : (
+                        <div className="mt-4 space-y-2">
+                          {titleMatches.map(
+                            (match) => (
+                              <div
+                                key={
+                                  match.id
+                                }
+                                className="flex items-center justify-between gap-4 rounded-lg border border-gray-200 bg-white px-3 py-2.5"
+                              >
+                                <p className="min-w-0 flex-1 text-sm font-medium text-gray-800">
+                                  {match.title}
+                                </p>
+
+                                <span
+                                  className={`shrink-0 text-xs font-bold ${
+                                    match.similarity >=
+                                    90
+                                      ? "text-red-600"
+                                      : match.similarity >=
+                                          70
+                                        ? "text-amber-600"
+                                        : "text-gray-500"
+                                  }`}
+                                >
+                                  {
+                                    match.similarity
+                                  }
+                                  %
+                                </span>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* SLUG */}
@@ -752,10 +1194,13 @@ export default function NewBlogPage() {
                   <input
                     type="text"
                     value={slug}
-                    onChange={(event) =>
+                    onChange={(
+                      event
+                    ) =>
                       setSlug(
                         createSlug(
-                          event.target.value
+                          event.target
+                            .value
                         )
                       )
                     }
@@ -765,7 +1210,8 @@ export default function NewBlogPage() {
 
                   <p className="mt-2 text-xs text-gray-500">
                     URL: /blog/
-                    {slug || "article-slug"}
+                    {slug ||
+                      "article-slug"}
                   </p>
                 </div>
 
@@ -779,9 +1225,12 @@ export default function NewBlogPage() {
 
                     <select
                       value={category}
-                      onChange={(event) =>
+                      onChange={(
+                        event
+                      ) =>
                         setCategory(
-                          event.target.value
+                          event.target
+                            .value
                         )
                       }
                       className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-gray-900"
@@ -810,8 +1259,6 @@ export default function NewBlogPage() {
                         Security
                       </option>
 
-                      {/* NEW CATEGORY */}
-
                       <option value="Explained">
                         Explained
                       </option>
@@ -826,9 +1273,12 @@ export default function NewBlogPage() {
                     <input
                       type="text"
                       value={author}
-                      onChange={(event) =>
+                      onChange={(
+                        event
+                      ) =>
                         setAuthor(
-                          event.target.value
+                          event.target
+                            .value
                         )
                       }
                       className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
@@ -846,9 +1296,12 @@ export default function NewBlogPage() {
                   <input
                     type="text"
                     value={tags}
-                    onChange={(event) =>
+                    onChange={(
+                      event
+                    ) =>
                       setTags(
-                        event.target.value
+                        event.target
+                          .value
                       )
                     }
                     placeholder="AI, Google, Gemini, Technology"
@@ -915,7 +1368,9 @@ export default function NewBlogPage() {
 
                         {coverImage && (
                           <p className="mt-1 truncate text-xs text-gray-500">
-                            {coverImage.name}
+                            {
+                              coverImage.name
+                            }
                           </p>
                         )}
                       </div>
@@ -952,7 +1407,9 @@ export default function NewBlogPage() {
 
                     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-100">
                       <img
-                        src={coverImagePreview}
+                        src={
+                          coverImagePreview
+                        }
                         alt={
                           title ||
                           "Cover preview"
@@ -980,9 +1437,12 @@ export default function NewBlogPage() {
 
                   <textarea
                     value={excerpt}
-                    onChange={(event) =>
+                    onChange={(
+                      event
+                    ) =>
                       setExcerpt(
-                        event.target.value
+                        event.target
+                          .value
                       )
                     }
                     rows={3}
@@ -997,10 +1457,15 @@ export default function NewBlogPage() {
                   </label>
 
                   <textarea
-                    value={introduction}
-                    onChange={(event) =>
+                    value={
+                      introduction
+                    }
+                    onChange={(
+                      event
+                    ) =>
                       setIntroduction(
-                        event.target.value
+                        event.target
+                          .value
                       )
                     }
                     rows={8}
@@ -1015,8 +1480,12 @@ export default function NewBlogPage() {
 
             <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
               <BlogBlockEditor
-                blocks={contentBlocks}
-                onChange={setContentBlocks}
+                blocks={
+                  contentBlocks
+                }
+                onChange={
+                  setContentBlocks
+                }
               />
             </section>
 
@@ -1044,14 +1513,18 @@ export default function NewBlogPage() {
               </div>
 
               <div className="mt-6 space-y-5">
-                {faqs.length === 0 && (
+                {faqs.length ===
+                  0 && (
                   <div className="rounded-xl border border-dashed border-gray-300 px-5 py-8 text-center text-sm text-gray-500">
                     No FAQs added yet.
                   </div>
                 )}
 
                 {faqs.map(
-                  (faq, index) => (
+                  (
+                    faq,
+                    index
+                  ) => (
                     <div
                       key={
                         faq.id ||
@@ -1061,13 +1534,17 @@ export default function NewBlogPage() {
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-bold text-gray-700">
-                          FAQ {index + 1}
+                          FAQ{" "}
+                          {index +
+                            1}
                         </span>
 
                         <button
                           type="button"
                           onClick={() =>
-                            deleteFAQ(index)
+                            deleteFAQ(
+                              index
+                            )
                           }
                           className="text-sm font-semibold text-red-600 hover:text-red-700"
                         >
@@ -1096,7 +1573,9 @@ export default function NewBlogPage() {
                         />
 
                         <textarea
-                          value={faq.answer}
+                          value={
+                            faq.answer
+                          }
                           onChange={(
                             event
                           ) =>
@@ -1137,10 +1616,15 @@ export default function NewBlogPage() {
 
                   <input
                     type="text"
-                    value={metaTitle}
-                    onChange={(event) =>
+                    value={
+                      metaTitle
+                    }
+                    onChange={(
+                      event
+                    ) =>
                       setMetaTitle(
-                        event.target.value
+                        event.target
+                          .value
                       )
                     }
                     placeholder="SEO title..."
@@ -1154,10 +1638,15 @@ export default function NewBlogPage() {
                   </label>
 
                   <textarea
-                    value={metaDescription}
-                    onChange={(event) =>
+                    value={
+                      metaDescription
+                    }
+                    onChange={(
+                      event
+                    ) =>
                       setMetaDescription(
-                        event.target.value
+                        event.target
+                          .value
                       )
                     }
                     rows={4}
@@ -1184,7 +1673,9 @@ export default function NewBlogPage() {
                   <button
                     type="button"
                     onClick={() =>
-                      saveBlog(false)
+                      saveBlog(
+                        false
+                      )
                     }
                     disabled={saving}
                     className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
@@ -1197,7 +1688,9 @@ export default function NewBlogPage() {
                   <button
                     type="button"
                     onClick={() =>
-                      setShowPreview(true)
+                      setShowPreview(
+                        true
+                      )
                     }
                     className="w-full rounded-xl border border-gray-900 px-4 py-3 text-sm font-semibold text-gray-900 hover:bg-gray-50"
                   >
@@ -1207,7 +1700,9 @@ export default function NewBlogPage() {
                   <button
                     type="button"
                     onClick={() =>
-                      saveBlog(true)
+                      saveBlog(
+                        true
+                      )
                     }
                     disabled={saving}
                     className="w-full rounded-xl bg-gray-900 px-4 py-3 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
@@ -1225,10 +1720,15 @@ export default function NewBlogPage() {
                 <label className="flex cursor-pointer items-start gap-3">
                   <input
                     type="checkbox"
-                    checked={featured}
-                    onChange={(event) =>
+                    checked={
+                      featured
+                    }
+                    onChange={(
+                      event
+                    ) =>
                       setFeatured(
-                        event.target.checked
+                        event.target
+                          .checked
                       )
                     }
                     className="mt-1 h-4 w-4 rounded border-gray-300"
@@ -1260,7 +1760,9 @@ export default function NewBlogPage() {
                     </span>
 
                     <span className="font-semibold">
-                      {contentBlocks.length}
+                      {
+                        contentBlocks.length
+                      }
                     </span>
                   </div>
 
@@ -1270,7 +1772,9 @@ export default function NewBlogPage() {
                     </span>
 
                     <span className="font-semibold">
-                      {faqs.length}
+                      {
+                        faqs.length
+                      }
                     </span>
                   </div>
 
@@ -1282,9 +1786,13 @@ export default function NewBlogPage() {
                     <span className="font-semibold">
                       {
                         tags
-                          .split(",")
+                          .split(
+                            ","
+                          )
                           .filter(
-                            (tag) =>
+                            (
+                              tag
+                            ) =>
                               tag.trim()
                           ).length
                       }
@@ -1297,7 +1805,8 @@ export default function NewBlogPage() {
                     </span>
 
                     <span className="font-semibold">
-                      {category || "—"}
+                      {category ||
+                        "—"}
                     </span>
                   </div>
 
@@ -1321,4 +1830,3 @@ export default function NewBlogPage() {
     </main>
   );
 }
-

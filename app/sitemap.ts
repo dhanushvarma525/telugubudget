@@ -1,13 +1,21 @@
 import { MetadataRoute } from "next";
 import { supabase } from "@/lib/supabase";
 
-// Always generate the sitemap dynamically.
-// This helps ensure newly published blogs appear without
-// waiting for a stale sitemap cache.
+/*
+ * Always generate the sitemap dynamically.
+ * This ensures newly published blogs can appear
+ * without waiting for a stale sitemap cache.
+ */
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const BASE_URL = "https://anatago.com";
+/*
+ * Canonical website URL.
+ *
+ * Use the final canonical hostname consistently
+ * throughout the sitemap.
+ */
+const BASE_URL = "https://www.anatago.com";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   /* =========================================================
@@ -106,14 +114,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   /* =========================================================
-     REMOVE DUPLICATE URLs
+     COMBINE ALL CURRENT URLs
+     
+     IMPORTANT:
+     There are intentionally NO /products/* URLs here.
   ========================================================= */
 
-  const allUrls = [
+  const allUrls: MetadataRoute.Sitemap = [
     ...staticPages,
     ...categoryUrls,
     ...blogUrls,
   ];
+
+  /* =========================================================
+     REMOVE DUPLICATE URLs
+  ========================================================= */
 
   const uniqueUrls = Array.from(
     new Map(
