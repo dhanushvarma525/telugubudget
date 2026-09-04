@@ -1,3 +1,4 @@
+
 import type { MetadataRoute } from "next";
 import { supabase } from "@/lib/supabase";
 
@@ -6,14 +7,16 @@ import { supabase } from "@/lib/supabase";
  * SITEMAP CONFIGURATION
  * =========================================================
  *
- * Revalidate the sitemap every 60 seconds.
+ * Force the sitemap to be generated dynamically.
  *
  * This means:
+ * - The sitemap reads the current Supabase data.
  * - Newly published blogs can appear automatically.
  * - We don't need to manually edit the sitemap.
- * - We avoid relying on a permanently cached sitemap.
+ * - We don't rely on a 60-second cached sitemap.
  */
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const BASE_URL = "https://www.anatago.com";
 
@@ -110,7 +113,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
    *          ↓
    * published = true
    *          ↓
-   * sitemap automatically includes article
+   * sitemap reads Supabase
+   *          ↓
+   * article appears in sitemap
    */
 
   let blogUrls: MetadataRoute.Sitemap = [];
@@ -148,13 +153,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     } else {
       blogUrls = (blogs ?? [])
         /*
-         * Make absolutely sure slug is valid.
+         * Make absolutely sure the slug is valid.
          */
         .filter(
           (blog) =>
             typeof blog.slug === "string" &&
             blog.slug.trim().length > 0
         )
+
         /*
          * Convert database records into sitemap URLs.
          */
@@ -162,8 +168,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           const slug = blog.slug.trim();
 
           /*
-           * Prefer updated_at because it represents the
-           * latest modification.
+           * Prefer updated_at because it represents
+           * the latest modification.
            *
            * Then fall back to published_at and created_at.
            */
@@ -174,11 +180,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
           return {
             url: `${BASE_URL}/blog/${encodeURIComponent(slug)}`,
+
             ...(lastModified
               ? {
                   lastModified: new Date(lastModified),
                 }
               : {}),
+
             changeFrequency: "weekly" as const,
             priority: 0.8,
           };
@@ -225,3 +233,4 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   return uniqueUrls;
 }
+
