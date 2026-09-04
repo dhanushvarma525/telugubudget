@@ -1,37 +1,33 @@
-
 import type { MetadataRoute } from "next";
 import { supabase } from "@/lib/supabase";
 
+/* =========================================================
+   SITEMAP CONFIGURATION
+========================================================= */
+
 /*
- * =========================================================
- * SITEMAP CONFIGURATION
- * =========================================================
+ * Always generate the sitemap dynamically.
  *
- * Force the sitemap to be generated dynamically.
- *
- * This means:
- * - The sitemap reads the current Supabase data.
- * - Newly published blogs can appear automatically.
- * - We don't need to manually edit the sitemap.
- * - We don't rely on a 60-second cached sitemap.
+ * This ensures the sitemap reads the latest published
+ * articles from Supabase instead of relying on stale data.
  */
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+/*
+ * IMPORTANT:
+ * Use the same canonical hostname everywhere on the site.
+ */
 const BASE_URL = "https://www.anatago.com";
 
-/*
- * =========================================================
- * SITEMAP
- * =========================================================
- */
+/* =========================================================
+   SITEMAP
+========================================================= */
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  /*
-   * =======================================================
-   * STATIC PAGES
-   * =======================================================
-   */
+  /* =======================================================
+     STATIC PAGES
+  ======================================================= */
 
   const staticPages: MetadataRoute.Sitemap = [
     {
@@ -39,36 +35,43 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "daily",
       priority: 1,
     },
+
     {
       url: `${BASE_URL}/blog`,
       changeFrequency: "daily",
       priority: 0.9,
     },
+
     {
       url: `${BASE_URL}/categories`,
       changeFrequency: "weekly",
       priority: 0.7,
     },
+
     {
       url: `${BASE_URL}/about`,
       changeFrequency: "monthly",
       priority: 0.5,
     },
+
     {
       url: `${BASE_URL}/contact`,
       changeFrequency: "monthly",
       priority: 0.5,
     },
+
     {
       url: `${BASE_URL}/privacy`,
       changeFrequency: "yearly",
       priority: 0.3,
     },
+
     {
       url: `${BASE_URL}/terms`,
       changeFrequency: "yearly",
       priority: 0.3,
     },
+
     {
       url: `${BASE_URL}/disclaimer`,
       changeFrequency: "yearly",
@@ -76,11 +79,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
-  /*
-   * =======================================================
-   * CATEGORY PAGES
-   * =======================================================
-   */
+  /* =======================================================
+     CATEGORY PAGES
+  ======================================================= */
 
   const categories = [
     "ai",
@@ -91,32 +92,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "explained",
   ];
 
-  const categoryUrls: MetadataRoute.Sitemap = categories.map(
-    (category) => ({
+  const categoryUrls: MetadataRoute.Sitemap =
+    categories.map((category) => ({
       url: `${BASE_URL}/${category}`,
       changeFrequency: "daily",
       priority: 0.8,
-    })
-  );
+    }));
 
-  /*
-   * =======================================================
-   * PUBLISHED BLOG ARTICLES
-   * =======================================================
-   *
-   * IMPORTANT:
-   * Only blogs where published = true are included.
-   *
-   * Therefore:
-   *
-   * Admin publishes article
-   *          ↓
-   * published = true
-   *          ↓
-   * sitemap reads Supabase
-   *          ↓
-   * article appears in sitemap
-   */
+  /* =======================================================
+     PUBLISHED BLOG ARTICLES
+  ======================================================= */
 
   let blogUrls: MetadataRoute.Sitemap = [];
 
@@ -125,11 +110,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .from("blogs")
       .select(
         `
-        slug,
-        published,
-        published_at,
-        updated_at,
-        created_at
+          slug,
+          published,
+          published_at,
+          updated_at,
+          created_at
         `
       )
       .eq("published", true)
@@ -137,13 +122,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .order("published_at", {
         ascending: false,
         nullsFirst: false,
+      })
+      .order("created_at", {
+        ascending: false,
+        nullsFirst: false,
       });
 
-    /*
-     * =====================================================
-     * HANDLE SUPABASE ERROR
-     * =====================================================
-     */
+    /* =====================================================
+       SUPABASE ERROR
+    ===================================================== */
 
     if (error) {
       console.error(
@@ -152,26 +139,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       );
     } else {
       blogUrls = (blogs ?? [])
-        /*
-         * Make absolutely sure the slug is valid.
-         */
+        /* ---------------------------------------------------
+           Validate slug
+        --------------------------------------------------- */
+
         .filter(
           (blog) =>
             typeof blog.slug === "string" &&
             blog.slug.trim().length > 0
         )
 
-        /*
-         * Convert database records into sitemap URLs.
-         */
+        /* ---------------------------------------------------
+           Create sitemap URL
+        --------------------------------------------------- */
+
         .map((blog) => {
           const slug = blog.slug.trim();
 
           /*
-           * Prefer updated_at because it represents
-           * the latest modification.
-           *
-           * Then fall back to published_at and created_at.
+           * Prefer the most recent modification date.
            */
           const lastModified =
             blog.updated_at ||
@@ -179,6 +165,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
             blog.created_at;
 
           return {
+            /*
+             * IMPORTANT:
+             * encodeURIComponent safely handles special
+             * characters in a slug.
+             */
             url: `${BASE_URL}/blog/${encodeURIComponent(slug)}`,
 
             ...(lastModified
@@ -188,24 +179,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
               : {}),
 
             changeFrequency: "weekly" as const,
+
             priority: 0.8,
           };
         });
     }
   } catch (error) {
     console.error(
-      "Sitemap: Unexpected error while generating blog URLs:",
+      "Sitemap: Unexpected error while generating sitemap:",
       error
     );
   }
 
-  /*
-   * =======================================================
-   * COMBINE EVERYTHING
-   * =======================================================
-   *
-   * NO /products/* URLs are included.
-   */
+  /* =======================================================
+     COMBINE ALL URLS
+  ======================================================= */
 
   const allUrls: MetadataRoute.Sitemap = [
     ...staticPages,
@@ -213,11 +201,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...blogUrls,
   ];
 
-  /*
-   * =======================================================
-   * REMOVE DUPLICATES
-   * =======================================================
-   */
+  /* =======================================================
+     REMOVE DUPLICATES
+  ======================================================= */
 
   const uniqueUrls = Array.from(
     new Map(
@@ -225,12 +211,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ).values()
   );
 
-  /*
-   * =======================================================
-   * FINAL RESULT
-   * =======================================================
-   */
+  /* =======================================================
+     RETURN SITEMAP
+  ======================================================= */
 
   return uniqueUrls;
 }
-
