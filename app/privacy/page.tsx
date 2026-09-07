@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
 
+const siteUrl = "https://www.anatago.com";
+
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
     "Learn how AnantaGo collects, uses, and protects information when you visit and use our website.",
+
+  alternates: {
+    canonical: `${siteUrl}/privacy`,
+  },
+
   robots: {
     index: true,
     follow: true,

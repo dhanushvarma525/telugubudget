@@ -1,9 +1,20 @@
 import type { Metadata } from "next";
 
+const siteUrl = "https://www.anatago.com";
+
 export const metadata: Metadata = {
   title: "Contact AnantaGo",
   description:
     "Contact AnantaGo for questions, feedback, suggestions, corrections and other inquiries.",
+
+  alternates: {
+    canonical: `${siteUrl}/contact`,
+  },
+
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function ContactPage() {
