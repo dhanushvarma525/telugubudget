@@ -3,91 +3,147 @@
 
 import {
   useEffect,
+  useMemo,
   useState,
-  type ChangeEvent,
 } from "react";
-import { useParams, useRouter } from "next/navigation";
+import {
+  useParams,
+  useRouter,
+} from "next/navigation";
+
+import BlogBlockEditor from "@/components/blog/BlogBlockEditor";
+import BlogPreview from "@/components/blog/BlogPreview";
+
+import type {
+  BlogContentBlock,
+  BlogFAQ,
+  BlogFormData,
+} from "@/types/blog";
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+function createSlug(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+}
+
+function normalizeTitle(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getWords(value: string) {
+  return new Set(
+    normalizeTitle(value)
+      .split(" ")
+      .filter((word) => word.length > 1)
+  );
+}
+
+function calculateTitleSimilarity(
+  titleA: string,
+  titleB: string
+) {
+  const a = normalizeTitle(titleA);
+  const b = normalizeTitle(titleB);
+
+  if (!a || !b) {
+    return 0;
+  }
+
+  if (a === b) {
+    return 100;
+  }
+
+  if (a.includes(b) || b.includes(a)) {
+    const shorter =
+      a.length < b.length ? a : b;
+
+    const longer =
+      a.length >= b.length ? a : b;
+
+    return Math.min(
+      99,
+      Math.round(
+        (shorter.length / longer.length) *
+          100
+      )
+    );
+  }
+
+  const wordsA = getWords(a);
+  const wordsB = getWords(b);
+
+  if (
+    wordsA.size === 0 ||
+    wordsB.size === 0
+  ) {
+    return 0;
+  }
+
+  let commonWords = 0;
+
+  wordsA.forEach((word) => {
+    if (wordsB.has(word)) {
+      commonWords++;
+    }
+  });
+
+  const unionSize = new Set([
+    ...Array.from(wordsA),
+    ...Array.from(wordsB),
+  ]).size;
+
+  if (unionSize === 0) {
+    return 0;
+  }
+
+  return Math.round(
+    (commonWords / unionSize) * 100
+  );
+}
 
 /* =========================================================
    TYPES
 ========================================================= */
 
-type TextBlockType =
-  | "paragraph"
-  | "h1"
-  | "h2"
-  | "h3";
-
-type TextBlock = {
-  type: "text";
-  content: string;
-  headingType: TextBlockType;
+type ExistingBlogTitle = {
+  id: number;
+  title: string;
 };
 
-type ImageBlock = {
-  type: "image";
-  url: string;
-  alt: string;
+type ExistingBlog = {
+  id: number;
+  title: string;
+  slug: string | null;
+  excerpt: string | null;
+  introduction: string | null;
+  cover_image: string | null;
+  category: string | null;
+  author: string | null;
+  tags: string[] | null;
+  content_blocks:
+    | BlogContentBlock[]
+    | null;
+  faqs: BlogFAQ[] | null;
+  published: boolean | null;
+  featured: boolean | null;
+  views: number | null;
+  meta_title: string | null;
+  meta_description: string | null;
+  published_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
 };
-
-type CalloutBlock = {
-  type: "callout";
-  content: string;
-  title?: string;
-};
-
-type QuoteBlock = {
-  type: "quote";
-  content: string;
-  author?: string;
-};
-
-type ListBlockType =
-  | "bullet-list"
-  | "bullets"
-  | "unordered-list"
-  | "ordered-list"
-  | "numbered-list";
-
-type ListBlock = {
-  type: ListBlockType;
-  items: string[];
-};
-
-type TableBlock = {
-  type: "table";
-  headers: string[];
-  rows: string[][];
-};
-
-type UnknownBlock = {
-  type: string;
-  [key: string]: unknown;
-};
-
-type ContentBlock =
-  | TextBlock
-  | ImageBlock
-  | CalloutBlock
-  | QuoteBlock
-  | ListBlock
-  | TableBlock
-  | UnknownBlock;
-
-type BlogImage = {
-  url: string;
-  position: number;
-};
-
-const ALLOWED_IMAGE_TYPES = [
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-];
-
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 
 /* =========================================================
    PAGE
@@ -97,2429 +153,1367 @@ export default function EditBlogPage() {
   const router = useRouter();
   const params = useParams();
 
-  const slug = Array.isArray(params?.slug)
+  const originalSlug = Array.isArray(
+    params?.slug
+  )
     ? params.slug[0]
-    : String(params?.slug || "");
-
-  /* =======================================================
-     STATE
-  ======================================================= */
-
-  const [blogId, setBlogId] = useState<
-    string | number | null
-  >(null);
-
-  const [form, setForm] = useState({
-    title: "",
-    slug: "",
-    excerpt: "",
-    introduction: "",
-    category: "",
-    author: "AnantaGo",
-    tags: "",
-    cover_image: "",
-    published: false,
-    featured: false,
-  });
-
-  const [contentBlocks, setContentBlocks] =
-    useState<ContentBlock[]>([
-      {
-        type: "text",
-        content: "",
-        headingType: "paragraph",
-      },
-    ]);
-
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [publishing, setPublishing] = useState(false);
-  const [unpublishing, setUnpublishing] =
-    useState(false);
-  const [deleting, setDeleting] = useState(false);
-
-  const [uploadingCover, setUploadingCover] =
-    useState(false);
-
-  const [uploadingBlockIndex, setUploadingBlockIndex] =
-    useState<number | null>(null);
-
-  const [showPreview, setShowPreview] =
-    useState(false);
-
-  const [showDeleteConfirm, setShowDeleteConfirm] =
-    useState(false);
-
-  const isBusy =
-    saving ||
-    publishing ||
-    unpublishing ||
-    deleting;
-
-  /* =======================================================
-     LOAD
-  ======================================================= */
-
-  useEffect(() => {
-    if (!slug) return;
-
-    void loadBlog();
-  }, [slug]);
-
-  /* =======================================================
-     TYPE HELPERS
-  ======================================================= */
-
-  function isListType(
-    type: string
-  ): type is ListBlockType {
-    return (
-      type === "bullet-list" ||
-      type === "bullets" ||
-      type === "unordered-list" ||
-      type === "ordered-list" ||
-      type === "numbered-list"
-    );
-  }
-
-  function isTextBlock(
-    block: ContentBlock
-  ): block is TextBlock {
-    return block.type === "text";
-  }
-
-  function isImageBlock(
-    block: ContentBlock
-  ): block is ImageBlock {
-    return block.type === "image";
-  }
-
-  function isCalloutBlock(
-    block: ContentBlock
-  ): block is CalloutBlock {
-    return block.type === "callout";
-  }
-
-  function isQuoteBlock(
-    block: ContentBlock
-  ): block is QuoteBlock {
-    return block.type === "quote";
-  }
-
-  function isListBlock(
-    block: ContentBlock
-  ): block is ListBlock {
-    return isListType(block.type);
-  }
-
-  function isTableBlock(
-    block: ContentBlock
-  ): block is TableBlock {
-    return block.type === "table";
-  }
-
-  /* =======================================================
-     NORMALIZE BLOCK
-  ======================================================= */
-
-  function normalizeBlock(
-    block: unknown
-  ): ContentBlock | null {
-    if (
-      !block ||
-      typeof block !== "object"
-    ) {
-      return null;
-    }
-
-    const source = block as Record<
-      string,
-      unknown
-    >;
-
-    const rawType =
-      typeof source.type === "string"
-        ? source.type
-        : "";
-
-    if (rawType === "image") {
-      return {
-        type: "image",
-        url:
-          typeof source.url === "string"
-            ? source.url
-            : typeof source.src === "string"
-            ? source.src
-            : "",
-        alt:
-          typeof source.alt === "string"
-            ? source.alt
-            : "",
-      };
-    }
-
-    if (
-      rawType === "text" ||
-      rawType === "paragraph" ||
-      rawType === "p"
-    ) {
-      const rawHeading =
-        source.headingType;
-
-      const headingType: TextBlockType =
-        rawHeading === "h1" ||
-        rawHeading === "h2" ||
-        rawHeading === "h3"
-          ? rawHeading
-          : "paragraph";
-
-      return {
-        type: "text",
-        content:
-          typeof source.content === "string"
-            ? source.content
-            : typeof source.text === "string"
-            ? source.text
-            : "",
-        headingType,
-      };
-    }
-
-    if (
-      rawType === "h1" ||
-      rawType === "h2" ||
-      rawType === "h3"
-    ) {
-      return {
-        type: "text",
-        content:
-          typeof source.content === "string"
-            ? source.content
-            : typeof source.text === "string"
-            ? source.text
-            : "",
-        headingType: rawType,
-      };
-    }
-
-    if (rawType === "callout") {
-      return {
-        type: "callout",
-        title:
-          typeof source.title === "string"
-            ? source.title
-            : "",
-        content:
-          typeof source.content === "string"
-            ? source.content
-            : typeof source.text === "string"
-            ? source.text
-            : "",
-      };
-    }
-
-    if (
-      rawType === "quote" ||
-      rawType === "blockquote"
-    ) {
-      return {
-        type: "quote",
-        content:
-          typeof source.content === "string"
-            ? source.content
-            : typeof source.text === "string"
-            ? source.text
-            : "",
-        author:
-          typeof source.author === "string"
-            ? source.author
-            : "",
-      };
-    }
-
-    if (isListType(rawType)) {
-      const rawItems = source.items;
-
-      const items: string[] =
-        Array.isArray(rawItems)
-          ? rawItems
-              .map((item: unknown) => {
-                if (
-                  typeof item === "string"
-                ) {
-                  return item;
-                }
-
-                if (
-                  item &&
-                  typeof item === "object"
-                ) {
-                  const itemObject =
-                    item as Record<
-                      string,
-                      unknown
-                    >;
-
-                  if (
-                    typeof itemObject.text ===
-                    "string"
-                  ) {
-                    return itemObject.text;
-                  }
-                }
-
-                return "";
-              })
-              .filter(
-                (item: string) =>
-                  item.length > 0
-              )
-          : [];
-
-      return {
-        type: rawType,
-        items,
-      };
-    }
-
-    if (rawType === "table") {
-      const rawHeaders =
-        source.headers;
-
-      const rawRows =
-        source.rows;
-
-      const headers: string[] =
-        Array.isArray(rawHeaders)
-          ? rawHeaders.map(
-              (header: unknown) =>
-                String(header)
-            )
-          : [];
-
-      const rows: string[][] =
-        Array.isArray(rawRows)
-          ? rawRows.map(
-              (row: unknown): string[] => {
-                if (!Array.isArray(row)) {
-                  return [];
-                }
-
-                return row.map(
-                  (cell: unknown) =>
-                    String(cell)
-                );
-              }
-            )
-          : [];
-
-      return {
-        type: "table",
-        headers,
-        rows,
-      };
-    }
-
-    return {
-      ...(source as UnknownBlock),
-      type: rawType || "unknown",
-    };
-  }
-
-  /* =======================================================
-     LOAD BLOG
-  ======================================================= */
-
-  async function loadBlog() {
-    try {
-      setLoading(true);
-
-      const response = await fetch(
-        `/api/blogs/${slug}`,
-        {
-          cache: "no-store",
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          "Failed to load blog"
-        );
-      }
-
-      const result: unknown =
-        await response.json();
-
-      const resultObject =
-        result &&
-        typeof result === "object"
-          ? (result as Record<
-              string,
-              unknown
-            >)
-          : {};
-
-      const blog =
-        resultObject.blog &&
-        typeof resultObject.blog ===
-          "object"
-          ? (resultObject.blog as Record<
-              string,
-              unknown
-            >)
-          : null;
-
-      if (!blog) {
-        alert("Blog not found");
-        router.push("/admin/blogs");
-        return;
-      }
-
-      setBlogId(
-        blog.id as string | number
-      );
-
-      const rawTags = blog.tags;
-
-      let tags = "";
-
-      if (Array.isArray(rawTags)) {
-        tags = rawTags
-          .map(String)
-          .join(", ");
-      } else if (
-        typeof rawTags === "string"
-      ) {
-        tags = rawTags;
-      }
-
-      setForm({
-        title:
-          typeof blog.title === "string"
-            ? blog.title
-            : "",
-
-        slug:
-          typeof blog.slug === "string"
-            ? blog.slug
-            : "",
-
-        excerpt:
-          typeof blog.excerpt === "string"
-            ? blog.excerpt
-            : "",
-
-        introduction:
-          typeof blog.introduction ===
-          "string"
-            ? blog.introduction
-            : "",
-
-        category:
-          typeof blog.category ===
-          "string"
-            ? blog.category
-            : "",
-
-        author:
-          typeof blog.author === "string"
-            ? blog.author
-            : "AnantaGo",
-
-        tags,
-
-        cover_image:
-          typeof blog.cover_image ===
-          "string"
-            ? blog.cover_image
-            : "",
-
-        /*
-         * IMPORTANT:
-         * A blog is published ONLY when the
-         * database value is exactly true.
-         *
-         * This fixes the old behaviour where
-         * missing/undefined values could become
-         * published accidentally.
-         */
-        published:
-          blog.published === true,
-
-        featured:
-          blog.featured === true,
-      });
-
-      const rawBlocks =
-        blog.content_blocks;
-
-      if (
-        Array.isArray(rawBlocks) &&
-        rawBlocks.length > 0
-      ) {
-        const normalized: ContentBlock[] =
-          rawBlocks
-            .map((block: unknown) =>
-              normalizeBlock(block)
-            )
-            .filter(
-              (
-                block:
-                  | ContentBlock
-                  | null
-              ): block is ContentBlock =>
-                block !== null
-            );
-
-        if (normalized.length > 0) {
-          setContentBlocks(
-            normalized
-          );
-        }
-
-        return;
-      }
-
-      const legacyContent =
-        blog.content;
-
-      if (
-        typeof legacyContent ===
-          "string" &&
-        legacyContent.trim()
-      ) {
-        setContentBlocks([
-          {
-            type: "text",
-            content: legacyContent,
-            headingType: "paragraph",
-          },
-        ]);
-      } else {
-        setContentBlocks([
-          {
-            type: "text",
-            content: "",
-            headingType:
-              "paragraph",
-          },
-        ]);
-      }
-    } catch (error) {
-      console.error(
-        "LOAD BLOG ERROR:",
-        error
-      );
-
-      alert(
-        "Failed to load blog."
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  /* =======================================================
-     IMAGE UPLOAD
-  ======================================================= */
-
-  async function uploadImage(
-    file: File
-  ): Promise<string | null> {
-    try {
-      if (!file) {
-        return null;
-      }
-
-      if (
-        !ALLOWED_IMAGE_TYPES.includes(
-          file.type
-        )
-      ) {
-        alert(
-          "Only JPG, PNG, WEBP and GIF images are allowed."
-        );
-
-        return null;
-      }
-
-      if (
-        file.size > MAX_IMAGE_SIZE
-      ) {
-        alert(
-          "Image must be 10MB or smaller."
-        );
-
-        return null;
-      }
-
-      const formData =
-        new FormData();
-
-      formData.append(
-        "file",
-        file
-      );
-
-      formData.append(
-        "folder",
-        "articles"
-      );
-
-      const response =
-        await fetch(
-          "/api/blogs/blog-images/upload",
-          {
-            method: "POST",
-            body: formData,
-          }
-        );
-
-      const result: unknown =
-        await response.json();
-
-      const data =
-        result &&
-        typeof result === "object"
-          ? (result as Record<
-              string,
-              unknown
-            >)
-          : {};
-
-      if (!response.ok) {
-        throw new Error(
-          typeof data.message ===
-            "string"
-            ? data.message
-            : typeof data.error ===
-              "string"
-            ? data.error
-            : "Image upload failed."
-        );
-      }
-
-      if (
-        data.success !== true ||
-        typeof data.url !==
-          "string"
-      ) {
-        throw new Error(
-          "Image URL was not returned."
-        );
-      }
-
-      return data.url;
-    } catch (error: unknown) {
-      console.error(
-        "IMAGE UPLOAD ERROR:",
-        error
-      );
-
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Image upload failed."
-      );
-
-      return null;
-    }
-  }
-
-  /* =======================================================
-     COVER UPLOAD
-  ======================================================= */
-
-  async function handleCoverUpload(
-    e: ChangeEvent<HTMLInputElement>
-  ) {
-    const file =
-      e.target.files?.[0];
-
-    if (!file) return;
-
-    try {
-      setUploadingCover(true);
-
-      const url =
-        await uploadImage(file);
-
-      if (url) {
-        setForm((prev) => ({
-          ...prev,
-          cover_image: url,
-        }));
-      }
-    } finally {
-      setUploadingCover(false);
-      e.target.value = "";
-    }
-  }
-
-  function removeCoverImage() {
-    setForm((prev) => ({
-      ...prev,
-      cover_image: "",
-    }));
-  }
-
-  /* =======================================================
-     BLOCK IMAGE UPLOAD
-  ======================================================= */
-
-  async function handleBlockImageUpload(
-    index: number,
-    e: ChangeEvent<HTMLInputElement>
-  ) {
-    const file =
-      e.target.files?.[0];
-
-    if (!file) return;
-
-    try {
-      setUploadingBlockIndex(
-        index
-      );
-
-      const url =
-        await uploadImage(file);
-
-      if (url) {
-        setContentBlocks(
-          (prev) => {
-            const updated =
-              [...prev];
-
-            const block =
-              updated[index];
-
-            if (
-              block &&
-              isImageBlock(block)
-            ) {
-              updated[index] = {
-                ...block,
-                url,
-              };
-            }
-
-            return updated;
-          }
-        );
-      }
-    } finally {
-      setUploadingBlockIndex(
-        null
-      );
-
-      e.target.value = "";
-    }
-  }
-
-  /* =======================================================
-     FORM CHANGE
-  ======================================================= */
-
-  function handleChange(
-    e: ChangeEvent<
-      HTMLInputElement |
-        HTMLTextAreaElement |
-        HTMLSelectElement
-    >
-  ) {
-    const {
-      name,
-      value,
-    } = e.target;
-
-    setForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  }
-
-  /* =======================================================
-     SLUG
-  ======================================================= */
-
-  function generateSlug(
-    title: string
-  ) {
-    return title
-      .toLowerCase()
-      .trim()
-      .replace(
-        /[^a-z0-9\s-]/g,
-        ""
-      )
-      .replace(
-        /\s+/g,
-        "-"
-      )
-      .replace(
-        /-+/g,
-        "-"
-      );
-  }
-
-  /* =======================================================
-     ADD TEXT
-  ======================================================= */
-
-  function addTextBlock(
-    afterIndex?: number
-  ) {
-    const block: TextBlock = {
-      type: "text",
-      content: "",
-      headingType: "paragraph",
-    };
-
-    setContentBlocks(
-      (prev) => {
-        if (
-          afterIndex === undefined
-        ) {
-          return [...prev, block];
-        }
-
-        const updated =
-          [...prev];
-
-        updated.splice(
-          afterIndex + 1,
-          0,
-          block
-        );
-
-        return updated;
-      }
-    );
-  }
-
-  /* =======================================================
-     ADD IMAGE
-  ======================================================= */
-
-  function addImageBlock(
-    afterIndex?: number
-  ) {
-    const block: ImageBlock = {
-      type: "image",
-      url: "",
-      alt: "",
-    };
-
-    setContentBlocks(
-      (prev) => {
-        if (
-          afterIndex === undefined
-        ) {
-          return [...prev, block];
-        }
-
-        const updated =
-          [...prev];
-
-        updated.splice(
-          afterIndex + 1,
-          0,
-          block
-        );
-
-        return updated;
-      }
-    );
-  }
-
-  /* =======================================================
-     ADD TABLE
-  ======================================================= */
-
-  function addTableBlock() {
-    const block: TableBlock = {
-      type: "table",
-      headers: [
-        "Feature",
-        "Details",
-      ],
-      rows: [["", ""]],
-    };
-
-    setContentBlocks(
-      (prev) => [
-        ...prev,
-        block,
-      ]
-    );
-  }
-
-  /* =======================================================
-     UPDATE TEXT
-  ======================================================= */
-
-  function updateTextBlock(
-    index: number,
-    value: string
-  ) {
-    setContentBlocks(
-      (prev) => {
-        const updated =
-          [...prev];
-
-        const block =
-          updated[index];
-
-        if (
-          block &&
-          isTextBlock(block)
-        ) {
-          updated[index] = {
-            ...block,
-            content: value,
-          };
-        }
-
-        return updated;
-      }
-    );
-  }
-
-  function updateTextBlockType(
-    index: number,
-    headingType: TextBlockType
-  ) {
-    setContentBlocks(
-      (prev) => {
-        const updated =
-          [...prev];
-
-        const block =
-          updated[index];
-
-        if (
-          block &&
-          isTextBlock(block)
-        ) {
-          updated[index] = {
-            ...block,
-            headingType,
-          };
-        }
-
-        return updated;
-      }
-    );
-  }
-
-  /* =======================================================
-     IMAGE ALT
-  ======================================================= */
-
-  function updateImageAlt(
-    index: number,
-    value: string
-  ) {
-    setContentBlocks(
-      (prev) => {
-        const updated =
-          [...prev];
-
-        const block =
-          updated[index];
-
-        if (
-          block &&
-          isImageBlock(block)
-        ) {
-          updated[index] = {
-            ...block,
-            alt: value,
-          };
-        }
-
-        return updated;
-      }
-    );
-  }
-
-  /* =======================================================
-     UPDATE CALLOUT
-  ======================================================= */
-
-  function updateCallout(
-    index: number,
-    field:
-      | "title"
-      | "content",
-    value: string
-  ) {
-    setContentBlocks(
-      (prev) => {
-        const updated =
-          [...prev];
-
-        const block =
-          updated[index];
-
-        if (
-          block &&
-          isCalloutBlock(block)
-        ) {
-          updated[index] = {
-            ...block,
-            [field]: value,
-          };
-        }
-
-        return updated;
-      }
-    );
-  }
-
-  /* =======================================================
-     UPDATE QUOTE
-  ======================================================= */
-
-  function updateQuote(
-    index: number,
-    field:
-      | "content"
-      | "author",
-    value: string
-  ) {
-    setContentBlocks(
-      (prev) => {
-        const updated =
-          [...prev];
-
-        const block =
-          updated[index];
-
-        if (
-          block &&
-          isQuoteBlock(block)
-        ) {
-          updated[index] = {
-            ...block,
-            [field]: value,
-          };
-        }
-
-        return updated;
-      }
-    );
-  }
-
-  /* =======================================================
-     UPDATE LIST ITEM
-  ======================================================= */
-
-  function updateListItem(
-    blockIndex: number,
-    itemIndex: number,
-    value: string
-  ) {
-    setContentBlocks(
-      (prev) => {
-        const updated =
-          [...prev];
-
-        const block =
-          updated[blockIndex];
-
-        if (
-          block &&
-          isListBlock(block)
-        ) {
-          const items =
-            [...block.items];
-
-          items[itemIndex] =
-            value;
-
-          updated[
-            blockIndex
-          ] = {
-            ...block,
-            items,
-          };
-        }
-
-        return updated;
-      }
-    );
-  }
-
-  function deleteListItem(
-    blockIndex: number,
-    itemIndex: number
-  ) {
-    setContentBlocks(
-      (prev) => {
-        const updated =
-          [...prev];
-
-        const block =
-          updated[blockIndex];
-
-        if (
-          block &&
-          isListBlock(block)
-        ) {
-          updated[
-            blockIndex
-          ] = {
-            ...block,
-            items:
-              block.items.filter(
-                (
-                  _item: string,
-                  i: number
-                ) =>
-                  i !== itemIndex
-              ),
-          };
-        }
-
-        return updated;
-      }
-    );
-  }
-
-  function addListItem(
-    blockIndex: number
-  ) {
-    setContentBlocks(
-      (prev) => {
-        const updated =
-          [...prev];
-
-        const block =
-          updated[blockIndex];
-
-        if (
-          block &&
-          isListBlock(block)
-        ) {
-          updated[
-            blockIndex
-          ] = {
-            ...block,
-            items: [
-              ...block.items,
-              "",
-            ],
-          };
-        }
-
-        return updated;
-      }
-    );
-  }
-
-  /* =======================================================
-     DELETE BLOCK
-  ======================================================= */
-
-  function deleteBlock(
-    index: number
-  ) {
-    setContentBlocks(
-      (prev) => {
-        const updated =
-          prev.filter(
-            (
-              _block: ContentBlock,
-              i: number
-            ) => i !== index
-          );
-
-        if (
-          updated.length === 0
-        ) {
-          return [
-            {
-              type: "text",
-              content: "",
-              headingType:
-                "paragraph",
-            },
-          ];
-        }
-
-        return updated;
-      }
-    );
-  }
-
-  /* =======================================================
-     MOVE BLOCK
-  ======================================================= */
-
-  function moveBlockUp(
-    index: number
-  ) {
-    if (index === 0) {
-      return;
-    }
-
-    setContentBlocks(
-      (prev) => {
-        const updated =
-          [...prev];
-
-        const current =
-          updated[index];
-
-        const previous =
-          updated[index - 1];
-
-        if (
-          !current ||
-          !previous
-        ) {
-          return prev;
-        }
-
-        updated[
-          index - 1
-        ] = current;
-
-        updated[index] =
-          previous;
-
-        return updated;
-      }
-    );
-  }
-
-  function moveBlockDown(
-    index: number
-  ) {
-    setContentBlocks(
-      (prev) => {
-        if (
-          index >=
-          prev.length - 1
-        ) {
-          return prev;
-        }
-
-        const updated =
-          [...prev];
-
-        const current =
-          updated[index];
-
-        const next =
-          updated[index + 1];
-
-        if (
-          !current ||
-          !next
-        ) {
-          return prev;
-        }
-
-        updated[index] =
-          next;
-
-        updated[
-          index + 1
-        ] = current;
-
-        return updated;
-      }
-    );
-  }
-
-  /* =======================================================
-     TABLE HELPERS
-  ======================================================= */
-
-  function updateTableHeader(
-    blockIndex: number,
-    headerIndex: number,
-    value: string
-  ) {
-    setContentBlocks(
-      (prev) => {
-        const updated =
-          [...prev];
-
-        const block =
-          updated[blockIndex];
-
-        if (
-          !block ||
-          !isTableBlock(block)
-        ) {
-          return prev;
-        }
-
-        const headers =
-          [...block.headers];
-
-        headers[
-          headerIndex
-        ] = value;
-
-        updated[
-          blockIndex
-        ] = {
-          ...block,
-          headers,
-        };
-
-        return updated;
-      }
-    );
-  }
-
-  function updateTableCell(
-    blockIndex: number,
-    rowIndex: number,
-    cellIndex: number,
-    value: string
-  ) {
-    setContentBlocks(
-      (prev) => {
-        const updated =
-          [...prev];
-
-        const block =
-          updated[blockIndex];
-
-        if (
-          !block ||
-          !isTableBlock(block)
-        ) {
-          return prev;
-        }
-
-        const rows: string[][] =
-          block.rows.map(
-            (
-              row: string[]
-            ): string[] =>
-              [...row]
-          );
-
-        if (
-          !rows[rowIndex]
-        ) {
-          return prev;
-        }
-
-        rows[rowIndex][
-          cellIndex
-        ] = value;
-
-        updated[
-          blockIndex
-        ] = {
-          ...block,
-          rows,
-        };
-
-        return updated;
-      }
-    );
-  }
-
-  function addTableColumn(
-    blockIndex: number
-  ) {
-    setContentBlocks(
-      (prev) => {
-        const updated =
-          [...prev];
-
-        const block =
-          updated[blockIndex];
-
-        if (
-          !block ||
-          !isTableBlock(block)
-        ) {
-          return prev;
-        }
-
-        updated[
-          blockIndex
-        ] = {
-          ...block,
-          headers: [
-            ...block.headers,
-            "New Column",
-          ],
-          rows:
-            block.rows.map(
-              (
-                row: string[]
-              ): string[] => [
-                ...row,
-                "",
-              ]
-            ),
-        };
-
-        return updated;
-      }
-    );
-  }
-
-  function addTableRow(
-    blockIndex: number
-  ) {
-    setContentBlocks(
-      (prev) => {
-        const updated =
-          [...prev];
-
-        const block =
-          updated[blockIndex];
-
-        if (
-          !block ||
-          !isTableBlock(block)
-        ) {
-          return prev;
-        }
-
-        const newRow: string[] =
-          block.headers.map(
-            (): string => ""
-          );
-
-        updated[
-          blockIndex
-        ] = {
-          ...block,
-          rows: [
-            ...block.rows,
-            newRow,
-          ],
-        };
-
-        return updated;
-      }
-    );
-  }
-
-  function deleteTableRow(
-    blockIndex: number,
-    rowIndex: number
-  ) {
-    setContentBlocks(
-      (prev) => {
-        const updated =
-          [...prev];
-
-        const block =
-          updated[blockIndex];
-
-        if (
-          !block ||
-          !isTableBlock(block)
-        ) {
-          return prev;
-        }
-
-        updated[
-          blockIndex
-        ] = {
-          ...block,
-          rows:
-            block.rows.filter(
-              (
-                _row: string[],
-                rowNumber: number
-              ) =>
-                rowNumber !==
-                rowIndex
-            ),
-        };
-
-        return updated;
-      }
-    );
-  }
-
-  /* =======================================================
-     CLEAN BLOCKS
-  ======================================================= */
-
-  function getCleanBlocks(): ContentBlock[] {
-    return contentBlocks.filter(
-      (
-        block: ContentBlock
-      ): boolean => {
-        if (
-          isTextBlock(block)
-        ) {
-          return Boolean(
-            block.content.trim()
-          );
-        }
-
-        if (
-          isImageBlock(block)
-        ) {
-          return Boolean(
-            block.url.trim()
-          );
-        }
-
-        if (
-          isCalloutBlock(block) ||
-          isQuoteBlock(block)
-        ) {
-          return Boolean(
-            block.content.trim()
-          );
-        }
-
-        if (
-          isListBlock(block)
-        ) {
-          return (
-            block.items.length >
-              0 &&
-            block.items.some(
-              (
-                item: string
-              ) =>
-                Boolean(
-                  item.trim()
-                )
-            )
-          );
-        }
-
-        if (
-          isTableBlock(block)
-        ) {
-          return (
-            block.headers.length >
-              0 &&
-            block.rows.length >
-              0
-          );
-        }
-
-        return true;
-      }
-    );
-  }
-
-  /* =======================================================
-     PLAIN TEXT
-  ======================================================= */
-
-  function getPlainText(
-    blocks: ContentBlock[]
-  ): string {
-    return blocks
-      .map(
-        (
-          block: ContentBlock
-        ): string => {
-          if (
-            isTextBlock(block)
-          ) {
-            return block.content;
-          }
-
-          if (
-            isCalloutBlock(
-              block
-            ) ||
-            isQuoteBlock(block)
-          ) {
-            return block.content;
-          }
-
-          if (
-            isListBlock(block)
-          ) {
-            return block.items.join(
-              "\n"
-            );
-          }
-
-          if (
-            isTableBlock(block)
-          ) {
-            return [
-              block.headers.join(
-                " | "
-              ),
-              ...block.rows.map(
-                (
-                  row: string[]
-                ) =>
-                  row.join(
-                    " | "
-                  )
-              ),
-            ].join("\n");
-          }
-
-          return "";
-        }
-      )
-      .filter(
-        (
-          text: string
-        ): boolean =>
-          Boolean(text)
-      )
-      .join("\n\n");
-  }
-
-  /* =======================================================
-     ADDITIONAL IMAGES
-  ======================================================= */
-
-  function getAdditionalImages(
-    blocks: ContentBlock[]
-  ): BlogImage[] {
-    return blocks
-      .filter(
-        (
-          block: ContentBlock
-        ): block is ImageBlock =>
-          isImageBlock(block) &&
-          Boolean(block.url)
-      )
-      .map(
-        (
-          block: ImageBlock,
-          index: number
-        ): BlogImage => ({
-          url: block.url,
-          position: index + 1,
-        })
-      );
-  }
-
-  /* =======================================================
-     VALIDATE
-  ======================================================= */
-
-  function validateBlog(): boolean {
-    if (
-      !form.title.trim()
-    ) {
-      alert(
-        "Please enter a blog title."
-      );
-      return false;
-    }
-
-    const cleanBlocks =
-      getCleanBlocks();
-
-    const hasText =
-      Boolean(
-        form.introduction.trim()
-      ) ||
-      cleanBlocks.some(
-        (
-          block: ContentBlock
-        ): boolean =>
-          isTextBlock(block) &&
-          Boolean(
-            block.content.trim()
-          )
-      );
-
-    if (!hasText) {
-      alert(
-        "Please write some blog content."
-      );
-      return false;
-    }
-
-    return true;
-  }
-
-  /* =======================================================
-     UPDATE BLOG
-  ======================================================= */
-
-  async function saveBlog(
-    publishState: boolean
-  ) {
-    if (!blogId) {
-      alert(
-        "Blog ID is missing."
-      );
-      return;
-    }
-
-    if (!validateBlog()) {
-      return;
-    }
-
-    try {
-      if (publishState) {
-        setPublishing(true);
-      } else {
-        setSaving(true);
-      }
-
-      const cleanBlocks =
-        getCleanBlocks();
-
-      const plainText =
-        getPlainText(
-          cleanBlocks
-        );
-
-      const additionalImages =
-        getAdditionalImages(
-          cleanBlocks
-        );
-
-      const finalSlug =
-        form.slug.trim() ||
-        generateSlug(
-          form.title
-        );
-
-      /*
-       * When publishing:
-       * published = true
-       * published_at = current time
-       *
-       * When saving a draft:
-       * published = false
-       * published_at = null
-       */
-      const publishedAt =
-        publishState
-          ? new Date().toISOString()
-          : null;
-
-      const payload = {
-        id: blogId,
-
-        title:
-          form.title.trim(),
-
-        slug: finalSlug,
-
-        excerpt:
-          form.excerpt.trim(),
-
-        introduction:
-          form.introduction.trim(),
-
-        content:
-          plainText,
-
-        cover_image:
-          form.cover_image,
-
-        content_blocks:
-          cleanBlocks,
-
-        additional_images:
-          additionalImages,
-
-        category:
-          form.category.trim(),
-
-        author:
-          form.author.trim(),
-
-        tags:
-          form.tags
-            .split(",")
-            .map(
-              (
-                tag: string
-              ) =>
-                tag.trim()
-            )
-            .filter(
-              (
-                tag: string
-              ) =>
-                Boolean(tag)
-            ),
-
-        published:
-          publishState,
-
-        published_at:
-          publishedAt,
-
-        featured:
-          form.featured,
-      };
-
-      const response =
-        await fetch(
-          `/api/blogs/${slug}`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-            body:
-              JSON.stringify(
-                payload
-              ),
-          }
-        );
-
-      const data: unknown =
-        await response.json();
-
-      const result =
-        data &&
-        typeof data === "object"
-          ? (data as Record<
-              string,
-              unknown
-            >)
-          : {};
-
-      if (!response.ok) {
-        throw new Error(
-          typeof result.message ===
-            "string"
-            ? result.message
-            : typeof result.error ===
-              "string"
-            ? result.error
-            : publishState
-            ? "Failed to publish blog."
-            : "Failed to save draft."
-        );
-      }
-
-      /*
-       * Keep local state synchronized
-       * with the database.
-       */
-      setForm((prev) => ({
-        ...prev,
-        slug: finalSlug,
-        published:
-          publishState,
-      }));
-
-      if (publishState) {
-        alert(
-          "🎉 Blog published successfully!"
-        );
-      } else {
-        alert(
-          "📝 Draft saved successfully!"
-        );
-      }
-
-      /*
-       * Return to the admin blog list.
-       * The admin list will now show the
-       * article under Published or Drafts.
-       */
-      router.push(
-        "/admin/blogs"
-      );
-
-      router.refresh();
-    } catch (error: unknown) {
-      console.error(
-        "SAVE BLOG ERROR:",
-        error
-      );
-
-      alert(
-        error instanceof Error
-          ? error.message
-          : publishState
-          ? "Something went wrong while publishing the blog."
-          : "Something went wrong while saving the draft."
-      );
-    } finally {
-      setSaving(false);
-      setPublishing(false);
-    }
-  }
-
-  /* =======================================================
-     SAVE DRAFT
-  ======================================================= */
-
-  async function saveDraft() {
-    await saveBlog(false);
-  }
-
-  /* =======================================================
-     PUBLISH
-  ======================================================= */
-
-  async function publishBlog() {
-    if (
-      !window.confirm(
-        "Are you sure you want to publish this article publicly?"
-      )
-    ) {
-      return;
-    }
-
-    await saveBlog(true);
-  }
-
-  /* =======================================================
-     UNPUBLISH
-  ======================================================= */
-
-  async function unpublishBlog() {
-    if (
-      !window.confirm(
-        "Unpublish this article and move it back to drafts?"
-      )
-    ) {
-      return;
-    }
-
-    if (!blogId) {
-      alert(
-        "Blog ID is missing."
-      );
-      return;
-    }
-
-    try {
-      setUnpublishing(true);
-
-      const cleanBlocks =
-        getCleanBlocks();
-
-      const plainText =
-        getPlainText(
-          cleanBlocks
-        );
-
-      const additionalImages =
-        getAdditionalImages(
-          cleanBlocks
-        );
-
-      const finalSlug =
-        form.slug.trim() ||
-        generateSlug(
-          form.title
-        );
-
-      const payload = {
-        id: blogId,
-
-        title:
-          form.title.trim(),
-
-        slug: finalSlug,
-
-        excerpt:
-          form.excerpt.trim(),
-
-        introduction:
-          form.introduction.trim(),
-
-        content:
-          plainText,
-
-        cover_image:
-          form.cover_image,
-
-        content_blocks:
-          cleanBlocks,
-
-        additional_images:
-          additionalImages,
-
-        category:
-          form.category.trim(),
-
-        author:
-          form.author.trim(),
-
-        tags:
-          form.tags
-            .split(",")
-            .map(
-              (
-                tag: string
-              ) =>
-                tag.trim()
-            )
-            .filter(
-              (
-                tag: string
-              ) =>
-                Boolean(tag)
-            ),
-
-        published: false,
-
-        published_at: null,
-
-        featured:
-          form.featured,
-      };
-
-      const response =
-        await fetch(
-          `/api/blogs/${slug}`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-            body:
-              JSON.stringify(
-                payload
-              ),
-          }
-        );
-
-      const data: unknown =
-        await response.json();
-
-      const result =
-        data &&
-        typeof data === "object"
-          ? (data as Record<
-              string,
-              unknown
-            >)
-          : {};
-
-      if (!response.ok) {
-        throw new Error(
-          typeof result.message ===
-            "string"
-            ? result.message
-            : typeof result.error ===
-              "string"
-            ? result.error
-            : "Failed to unpublish blog."
-        );
-      }
-
-      alert(
-        "Blog moved back to drafts."
-      );
-
-      router.push(
-        "/admin/blogs"
-      );
-
-      router.refresh();
-    } catch (error: unknown) {
-      console.error(
-        "UNPUBLISH BLOG ERROR:",
-        error
-      );
-
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to unpublish blog."
-      );
-    } finally {
-      setUnpublishing(false);
-    }
-  }
-
-  /* =======================================================
-     DELETE
-  ======================================================= */
-
-  async function deleteBlog() {
-    if (!blogId || !slug) {
-      alert(
-        "Blog information is missing."
-      );
-      return;
-    }
-
-    try {
-      setDeleting(true);
-
-      const response =
-        await fetch(
-          `/api/blogs/${slug}`,
-          {
-            method: "DELETE",
-          }
-        );
-
-      const data: unknown =
-        await response.json();
-
-      const result =
-        data &&
-        typeof data === "object"
-          ? (data as Record<
-              string,
-              unknown
-            >)
-          : {};
-
-      if (!response.ok) {
-        throw new Error(
-          typeof result.message ===
-            "string"
-            ? result.message
-            : typeof result.error ===
-              "string"
-            ? result.error
-            : "Failed to delete blog"
-        );
-      }
-
-      alert(
-        "Blog deleted successfully."
-      );
-
-      router.push(
-        "/admin/blogs"
-      );
-
-      router.refresh();
-    } catch (error: unknown) {
-      console.error(
-        "DELETE BLOG ERROR:",
-        error
-      );
-
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to delete blog."
-      );
-    } finally {
-      setDeleting(false);
-      setShowDeleteConfirm(
-        false
-      );
-    }
-  }
-
-  /* =======================================================
-     PREVIEW
-  ======================================================= */
-
-  function renderPreviewBlock(
-    block: ContentBlock,
-    index: number
-  ) {
-    if (
-      isImageBlock(block)
-    ) {
-      if (!block.url) {
-        return null;
-      }
-
-      return (
-        <figure
-          key={index}
-          className="my-8"
-        >
-          <img
-            src={block.url}
-            alt={
-              block.alt ||
-              form.title
-            }
-            className="w-full rounded-2xl object-cover shadow-sm"
-          />
-
-          {block.alt && (
-            <figcaption className="mt-2 text-center text-sm text-gray-500">
-              {block.alt}
-            </figcaption>
-          )}
-        </figure>
-      );
-    }
-
-    if (
-      isTextBlock(block)
-    ) {
-      if (
-        block.headingType ===
-        "h1"
-      ) {
-        return (
-          <h1
-            key={index}
-            className="mb-5 mt-10 text-3xl font-bold text-gray-900 sm:text-4xl"
-          >
-            {block.content}
-          </h1>
-        );
-      }
-
-      if (
-        block.headingType ===
-        "h2"
-      ) {
-        return (
-          <h2
-            key={index}
-            className="mb-4 mt-10 text-2xl font-bold text-gray-900 sm:text-3xl"
-          >
-            {block.content}
-          </h2>
-        );
-      }
-
-      if (
-        block.headingType ===
-        "h3"
-      ) {
-        return (
-          <h3
-            key={index}
-            className="mb-3 mt-8 text-xl font-semibold text-gray-900 sm:text-2xl"
-          >
-            {block.content}
-          </h3>
-        );
-      }
-
-      return (
-        <p
-          key={index}
-          className="mb-5 whitespace-pre-line text-base leading-8 text-gray-700 sm:text-lg"
-        >
-          {block.content}
-        </p>
-      );
-    }
-
-    if (
-      isCalloutBlock(block)
-    ) {
-      return (
-        <div
-          key={index}
-          className="my-8 rounded-2xl border border-zinc-200 bg-zinc-50 p-6"
-        >
-          {block.title && (
-            <h3 className="mb-2 font-bold text-zinc-950">
-              {block.title}
-            </h3>
-          )}
-
-          <p className="whitespace-pre-line leading-7 text-zinc-700">
-            {block.content}
-          </p>
-        </div>
-      );
-    }
-
-    if (
-      isQuoteBlock(block)
-    ) {
-      return (
-        <blockquote
-          key={index}
-          className="my-8 border-l-4 border-zinc-900 pl-5 text-xl font-medium italic leading-8 text-zinc-700"
-        >
-          “{block.content}”
-
-          {block.author && (
-            <footer className="mt-3 text-sm font-semibold not-italic text-zinc-500">
-              — {block.author}
-            </footer>
-          )}
-        </blockquote>
-      );
-    }
-
-    if (
-      isListBlock(block)
-    ) {
-      const ordered =
-        block.type ===
-          "ordered-list" ||
-        block.type ===
-          "numbered-list";
-
-      if (ordered) {
-        return (
-          <ol
-            key={index}
-            className="my-6 list-decimal space-y-2 pl-7 text-lg leading-8 text-zinc-700"
-          >
-            {block.items.map(
-              (
-                item: string,
-                itemIndex: number
-              ) => (
-                <li
-                  key={itemIndex}
-                >
-                  {item}
-                </li>
-              )
-            )}
-          </ol>
-        );
-      }
-
-      return (
-        <ul
-          key={index}
-          className="my-6 list-disc space-y-2 pl-7 text-lg leading-8 text-zinc-700"
-        >
-          {block.items.map(
-            (
-              item: string,
-              itemIndex: number
-            ) => (
-              <li
-                key={itemIndex}
-              >
-                {item}
-              </li>
-            )
-          )}
-        </ul>
-      );
-    }
-
-    if (
-      isTableBlock(block)
-    ) {
-      return (
-        <div
-          key={index}
-          className="my-8 overflow-x-auto rounded-xl border"
-        >
-          <table className="w-full border-collapse text-sm">
-            {block.headers.length >
-              0 && (
-              <thead>
-                <tr>
-                  {block.headers.map(
-                    (
-                      header: string,
-                      headerIndex: number
-                    ) => (
-                      <th
-                        key={
-                          headerIndex
-                        }
-                        className="border-b bg-zinc-100 px-4 py-3 text-left font-bold"
-                      >
-                        {header}
-                      </th>
-                    )
-                  )}
-                </tr>
-              </thead>
-            )}
-
-            <tbody>
-              {block.rows.map(
-                (
-                  row: string[],
-                  rowIndex: number
-                ) => (
-                  <tr
-                    key={rowIndex}
-                  >
-                    {row.map(
-                      (
-                        cell: string,
-                        cellIndex: number
-                      ) => (
-                        <td
-                          key={
-                            cellIndex
-                          }
-                          className="border-b px-4 py-3"
-                        >
-                          {cell}
-                        </td>
-                      )
-                    )}
-                  </tr>
-                )
-              )}
-            </tbody>
-          </table>
-        </div>
-      );
-    }
-
-    return null;
-  }
+    : String(params?.slug ?? "");
 
   /* =======================================================
      LOADING
   ======================================================= */
 
-  if (loading) {
-    return (
-      <main className="mx-auto max-w-6xl p-6">
-        <div className="rounded-2xl border bg-white p-10 text-center text-gray-500">
-          Loading blog...
-        </div>
-      </main>
-    );
-  }
+  const [loadingArticle, setLoadingArticle] =
+    useState(true);
+
+  /* =======================================================
+     ARTICLE STATE
+  ======================================================= */
+
+  const [blogId, setBlogId] =
+    useState<number | null>(null);
+
+  const [title, setTitle] = useState("");
+  const [slug, setSlug] = useState("");
+  const [category, setCategory] =
+    useState("");
+
+  const [author, setAuthor] =
+    useState("Dhanush Varma");
+
+  const [tags, setTags] = useState("");
+  const [excerpt, setExcerpt] =
+    useState("");
+
+  const [introduction, setIntroduction] =
+    useState("");
+
+  /* =======================================================
+     COVER IMAGE
+  ======================================================= */
+
+  const [coverImage, setCoverImage] =
+    useState<File | null>(null);
+
+  const [
+    coverImagePreview,
+    setCoverImagePreview,
+  ] = useState("");
+
+  const [
+    existingCoverImage,
+    setExistingCoverImage,
+  ] = useState<string | null>(null);
+
+  const [
+    removeExistingCover,
+    setRemoveExistingCover,
+  ] = useState(false);
+
+  /* =======================================================
+     CONTENT
+  ======================================================= */
+
+  const [
+    contentBlocks,
+    setContentBlocks,
+  ] = useState<BlogContentBlock[]>([]);
+
+  const [faqs, setFaqs] =
+    useState<BlogFAQ[]>([]);
+
+  /* =======================================================
+     SEO
+  ======================================================= */
+
+  const [metaTitle, setMetaTitle] =
+    useState("");
+
+  const [
+    metaDescription,
+    setMetaDescription,
+  ] = useState("");
+
+  /* =======================================================
+     PUBLICATION
+  ======================================================= */
+
+  const [published, setPublished] =
+    useState(false);
+
+  const [featured, setFeatured] =
+    useState(false);
+
+  const [
+    originalPublishedAt,
+    setOriginalPublishedAt,
+  ] = useState<string | null>(null);
+
+  const [views, setViews] =
+    useState(0);
 
   /* =======================================================
      UI
   ======================================================= */
 
-  return (
-    <>
-      <main className="mx-auto max-w-7xl p-4 pb-32 sm:p-6">
+  const [saving, setSaving] =
+    useState(false);
 
-        {/* HEADER */}
+  const [error, setError] =
+    useState("");
 
-        <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-                ✏️ Edit Blog
-              </h1>
+  const [success, setSuccess] =
+    useState("");
 
-              {form.published ? (
-                <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700">
-                  ● Published
-                </span>
-              ) : (
-                <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-bold text-yellow-700">
-                  ● Draft
-                </span>
-              )}
-            </div>
+  const [showPreview, setShowPreview] =
+    useState(false);
 
-            <p className="mt-1 text-sm text-gray-500">
-              Update your article,
-              preview it, save it as
-              a draft, publish it or
-              delete it.
+  /* =======================================================
+     EXISTING TITLES
+  ======================================================= */
+
+  const [
+    existingTitles,
+    setExistingTitles,
+  ] = useState<ExistingBlogTitle[]>([]);
+
+  const [
+    titlesLoading,
+    setTitlesLoading,
+  ] = useState(true);
+
+  /* =========================================================
+     LOAD ARTICLE
+  ========================================================= */
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadArticle() {
+      if (!originalSlug) {
+        if (mounted) {
+          setError(
+            "Article slug is missing."
+          );
+          setLoadingArticle(false);
+        }
+
+        return;
+      }
+
+      try {
+        setLoadingArticle(true);
+        setError("");
+
+        /*
+         * Fetch the article using the public/admin
+         * blogs API.
+         */
+        const response = await fetch(
+          `/api/blogs?slug=${encodeURIComponent(
+            originalSlug
+          )}&admin=true`,
+          {
+            method: "GET",
+            cache: "no-store",
+            headers: {
+              "Cache-Control":
+                "no-cache",
+            },
+          }
+        );
+
+        const rawText =
+          await response.text();
+
+        let data: unknown = null;
+
+        if (rawText.trim()) {
+          try {
+            data = JSON.parse(rawText);
+          } catch {
+            data = null;
+          }
+        }
+
+        if (!response.ok) {
+          let message =
+            "Failed to load article.";
+
+          if (
+            data &&
+            typeof data === "object"
+          ) {
+            const object =
+              data as Record<
+                string,
+                unknown
+              >;
+
+            if (
+              typeof object.error ===
+              "string"
+            ) {
+              message = object.error;
+            } else if (
+              typeof object.message ===
+              "string"
+            ) {
+              message =
+                object.message;
+            }
+          }
+
+          throw new Error(message);
+        }
+
+        /*
+         * Support multiple common API
+         * response shapes.
+         */
+        let article: unknown = null;
+
+        if (
+          data &&
+          typeof data === "object"
+        ) {
+          const object =
+            data as Record<
+              string,
+              unknown
+            >;
+
+          if (
+            object.blog &&
+            typeof object.blog ===
+              "object"
+          ) {
+            article = object.blog;
+          } else if (
+            Array.isArray(object.blogs)
+          ) {
+            article =
+              object.blogs.find(
+                (item) =>
+                  item &&
+                  typeof item ===
+                    "object"
+              ) ?? null;
+          } else if (
+            Array.isArray(data)
+          ) {
+            article =
+              data.find(
+                (item) =>
+                  item &&
+                  typeof item ===
+                    "object"
+              ) ?? null;
+          } else {
+            article = data;
+          }
+        }
+
+        if (
+          !article ||
+          typeof article !==
+            "object"
+        ) {
+          throw new Error(
+            "Article could not be found."
+          );
+        }
+
+        const blog =
+          article as ExistingBlog;
+
+        if (
+          typeof blog.id !==
+          "number"
+        ) {
+          throw new Error(
+            "Invalid article data returned by the server."
+          );
+        }
+
+        if (!mounted) {
+          return;
+        }
+
+        /*
+         * Populate all fields.
+         */
+        setBlogId(blog.id);
+
+        setTitle(blog.title ?? "");
+
+        setSlug(
+          blog.slug ||
+            originalSlug
+        );
+
+        setCategory(
+          blog.category ?? ""
+        );
+
+        setAuthor(
+          blog.author ||
+            "Dhanush Varma"
+        );
+
+        setTags(
+          Array.isArray(blog.tags)
+            ? blog.tags.join(", ")
+            : ""
+        );
+
+        setExcerpt(
+          blog.excerpt ?? ""
+        );
+
+        setIntroduction(
+          blog.introduction ?? ""
+        );
+
+        /*
+         * Existing cover.
+         */
+        setExistingCoverImage(
+          blog.cover_image ?? null
+        );
+
+        setCoverImagePreview(
+          blog.cover_image ?? ""
+        );
+
+        setRemoveExistingCover(false);
+
+        /*
+         * Content blocks.
+         */
+        setContentBlocks(
+          Array.isArray(
+            blog.content_blocks
+          )
+            ? blog.content_blocks
+            : []
+        );
+
+        /*
+         * FAQs.
+         */
+        setFaqs(
+          Array.isArray(blog.faqs)
+            ? blog.faqs.map(
+                (faq, index) => ({
+                  id:
+                    faq.id ||
+                    crypto.randomUUID(),
+                  question:
+                    faq.question ??
+                    "",
+                  answer:
+                    faq.answer ??
+                    "",
+                })
+              )
+            : []
+        );
+
+        /*
+         * SEO.
+         */
+        setMetaTitle(
+          blog.meta_title ?? ""
+        );
+
+        setMetaDescription(
+          blog.meta_description ??
+            ""
+        );
+
+        /*
+         * Publication.
+         */
+        setPublished(
+          Boolean(blog.published)
+        );
+
+        setFeatured(
+          Boolean(blog.featured)
+        );
+
+        setOriginalPublishedAt(
+          blog.published_at ??
+            null
+        );
+
+        setViews(
+          typeof blog.views ===
+            "number"
+            ? blog.views
+            : 0
+        );
+      } catch (err) {
+        console.error(
+          "LOAD ARTICLE ERROR:",
+          err
+        );
+
+        if (mounted) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Failed to load article."
+          );
+        }
+      } finally {
+        if (mounted) {
+          setLoadingArticle(false);
+        }
+      }
+    }
+
+    loadArticle();
+
+    return () => {
+      mounted = false;
+    };
+  }, [originalSlug]);
+
+  /* =========================================================
+     LOAD EXISTING TITLES
+  ========================================================= */
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadExistingTitles() {
+      try {
+        setTitlesLoading(true);
+
+        const response =
+          await fetch(
+            "/api/blogs?admin=true&limit=1000",
+            {
+              method: "GET",
+              cache: "no-store",
+              headers: {
+                "Cache-Control":
+                  "no-cache",
+              },
+            }
+          );
+
+        if (!response.ok) {
+          throw new Error(
+            "Failed to load previous article titles."
+          );
+        }
+
+        const data =
+          await response.json();
+
+        const blogList =
+          Array.isArray(data)
+            ? data
+            : Array.isArray(
+                  data.blogs
+                )
+              ? data.blogs
+              : [];
+
+        const titles: ExistingBlogTitle[] =
+          blogList
+            .filter(
+              (blog: unknown) =>
+                blog &&
+                typeof blog ===
+                  "object" &&
+                typeof (
+                  blog as {
+                    id?: unknown;
+                  }
+                ).id ===
+                  "number" &&
+                typeof (
+                  blog as {
+                    title?: unknown;
+                  }
+                ).title ===
+                  "string"
+            )
+            .map(
+              (blog: {
+                id: number;
+                title: string;
+              }) => ({
+                id: blog.id,
+                title:
+                  blog.title.trim(),
+              })
+            )
+           .filter(
+  (blog: ExistingBlogTitle) =>
+    blog.title.length > 0
+);
+
+        if (mounted) {
+          setExistingTitles(
+            titles
+          );
+        }
+      } catch (err) {
+        console.error(
+          "TITLE LOAD ERROR:",
+          err
+        );
+
+        if (mounted) {
+          setExistingTitles([]);
+        }
+      } finally {
+        if (mounted) {
+          setTitlesLoading(false);
+        }
+      }
+    }
+
+    loadExistingTitles();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  /* =========================================================
+     TITLE MATCHES
+  ========================================================= */
+
+  const titleMatches = useMemo(() => {
+    const currentTitle =
+      title.trim();
+
+    if (!currentTitle) {
+      return [];
+    }
+
+    return existingTitles
+      /*
+       * IMPORTANT:
+       * Exclude the article being edited.
+       */
+      .filter(
+        (blog) =>
+          blog.id !== blogId
+      )
+      .map((blog) => ({
+        ...blog,
+        similarity:
+          calculateTitleSimilarity(
+            currentTitle,
+            blog.title
+          ),
+      }))
+      .filter(
+        (blog) =>
+          blog.similarity >= 35
+      )
+      .sort(
+        (a, b) =>
+          b.similarity -
+          a.similarity
+      )
+      .slice(0, 8);
+  }, [
+    title,
+    existingTitles,
+    blogId,
+  ]);
+
+  const highestTitleMatch =
+    titleMatches.length > 0
+      ? titleMatches[0].similarity
+      : 0;
+
+  /* =========================================================
+     IMAGE PREVIEW CLEANUP
+  ========================================================= */
+
+  useEffect(() => {
+    return () => {
+      if (
+        coverImagePreview.startsWith(
+          "blob:"
+        )
+      ) {
+        URL.revokeObjectURL(
+          coverImagePreview
+        );
+      }
+    };
+  }, [coverImagePreview]);
+
+  /* =========================================================
+     TITLE / SLUG
+  ========================================================= */
+
+  function handleTitleChange(
+    value: string
+  ) {
+    setTitle(value);
+
+    /*
+     * Only auto-generate the slug when
+     * there was no original/custom slug.
+     *
+     * Existing article slugs are preserved.
+     */
+    if (
+      !slug &&
+      !originalSlug
+    ) {
+      setSlug(createSlug(value));
+    }
+  }
+
+  /* =========================================================
+     COVER IMAGE
+  ========================================================= */
+
+  function handleCoverImageChange(
+    event: React.ChangeEvent<HTMLInputElement>
+  ) {
+    const file =
+      event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    const allowedTypes = [
+      "image/png",
+      "image/jpeg",
+      "image/webp",
+    ];
+
+    if (
+      !allowedTypes.includes(
+        file.type
+      )
+    ) {
+      setError(
+        "Please select a PNG, JPG, JPEG, or WEBP image."
+      );
+
+      event.target.value = "";
+      return;
+    }
+
+    const maxSize =
+      5 * 1024 * 1024;
+
+    if (file.size > maxSize) {
+      setError(
+        "Cover image must be smaller than 5MB."
+      );
+
+      event.target.value = "";
+      return;
+    }
+
+    setError("");
+    setRemoveExistingCover(
+      false
+    );
+
+    if (
+      coverImagePreview.startsWith(
+        "blob:"
+      )
+    ) {
+      URL.revokeObjectURL(
+        coverImagePreview
+      );
+    }
+
+    const previewUrl =
+      URL.createObjectURL(file);
+
+    setCoverImage(file);
+    setCoverImagePreview(
+      previewUrl
+    );
+
+    event.target.value = "";
+  }
+
+  function removeCoverImage() {
+    if (
+      coverImagePreview.startsWith(
+        "blob:"
+      )
+    ) {
+      URL.revokeObjectURL(
+        coverImagePreview
+      );
+    }
+
+    setCoverImage(null);
+    setCoverImagePreview("");
+
+    /*
+     * Tell API that the existing
+     * Supabase image should also
+     * be removed from the article.
+     */
+    setRemoveExistingCover(true);
+  }
+
+  /* =========================================================
+     FAQ
+  ========================================================= */
+
+  function addFAQ() {
+    setFaqs((current) => [
+      ...current,
+      {
+        id: crypto.randomUUID(),
+        question: "",
+        answer: "",
+      },
+    ]);
+  }
+
+  function updateFAQ(
+    index: number,
+    field:
+      | "question"
+      | "answer",
+    value: string
+  ) {
+    setFaqs((current) =>
+      current.map(
+        (faq, faqIndex) =>
+          faqIndex === index
+            ? {
+                ...faq,
+                [field]: value,
+              }
+            : faq
+      )
+    );
+  }
+
+  function deleteFAQ(
+    index: number
+  ) {
+    setFaqs((current) =>
+      current.filter(
+        (_, faqIndex) =>
+          faqIndex !== index
+      )
+    );
+  }
+
+  /* =========================================================
+     PREVIEW BLOG
+  ========================================================= */
+
+  const previewBlog: BlogFormData =
+    useMemo(
+      () => ({
+        title,
+        slug,
+        excerpt,
+        introduction,
+
+        cover_image:
+          coverImagePreview ||
+          null,
+
+        category,
+        author,
+
+        tags: tags
+          .split(",")
+          .map((tag) =>
+            tag.trim()
+          )
+          .filter(Boolean),
+
+        content_blocks:
+          contentBlocks,
+
+        faqs,
+
+        published,
+        featured,
+
+        views,
+
+        meta_title:
+          metaTitle || title,
+
+        meta_description:
+          metaDescription ||
+          excerpt,
+
+        published_at:
+          originalPublishedAt,
+
+        created_at: null,
+        updated_at: null,
+      }),
+      [
+        title,
+        slug,
+        excerpt,
+        introduction,
+        coverImagePreview,
+        category,
+        author,
+        tags,
+        contentBlocks,
+        faqs,
+        published,
+        featured,
+        views,
+        metaTitle,
+        metaDescription,
+        originalPublishedAt,
+      ]
+    );
+
+  /* =========================================================
+     SAFE API RESPONSE PARSER
+  ========================================================= */
+
+  async function readApiResponse(
+    response: Response
+  ): Promise<{
+    data:
+      | Record<string, unknown>
+      | null;
+    rawText: string;
+  }> {
+    const rawText =
+      await response.text();
+
+    if (!rawText.trim()) {
+      return {
+        data: null,
+        rawText: "",
+      };
+    }
+
+    try {
+      const parsed =
+        JSON.parse(rawText);
+
+      if (
+        parsed &&
+        typeof parsed ===
+          "object" &&
+        !Array.isArray(parsed)
+      ) {
+        return {
+          data:
+            parsed as Record<
+              string,
+              unknown
+            >,
+          rawText,
+        };
+      }
+
+      return {
+        data: null,
+        rawText,
+      };
+    } catch {
+      return {
+        data: null,
+        rawText,
+      };
+    }
+  }
+
+  /* =========================================================
+     SAVE / UPDATE BLOG
+  ========================================================= */
+
+  async function saveBlog(
+    publish: boolean
+  ) {
+    setError("");
+    setSuccess("");
+
+    /* -------------------------------------------------------
+       VALIDATION
+    ------------------------------------------------------- */
+
+    if (!blogId) {
+      setError(
+        "Article is still loading. Please wait a moment and try again."
+      );
+      return;
+    }
+
+    if (!title.trim()) {
+      setError(
+        "Please enter a blog title."
+      );
+      return;
+    }
+
+    if (!slug.trim()) {
+      setError(
+        "Please enter a valid slug."
+      );
+      return;
+    }
+
+    if (!category.trim()) {
+      setError(
+        "Please select a category."
+      );
+      return;
+    }
+
+    if (!excerpt.trim()) {
+      setError(
+        "Please enter an article excerpt."
+      );
+      return;
+    }
+
+    if (!author.trim()) {
+      setError(
+        "Please enter an author name."
+      );
+      return;
+    }
+
+    if (!introduction.trim()) {
+      setError(
+        "Please write an article introduction."
+      );
+      return;
+    }
+
+    /* -------------------------------------------------------
+       FAQ VALIDATION
+    ------------------------------------------------------- */
+
+    const invalidFAQ =
+      faqs.some(
+        (faq) =>
+          !faq.question.trim() ||
+          !faq.answer.trim()
+      );
+
+    if (invalidFAQ) {
+      setError(
+        "Please complete all FAQ questions and answers, or delete empty FAQs."
+      );
+      return;
+    }
+
+    /* -------------------------------------------------------
+       DUPLICATE TITLE WARNING
+    ------------------------------------------------------- */
+
+    if (
+      highestTitleMatch >= 90
+    ) {
+      const confirmed =
+        window.confirm(
+          `This title is very similar to an existing article:\n\n"${titleMatches[0].title}"\n\nDo you want to continue?`
+        );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    setSaving(true);
+
+    try {
+      const formData =
+        new FormData();
+
+      /* -----------------------------------------------------
+         BASIC INFORMATION
+      ----------------------------------------------------- */
+
+      formData.append(
+        "id",
+        String(blogId)
+      );
+
+      formData.append(
+        "title",
+        title.trim()
+      );
+
+      formData.append(
+        "slug",
+        slug.trim()
+      );
+
+      /*
+       * Send original slug so the API can locate
+       * the article even if the slug was changed.
+       */
+      formData.append(
+        "original_slug",
+        originalSlug
+      );
+
+      formData.append(
+        "excerpt",
+        excerpt.trim()
+      );
+
+      formData.append(
+        "introduction",
+        introduction.trim()
+      );
+
+      formData.append(
+        "category",
+        category.trim()
+      );
+
+      formData.append(
+        "author",
+        author.trim()
+      );
+
+      /* -----------------------------------------------------
+         TAGS
+      ----------------------------------------------------- */
+
+      const cleanTags =
+        tags
+          .split(",")
+          .map((tag) =>
+            tag.trim()
+          )
+          .filter(Boolean);
+
+      formData.append(
+        "tags",
+        JSON.stringify(
+          cleanTags
+        )
+      );
+
+      /* -----------------------------------------------------
+         CONTENT BLOCKS
+      ----------------------------------------------------- */
+
+      const cleanContentBlocks =
+        contentBlocks.map(
+          (block) => ({
+            ...block,
+          })
+        );
+
+      formData.append(
+        "content_blocks",
+        JSON.stringify(
+          cleanContentBlocks
+        )
+      );
+
+      /* -----------------------------------------------------
+         FAQ
+      ----------------------------------------------------- */
+
+      const cleanFaqs =
+        faqs.map((faq) => ({
+          id:
+            faq.id ||
+            crypto.randomUUID(),
+          question:
+            faq.question.trim(),
+          answer:
+            faq.answer.trim(),
+        }));
+
+      formData.append(
+        "faqs",
+        JSON.stringify(
+          cleanFaqs
+        )
+      );
+
+      /* -----------------------------------------------------
+         PUBLICATION
+      ----------------------------------------------------- */
+
+      formData.append(
+        "published",
+        publish
+          ? "true"
+          : "false"
+      );
+
+      formData.append(
+        "featured",
+        featured
+          ? "true"
+          : "false"
+      );
+
+      /*
+       * Preserve existing publication date when
+       * the article is already published.
+       *
+       * If a draft is published for the first
+       * time, create a new publication timestamp.
+       */
+      if (publish) {
+        formData.append(
+          "published_at",
+          originalPublishedAt ||
+            new Date().toISOString()
+        );
+      } else {
+        /*
+         * Keep existing publication date if
+         * saving an already-published article
+         * as draft is not desired.
+         *
+         * For a draft, explicitly send null.
+         */
+        formData.append(
+          "published_at",
+          ""
+        );
+      }
+
+      /* -----------------------------------------------------
+         SEO
+      ----------------------------------------------------- */
+
+      formData.append(
+        "meta_title",
+        metaTitle.trim() ||
+          title.trim()
+      );
+
+      formData.append(
+        "meta_description",
+        metaDescription.trim() ||
+          excerpt.trim()
+      );
+
+      /* -----------------------------------------------------
+         COVER IMAGE
+      ----------------------------------------------------- */
+
+      if (coverImage) {
+        formData.append(
+          "cover_image",
+          coverImage,
+          coverImage.name
+        );
+      }
+
+      /*
+       * Only tell the API to remove the old
+       * image when the user actually clicked Remove.
+       */
+      formData.append(
+        "remove_cover_image",
+        removeExistingCover
+          ? "true"
+          : "false"
+      );
+
+      /* -----------------------------------------------------
+         UPDATE REQUEST
+      ----------------------------------------------------- */
+
+      /*
+       * IMPORTANT:
+       * This is an UPDATE, not a new article.
+       *
+       * The endpoint receives the existing blog ID.
+       */
+      const response =
+        await fetch(
+          "/api/blogs",
+          {
+            method: "PUT",
+            body: formData,
+          }
+        );
+
+      /* -----------------------------------------------------
+         SAFE RESPONSE
+      ----------------------------------------------------- */
+
+      const {
+        data,
+        rawText,
+      } =
+        await readApiResponse(
+          response
+        );
+
+      /* -----------------------------------------------------
+         API ERROR
+      ----------------------------------------------------- */
+
+      if (!response.ok) {
+        const apiError =
+          typeof data?.error ===
+          "string"
+            ? data.error
+            : typeof data?.message ===
+                "string"
+              ? data.message
+              : rawText.trim();
+
+        throw new Error(
+          apiError ||
+            `Failed to update article. Server returned ${response.status}.`
+        );
+      }
+
+      /* -----------------------------------------------------
+         SUCCESS
+      ----------------------------------------------------- */
+
+      setPublished(publish);
+
+      setSuccess(
+        publish
+          ? "Article updated and published successfully."
+          : "Article updated and saved as draft."
+      );
+
+      /*
+       * If the image was removed, clear
+       * local removal state.
+       */
+      if (
+        removeExistingCover
+      ) {
+        setExistingCoverImage(
+          null
+        );
+        setRemoveExistingCover(
+          false
+        );
+      }
+
+      /*
+       * If a new cover was uploaded,
+       * it is now the existing cover.
+       */
+      if (coverImage) {
+        setExistingCoverImage(
+          coverImagePreview
+        );
+        setCoverImage(null);
+      }
+
+      /*
+       * Update publication timestamp
+       * in local state.
+       */
+      if (publish) {
+        if (!originalPublishedAt) {
+          setOriginalPublishedAt(
+            new Date().toISOString()
+          );
+        }
+      }
+
+      /*
+       * Redirect back to article list.
+       */
+      setTimeout(() => {
+        router.push(
+          "/admin/blogs"
+        );
+
+        router.refresh();
+      }, 700);
+    } catch (err) {
+      console.error(
+        "BLOG UPDATE ERROR:",
+        err
+      );
+
+      if (
+        err instanceof Error
+      ) {
+        setError(
+          err.message
+        );
+      } else {
+        setError(
+          "Something went wrong while updating the article."
+        );
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /* =========================================================
+     LOADING SCREEN
+  ========================================================= */
+
+  if (loadingArticle) {
+    return (
+      <main className="min-h-screen bg-gray-50">
+        <div className="flex min-h-screen items-center justify-center px-4">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
+            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-gray-900" />
+
+            <h1 className="mt-5 text-lg font-bold text-gray-900">
+              Loading Article
+            </h1>
+
+            <p className="mt-2 text-sm text-gray-500">
+              Loading your article and
+              editor content...
             </p>
           </div>
+        </div>
+      </main>
+    );
+  }
 
-          <div className="flex flex-wrap gap-3">
+  /* =========================================================
+     ERROR WITHOUT ARTICLE
+  ========================================================= */
+
+  if (!blogId) {
+    return (
+      <main className="min-h-screen bg-gray-50">
+        <div className="mx-auto flex min-h-screen max-w-2xl items-center justify-center px-4">
+          <div className="w-full rounded-2xl border border-red-200 bg-white p-8 text-center shadow-sm">
+            <div className="text-4xl">
+              ⚠️
+            </div>
+
+            <h1 className="mt-4 text-xl font-bold text-gray-900">
+              Unable to Load Article
+            </h1>
+
+            <p className="mt-2 text-sm leading-6 text-gray-600">
+              {error ||
+                "The requested article could not be found."}
+            </p>
+
             <button
               type="button"
               onClick={() =>
@@ -2527,1064 +1521,1022 @@ export default function EditBlogPage() {
                   "/admin/blogs"
                 )
               }
-              disabled={isBusy}
-              className="rounded-xl border border-gray-300 bg-white px-5 py-3 font-semibold text-gray-900 hover:bg-gray-50 disabled:opacity-50"
+              className="mt-6 rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-800"
             >
-              ← Back
+              ← Back to Articles
             </button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  /* =========================================================
+     PREVIEW
+  ========================================================= */
+
+  if (showPreview) {
+    return (
+      <main className="min-h-screen bg-white">
+        <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/95 backdrop-blur">
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+            <div>
+              <p className="text-sm font-bold text-gray-900">
+                Article Preview
+              </p>
+
+              <p className="text-xs text-gray-500">
+                Preview your article before
+                updating or publishing.
+              </p>
+            </div>
 
             <button
               type="button"
               onClick={() =>
-                setShowPreview(true)
+                setShowPreview(false)
               }
-              disabled={isBusy}
-              className="rounded-xl border border-gray-300 bg-white px-5 py-3 font-semibold text-gray-900 hover:bg-gray-50 disabled:opacity-50"
+              className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
             >
-              👁 Preview
+              ← Back to Editor
             </button>
+          </div>
+        </header>
 
-            <button
-              type="button"
-              onClick={saveDraft}
-              disabled={isBusy}
-              className="rounded-xl border border-gray-300 bg-white px-5 py-3 font-semibold text-gray-900 hover:bg-gray-50 disabled:opacity-50"
-            >
-              {saving
-                ? "Saving..."
-                : "📝 Save Draft"}
-            </button>
+        <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+          <BlogPreview
+            blog={previewBlog}
+          />
+        </div>
+      </main>
+    );
+  }
 
-            {form.published ? (
+  /* =========================================================
+     EDITOR
+  ========================================================= */
+
+  return (
+    <main className="min-h-screen bg-gray-50">
+      {/* =====================================================
+          HEADER
+      ===================================================== */}
+
+      <header className="border-b border-gray-200 bg-white">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+                  Edit Article
+                </h1>
+
+                <span
+                  className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                    published
+                      ? "bg-green-100 text-green-700"
+                      : "bg-amber-100 text-amber-700"
+                  }`}
+                >
+                  {published
+                    ? "Published"
+                    : "Draft"}
+                </span>
+              </div>
+
+              <p className="mt-1 text-sm text-gray-500">
+                Update your AnantaGo technology
+                article.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={
-                  unpublishBlog
+                onClick={() =>
+                  setShowPreview(true)
                 }
-                disabled={isBusy}
-                className="rounded-xl border border-orange-300 bg-orange-50 px-5 py-3 font-semibold text-orange-700 hover:bg-orange-100 disabled:opacity-50"
+                className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
               >
-                {unpublishing
-                  ? "Unpublishing..."
-                  : "↩ Unpublish"}
+                Preview
               </button>
-            ) : (
+
               <button
                 type="button"
-                onClick={
-                  publishBlog
+                disabled={saving}
+                onClick={() =>
+                  saveBlog(false)
                 }
-                disabled={isBusy}
-                className="rounded-xl bg-green-600 px-6 py-3 font-semibold text-white shadow-sm hover:bg-green-700 disabled:opacity-50"
+                className="rounded-xl border border-gray-900 bg-white px-4 py-2.5 text-sm font-semibold text-gray-900 hover:bg-gray-50 disabled:opacity-50"
               >
-                {publishing
-                  ? "Publishing..."
-                  : "🚀 Publish Now"}
+                {saving
+                  ? "Saving..."
+                  : "Save Draft"}
               </button>
-            )}
+
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() =>
+                  saveBlog(true)
+                }
+                className="rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
+              >
+                {saving
+                  ? "Updating..."
+                  : published
+                    ? "Update Article"
+                    : "Publish"}
+              </button>
+            </div>
           </div>
         </div>
+      </header>
 
-        <div className="space-y-6">
+      {/* =====================================================
+          MESSAGES
+      ===================================================== */}
 
-          {/* ARTICLE DETAILS */}
+      {(error || success) && (
+        <div className="mx-auto max-w-7xl px-4 pt-5 sm:px-6 lg:px-8">
+          {error && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              <div className="flex items-start gap-3">
+                <span className="text-lg">
+                  ⚠️
+                </span>
 
-          <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-7">
-            <h2 className="mb-5 text-xl font-bold">
-              Article Details
-            </h2>
+                <div className="min-w-0">
+                  <p className="font-semibold">
+                    Unable to update article
+                  </p>
 
-            <div className="space-y-5">
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold">
-                  Title
-                </label>
-
-                <input
-                  name="title"
-                  value={
-                    form.title
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  className="w-full rounded-xl border p-3.5 outline-none focus:ring-2 focus:ring-black"
-                />
+                  <p className="mt-1 break-words">
+                    {error}
+                  </p>
+                </div>
               </div>
+            </div>
+          )}
 
-              <div>
-                <label className="mb-2 block text-sm font-semibold">
-                  Slug
-                </label>
+          {success && (
+            <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
+              {success}
+            </div>
+          )}
+        </div>
+      )}
 
-                <input
-                  name="slug"
-                  value={
-                    form.slug
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  className="w-full rounded-xl border p-3.5 outline-none focus:ring-2 focus:ring-black"
-                />
+      {/* =====================================================
+          MAIN
+      ===================================================== */}
 
-                <p className="mt-2 text-xs text-gray-500">
-                  Changing the slug
-                  changes the article
-                  URL.
-                </p>
-              </div>
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="space-y-8">
+            {/* =================================================
+                ARTICLE INFORMATION
+            ================================================= */}
 
-              <div>
-                <label className="mb-2 block text-sm font-semibold">
-                  Short Description
-                </label>
+            <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-bold text-gray-900">
+                Article Information
+              </h2>
 
-                <textarea
-                  name="excerpt"
-                  value={
-                    form.excerpt
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  rows={4}
-                  className="w-full resize-y rounded-xl border p-3.5 outline-none focus:ring-2 focus:ring-black"
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold">
-                  Introduction
-                </label>
-
-                <p className="mb-3 text-xs leading-5 text-gray-500">
-                  This is the 7–8
-                  line introduction
-                  shown immediately
-                  after the article
-                  cover image.
-                </p>
-
-                <textarea
-                  name="introduction"
-                  value={
-                    form.introduction
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  rows={8}
-                  placeholder="Write the introduction of your article..."
-                  className="w-full resize-y rounded-xl border p-4 leading-7 outline-none focus:ring-2 focus:ring-black"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <div className="mt-6 space-y-5">
+                {/* TITLE */}
 
                 <div>
-                  <label className="mb-2 block text-sm font-semibold">
-                    Category
+                  <label className="mb-2 block text-sm font-semibold text-gray-700">
+                    Title
                   </label>
 
                   <input
-                    name="category"
-                    value={
-                      form.category
+                    type="text"
+                    value={title}
+                    onChange={(event) =>
+                      handleTitleChange(
+                        event.target
+                          .value
+                      )
                     }
-                    onChange={
-                      handleChange
-                    }
-                    placeholder="AI, Tech, How-To..."
-                    className="w-full rounded-xl border p-3.5 outline-none focus:ring-2 focus:ring-black"
+                    placeholder="Enter article title..."
+                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-base outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10"
                   />
-                </div>
 
-                <div>
-                  <label className="mb-2 block text-sm font-semibold">
-                    Author
-                  </label>
+                  {/* TITLE MATCHES */}
 
-                  <input
-                    name="author"
-                    value={
-                      form.author
-                    }
-                    onChange={
-                      handleChange
-                    }
-                    className="w-full rounded-xl border p-3.5 outline-none focus:ring-2 focus:ring-black"
-                  />
-                </div>
+                  {title.trim() && (
+                    <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
+                            Previous Title Check
+                          </p>
 
-              </div>
+                          <p className="mt-1 text-xs text-gray-400">
+                            Your current article is
+                            excluded from this check.
+                          </p>
+                        </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-semibold">
-                  Tags
-                </label>
-
-                <input
-                  name="tags"
-                  value={
-                    form.tags
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  placeholder="AI, Gemini, Google, Technology"
-                  className="w-full rounded-xl border p-3.5 outline-none focus:ring-2 focus:ring-black"
-                />
-              </div>
-
-              <div className="rounded-xl border bg-gray-50 p-4">
-                <div className="flex flex-wrap gap-6">
-
-                  <label className="flex cursor-pointer items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={
-                        form.featured
-                      }
-                      onChange={(e) =>
-                        setForm(
-                          (prev) => ({
-                            ...prev,
-                            featured:
-                              e.target
-                                .checked,
-                          })
-                        )
-                      }
-                    />
-
-                    <span className="text-sm font-medium">
-                      Featured Article
-                    </span>
-                  </label>
-
-                </div>
-
-                <p className="mt-2 text-xs text-gray-500">
-                  Publishing is now
-                  controlled by the
-                  buttons at the top and
-                  bottom of this page.
-                </p>
-              </div>
-
-            </div>
-          </section>
-
-          {/* COVER IMAGE */}
-
-          <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-7">
-
-            <h2 className="text-xl font-bold">
-              Cover Image
-            </h2>
-
-            <p className="mt-1 text-sm text-gray-500">
-              Main image displayed
-              at the beginning of
-              the article.
-            </p>
-
-            {form.cover_image && (
-              <div className="mt-5">
-
-                <div className="overflow-hidden rounded-2xl border bg-gray-50">
-                  <img
-                    src={
-                      form.cover_image
-                    }
-                    alt={
-                      form.title ||
-                      "Cover image"
-                    }
-                    className="max-h-[420px] w-full object-cover"
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={
-                    removeCoverImage
-                  }
-                  disabled={isBusy}
-                  className="mt-3 rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
-                >
-                  Remove Cover Image
-                </button>
-
-              </div>
-            )}
-
-            <label className="mt-5 inline-flex cursor-pointer items-center justify-center rounded-xl bg-black px-5 py-3 font-semibold text-white transition hover:bg-gray-800">
-
-              {uploadingCover
-                ? "Uploading..."
-                : form.cover_image
-                ? "📷 Change Cover Image"
-                : "📷 Select Cover Image"}
-
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
-                onChange={
-                  handleCoverUpload
-                }
-                disabled={
-                  uploadingCover ||
-                  isBusy
-                }
-                className="hidden"
-              />
-
-            </label>
-
-          </section>
-
-          {/* ARTICLE CONTENT */}
-
-          <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-7">
-
-            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-
-              <div>
-                <h2 className="text-xl font-bold">
-                  Article Content
-                </h2>
-
-                <p className="mt-1 text-sm text-gray-500">
-                  Edit your article
-                  section by section.
-                  Images can be
-                  placed between
-                  sections.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    addTextBlock()
-                  }
-                  disabled={isBusy}
-                  className="rounded-xl bg-black px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                >
-                  + Text
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    addImageBlock()
-                  }
-                  disabled={isBusy}
-                  className="rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-900 disabled:opacity-50"
-                >
-                  + Image
-                </button>
-
-                <button
-                  type="button"
-                  onClick={
-                    addTableBlock
-                  }
-                  disabled={isBusy}
-                  className="rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-900 disabled:opacity-50"
-                >
-                  + Table
-                </button>
-
-              </div>
-
-            </div>
-
-            <div className="space-y-5">
-
-              {contentBlocks.map(
-                (
-                  block: ContentBlock,
-                  index: number
-                ) => (
-                  <div
-                    key={index}
-                    className="rounded-2xl border bg-gray-50 p-4 sm:p-5"
-                  >
-
-                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-
-                      <div className="flex items-center gap-2">
-
-                        <span className="flex h-8 w-8 items-center justify-center rounded-lg border bg-white text-sm font-bold">
-                          {index + 1}
-                        </span>
-
-                        <span className="text-sm font-semibold text-gray-700">
-                          {block.type ===
-                          "image"
-                            ? "Image"
-                            : block.type ===
-                              "callout"
-                            ? "Callout"
-                            : block.type ===
-                              "quote"
-                            ? "Quote"
-                            : block.type ===
-                              "table"
-                            ? "Table"
-                            : isListType(
-                                block.type
-                              )
-                            ? "List"
-                            : "Article Text"}
-                        </span>
-
+                        {!titlesLoading && (
+                          <span className="text-xs font-medium text-gray-400">
+                            {
+                              existingTitles.filter(
+                                (item) =>
+                                  item.id !==
+                                  blogId
+                              ).length
+                            }{" "}
+                            titles checked
+                          </span>
+                        )}
                       </div>
 
-                      <div className="flex items-center gap-1">
+                      {titlesLoading ? (
+                        <p className="mt-4 text-sm text-gray-500">
+                          Checking previous titles...
+                        </p>
+                      ) : titleMatches.length ===
+                        0 ? (
+                        <p className="mt-4 text-sm font-medium text-green-700">
+                          ✓ No similar article
+                          titles found.
+                        </p>
+                      ) : (
+                        <div className="mt-4 space-y-2">
+                          {titleMatches.map(
+                            (match) => (
+                              <div
+                                key={
+                                  match.id
+                                }
+                                className="flex items-center justify-between gap-4 rounded-lg border border-gray-200 bg-white px-3 py-2.5"
+                              >
+                                <p className="min-w-0 flex-1 text-sm font-medium text-gray-800">
+                                  {
+                                    match.title
+                                  }
+                                </p>
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            moveBlockUp(
-                              index
+                                <span
+                                  className={`shrink-0 text-xs font-bold ${
+                                    match.similarity >=
+                                    90
+                                      ? "text-red-600"
+                                      : match.similarity >=
+                                          70
+                                        ? "text-amber-600"
+                                        : "text-gray-500"
+                                  }`}
+                                >
+                                  {
+                                    match.similarity
+                                  }
+                                  %
+                                </span>
+                              </div>
                             )
-                          }
-                          disabled={
-                            index === 0 ||
-                            isBusy
-                          }
-                          className="rounded-lg border bg-white px-2.5 py-1.5 disabled:opacity-30"
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* SLUG */}
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-700">
+                    Slug
+                  </label>
+
+                  <input
+                    type="text"
+                    value={slug}
+                    onChange={(event) =>
+                      setSlug(
+                        createSlug(
+                          event.target
+                            .value
+                        )
+                      )
+                    }
+                    placeholder="article-url-slug"
+                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+                  />
+
+                  <p className="mt-2 text-xs text-gray-500">
+                    URL: /blog/
+                    {slug ||
+                      "article-slug"}
+                  </p>
+
+                  {slug !==
+                    originalSlug && (
+                    <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+                      ⚠️ Changing the slug will
+                      change the article URL.
+                    </p>
+                  )}
+                </div>
+
+                {/* CATEGORY + AUTHOR */}
+
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-700">
+                      Category
+                    </label>
+
+                    <select
+                      value={category}
+                      onChange={(event) =>
+                        setCategory(
+                          event.target
+                            .value
+                        )
+                      }
+                      className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-gray-900"
+                    >
+                      <option value="">
+                        Select category
+                      </option>
+
+                      <option value="AI">
+                        AI
+                      </option>
+
+                      <option value="Tech">
+                        Tech
+                      </option>
+
+                      <option value="How-To">
+                        How-To
+                      </option>
+
+                      <option value="Apps">
+                        Apps
+                      </option>
+
+                      <option value="Security">
+                        Security
+                      </option>
+
+                      <option value="Explained">
+                        Explained
+                      </option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-700">
+                      Author
+                    </label>
+
+                    <input
+                      type="text"
+                      value={author}
+                      onChange={(event) =>
+                        setAuthor(
+                          event.target
+                            .value
+                        )
+                      }
+                      className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+                    />
+                  </div>
+                </div>
+
+                {/* TAGS */}
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-700">
+                    Tags
+                  </label>
+
+                  <input
+                    type="text"
+                    value={tags}
+                    onChange={(event) =>
+                      setTags(
+                        event.target
+                          .value
+                      )
+                    }
+                    placeholder="AI, Google, Gemini, Technology"
+                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+                  />
+
+                  <p className="mt-2 text-xs text-gray-500">
+                    Separate tags with commas.
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            {/* =================================================
+                COVER IMAGE
+            ================================================= */}
+
+            <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-bold text-gray-900">
+                Cover Image
+              </h2>
+
+              <p className="mt-1 text-sm text-gray-500">
+                Main image displayed at the beginning
+                of the article.
+              </p>
+
+              <div className="mt-5">
+                {!coverImagePreview ? (
+                  <label
+                    htmlFor="cover-image"
+                    className="flex min-h-[220px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center transition hover:border-gray-900 hover:bg-gray-100"
+                  >
+                    <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white text-3xl shadow-sm">
+                      📷
+                    </div>
+
+                    <p className="text-sm font-semibold text-gray-900">
+                      Select Cover Image
+                    </p>
+
+                    <p className="mt-2 text-xs text-gray-500">
+                      PNG, JPG, JPEG or WEBP
+                    </p>
+
+                    <p className="mt-1 text-xs text-gray-400">
+                      Maximum file size: 5MB
+                    </p>
+
+                    <input
+                      id="cover-image"
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={
+                        handleCoverImageChange
+                      }
+                    />
+                  </label>
+                ) : (
+                  <div>
+                    <div className="mb-3 flex items-center justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-gray-900">
+                          Current Cover Image
+                        </p>
+
+                        {coverImage && (
+                          <p className="mt-1 truncate text-xs text-gray-500">
+                            {
+                              coverImage.name
+                            }
+                          </p>
+                        )}
+
+                        {!coverImage &&
+                          existingCoverImage && (
+                            <p className="mt-1 text-xs text-green-600">
+                              Existing image
+                            </p>
+                          )}
+                      </div>
+
+                      <div className="flex shrink-0 gap-2">
+                        <label
+                          htmlFor="cover-image-change"
+                          className="cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
                         >
-                          ↑
-                        </button>
+                          Change
+
+                          <input
+                            id="cover-image-change"
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                            className="hidden"
+                            onChange={
+                              handleCoverImageChange
+                            }
+                          />
+                        </label>
 
                         <button
                           type="button"
-                          onClick={() =>
-                            moveBlockDown(
-                              index
-                            )
+                          onClick={
+                            removeCoverImage
                           }
-                          disabled={
-                            index ===
-                              contentBlocks.length -
-                                1 ||
-                            isBusy
-                          }
-                          className="rounded-lg border bg-white px-2.5 py-1.5 disabled:opacity-30"
+                          className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
                         >
-                          ↓
+                          Remove
                         </button>
+                      </div>
+                    </div>
+
+                    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-100">
+                      <img
+                        src={
+                          coverImagePreview
+                        }
+                        alt={
+                          title ||
+                          "Cover preview"
+                        }
+                        className="max-h-[420px] w-full object-cover"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* =================================================
+                INTRODUCTION
+            ================================================= */}
+
+            <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-bold text-gray-900">
+                Article Introduction
+              </h2>
+
+              <div className="mt-5 space-y-5">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-700">
+                    Excerpt
+                  </label>
+
+                  <textarea
+                    value={excerpt}
+                    onChange={(event) =>
+                      setExcerpt(
+                        event.target
+                          .value
+                      )
+                    }
+                    rows={3}
+                    placeholder="Short description of the article..."
+                    className="w-full resize-y rounded-xl border border-gray-300 px-4 py-3 text-sm leading-7 outline-none focus:border-gray-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-700">
+                    Introduction
+                  </label>
+
+                  <textarea
+                    value={
+                      introduction
+                    }
+                    onChange={(event) =>
+                      setIntroduction(
+                        event.target
+                          .value
+                      )
+                    }
+                    rows={8}
+                    placeholder="Write the article introduction..."
+                    className="w-full resize-y rounded-xl border border-gray-300 px-4 py-3 text-sm leading-7 outline-none focus:border-gray-900"
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* =================================================
+                CONTENT BUILDER
+            ================================================= */}
+
+            <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+              <BlogBlockEditor
+                blocks={
+                  contentBlocks
+                }
+                onChange={
+                  setContentBlocks
+                }
+              />
+            </section>
+
+            {/* =================================================
+                FAQ
+            ================================================= */}
+
+            <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">
+                    Frequently Asked Questions
+                  </h2>
+
+                  <p className="mt-1 text-sm text-gray-500">
+                    Add useful questions and
+                    answers for readers.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={addFAQ}
+                  className="rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-800"
+                >
+                  + Add FAQ
+                </button>
+              </div>
+
+              <div className="mt-6 space-y-5">
+                {faqs.length ===
+                  0 && (
+                  <div className="rounded-xl border border-dashed border-gray-300 px-5 py-8 text-center text-sm text-gray-500">
+                    No FAQs added yet.
+                  </div>
+                )}
+
+                {faqs.map(
+                  (
+                    faq,
+                    index
+                  ) => (
+                    <div
+                      key={
+                        faq.id ||
+                        `faq-${index}`
+                      }
+                      className="rounded-xl border border-gray-200 bg-gray-50 p-5"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-gray-700">
+                          FAQ{" "}
+                          {index +
+                            1}
+                        </span>
 
                         <button
                           type="button"
                           onClick={() =>
-                            deleteBlock(
+                            deleteFAQ(
                               index
                             )
                           }
-                          disabled={isBusy}
-                          className="rounded-lg border bg-white px-2.5 py-1.5 text-red-600 disabled:opacity-50"
+                          className="text-sm font-semibold text-red-600 hover:text-red-700"
                         >
                           Delete
                         </button>
-
                       </div>
-                    </div>
 
-                    {/* TEXT */}
-
-                    {isTextBlock(
-                      block
-                    ) && (
-                      <div className="space-y-3">
-
-                        <select
-                          value={
-                            block.headingType
-                          }
-                          onChange={(e) =>
-                            updateTextBlockType(
-                              index,
-                              e.target
-                                .value as TextBlockType
-                            )
-                          }
-                          disabled={isBusy}
-                          className="rounded-xl border bg-white px-3 py-2.5 text-sm font-medium"
-                        >
-                          <option value="paragraph">
-                            Paragraph
-                          </option>
-
-                          <option value="h1">
-                            H1 Heading
-                          </option>
-
-                          <option value="h2">
-                            H2 Heading
-                          </option>
-
-                          <option value="h3">
-                            H3 Heading
-                          </option>
-                        </select>
-
-                        <textarea
-                          value={
-                            block.content
-                          }
-                          onChange={(e) =>
-                            updateTextBlock(
-                              index,
-                              e.target
-                                .value
-                            )
-                          }
-                          disabled={isBusy}
-                          rows={
-                            block.headingType ===
-                            "paragraph"
-                              ? 10
-                              : 3
-                          }
-                          placeholder="Write your article section here..."
-                          className="w-full resize-y rounded-xl border bg-white p-4 leading-7 outline-none focus:ring-2 focus:ring-black"
-                        />
-
-                      </div>
-                    )}
-
-                    {/* IMAGE */}
-
-                    {isImageBlock(
-                      block
-                    ) && (
-                      <div className="space-y-4">
-
-                        {block.url && (
-                          <div className="overflow-hidden rounded-xl border bg-white">
-                            <img
-                              src={
-                                block.url
-                              }
-                              alt={
-                                block.alt ||
-                                form.title
-                              }
-                              className="max-h-[420px] w-full object-cover"
-                            />
-                          </div>
-                        )}
-
-                        <label className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-black px-4 py-2.5 text-sm font-semibold text-white">
-
-                          {uploadingBlockIndex ===
-                          index
-                            ? "Uploading..."
-                            : block.url
-                            ? "📷 Change Image"
-                            : "📷 Select Image"}
-
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp,image/gif"
-                            onChange={(
-                              e
-                            ) =>
-                              handleBlockImageUpload(
-                                index,
-                                e
-                              )
-                            }
-                            disabled={
-                              uploadingBlockIndex ===
-                                index ||
-                              isBusy
-                            }
-                            className="hidden"
-                          />
-
-                        </label>
-
+                      <div className="mt-4 space-y-4">
                         <input
+                          type="text"
                           value={
-                            block.alt
+                            faq.question
                           }
-                          onChange={(e) =>
-                            updateImageAlt(
+                          onChange={(
+                            event
+                          ) =>
+                            updateFAQ(
                               index,
-                              e.target
+                              "question",
+                              event
+                                .target
                                 .value
                             )
                           }
-                          disabled={isBusy}
-                          placeholder="Image alt text"
-                          className="w-full rounded-xl border bg-white p-3 text-sm"
-                        />
-
-                      </div>
-                    )}
-
-                    {/* CALLOUT */}
-
-                    {isCalloutBlock(
-                      block
-                    ) && (
-                      <div className="rounded-xl border bg-white p-4">
-
-                        <input
-                          value={
-                            block.title ||
-                            ""
-                          }
-                          onChange={(e) =>
-                            updateCallout(
-                              index,
-                              "title",
-                              e.target
-                                .value
-                            )
-                          }
-                          disabled={isBusy}
-                          placeholder="Callout title"
-                          className="mb-3 w-full rounded-xl border p-3 font-semibold"
+                          placeholder="Enter question..."
+                          className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-gray-900"
                         />
 
                         <textarea
                           value={
-                            block.content
+                            faq.answer
                           }
-                          onChange={(e) =>
-                            updateCallout(
+                          onChange={(
+                            event
+                          ) =>
+                            updateFAQ(
                               index,
-                              "content",
-                              e.target
+                              "answer",
+                              event
+                                .target
                                 .value
                             )
                           }
-                          disabled={isBusy}
-                          rows={6}
-                          className="w-full rounded-xl border p-4"
-                        />
-
-                      </div>
-                    )}
-
-                    {/* QUOTE */}
-
-                    {isQuoteBlock(
-                      block
-                    ) && (
-                      <div className="rounded-xl border bg-white p-4">
-
-                        <textarea
-                          value={
-                            block.content
-                          }
-                          onChange={(e) =>
-                            updateQuote(
-                              index,
-                              "content",
-                              e.target
-                                .value
-                            )
-                          }
-                          disabled={isBusy}
+                          placeholder="Enter answer..."
                           rows={5}
-                          className="w-full rounded-xl border p-4"
+                          className="w-full resize-y rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm leading-7 outline-none focus:border-gray-900"
                         />
-
-                        <input
-                          value={
-                            block.author ||
-                            ""
-                          }
-                          onChange={(e) =>
-                            updateQuote(
-                              index,
-                              "author",
-                              e.target
-                                .value
-                            )
-                          }
-                          disabled={isBusy}
-                          placeholder="Author (optional)"
-                          className="mt-3 w-full rounded-xl border p-3"
-                        />
-
                       </div>
-                    )}
-
-                    {/* LIST */}
-
-                    {isListBlock(
-                      block
-                    ) && (
-                      <div className="space-y-3 rounded-xl border bg-white p-4">
-
-                        {block.items.map(
-                          (
-                            item: string,
-                            itemIndex: number
-                          ) => (
-                            <div
-                              key={
-                                itemIndex
-                              }
-                              className="flex gap-2"
-                            >
-
-                              <input
-                                value={
-                                  item
-                                }
-                                onChange={(
-                                  e
-                                ) =>
-                                  updateListItem(
-                                    index,
-                                    itemIndex,
-                                    e
-                                      .target
-                                      .value
-                                  )
-                                }
-                                disabled={isBusy}
-                                className="w-full rounded-xl border p-3"
-                              />
-
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  deleteListItem(
-                                    index,
-                                    itemIndex
-                                  )
-                                }
-                                disabled={isBusy}
-                                className="rounded-xl border px-3 text-red-600 disabled:opacity-50"
-                              >
-                                ×
-                              </button>
-
-                            </div>
-                          )
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            addListItem(
-                              index
-                            )
-                          }
-                          disabled={isBusy}
-                          className="rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50"
-                        >
-                          + Add Item
-                        </button>
-
-                      </div>
-                    )}
-
-                    {/* TABLE */}
-
-                    {isTableBlock(
-                      block
-                    ) && (
-                      <div className="space-y-4 rounded-xl border bg-white p-4">
-
-                        <div className="overflow-x-auto">
-
-                          <table className="w-full border-collapse">
-
-                            <thead>
-                              <tr>
-
-                                {block.headers.map(
-                                  (
-                                    header: string,
-                                    headerIndex: number
-                                  ) => (
-                                    <th
-                                      key={
-                                        headerIndex
-                                      }
-                                      className="border bg-gray-100 p-2"
-                                    >
-                                      <input
-                                        value={
-                                          header
-                                        }
-                                        onChange={(
-                                          e
-                                        ) =>
-                                          updateTableHeader(
-                                            index,
-                                            headerIndex,
-                                            e
-                                              .target
-                                              .value
-                                          )
-                                        }
-                                        disabled={isBusy}
-                                        className="w-full rounded-lg border bg-white p-2 text-sm font-semibold"
-                                      />
-                                    </th>
-                                  )
-                                )}
-
-                                <th className="w-20 border bg-gray-100 p-2">
-                                  Actions
-                                </th>
-
-                              </tr>
-                            </thead>
-
-                            <tbody>
-
-                              {block.rows.map(
-                                (
-                                  row: string[],
-                                  rowIndex: number
-                                ) => (
-                                  <tr
-                                    key={
-                                      rowIndex
-                                    }
-                                  >
-
-                                    {row.map(
-                                      (
-                                        cell: string,
-                                        cellIndex: number
-                                      ) => (
-                                        <td
-                                          key={
-                                            cellIndex
-                                          }
-                                          className="border p-2"
-                                        >
-                                          <input
-                                            value={
-                                              cell
-                                            }
-                                            onChange={(
-                                              e
-                                            ) =>
-                                              updateTableCell(
-                                                index,
-                                                rowIndex,
-                                                cellIndex,
-                                                e
-                                                  .target
-                                                  .value
-                                              )
-                                            }
-                                            disabled={isBusy}
-                                            className="w-full rounded-lg border p-2 text-sm"
-                                          />
-                                        </td>
-                                      )
-                                    )}
-
-                                    <td className="border p-2 text-center">
-
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          deleteTableRow(
-                                            index,
-                                            rowIndex
-                                          )
-                                        }
-                                        disabled={isBusy}
-                                        className="rounded-lg border px-3 py-2 text-sm text-red-600 disabled:opacity-50"
-                                      >
-                                        Delete
-                                      </button>
-
-                                    </td>
-
-                                  </tr>
-                                )
-                              )}
-
-                            </tbody>
-
-                          </table>
-
-                        </div>
-
-                        <div className="flex flex-wrap gap-2">
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              addTableRow(
-                                index
-                              )
-                            }
-                            disabled={isBusy}
-                            className="rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50"
-                          >
-                            + Add Row
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              addTableColumn(
-                                index
-                              )
-                            }
-                            disabled={isBusy}
-                            className="rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50"
-                          >
-                            + Add Column
-                          </button>
-
-                        </div>
-
-                      </div>
-                    )}
-
-                    {/* UNKNOWN */}
-
-                    {[
-                      "text",
-                      "image",
-                      "callout",
-                      "quote",
-                      "bullet-list",
-                      "bullets",
-                      "unordered-list",
-                      "ordered-list",
-                      "numbered-list",
-                      "table",
-                    ].includes(
-                      block.type
-                    ) === false && (
-                      <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
-
-                        <p className="text-sm font-semibold text-yellow-800">
-                          Unsupported block:{" "}
-                          {
-                            block.type
-                          }
-                        </p>
-
-                        <p className="mt-1 text-xs text-yellow-700">
-                          This content
-                          is being
-                          preserved so
-                          it is not
-                          deleted when
-                          you save.
-                        </p>
-
-                      </div>
-                    )}
-
-                    {/* INSERT */}
-
-                    <div className="mt-5 flex flex-wrap gap-2 border-t pt-4">
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          addTextBlock(
-                            index
-                          )
-                        }
-                        disabled={isBusy}
-                        className="rounded-lg border bg-white px-3 py-2 text-xs font-semibold disabled:opacity-50"
-                      >
-                        + Text After
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          addImageBlock(
-                            index
-                          )
-                        }
-                        disabled={isBusy}
-                        className="rounded-lg border bg-white px-3 py-2 text-xs font-semibold disabled:opacity-50"
-                      >
-                        + Image After
-                      </button>
-
                     </div>
+                  )
+                )}
+              </div>
+            </section>
 
+            {/* =================================================
+                SEO
+            ================================================= */}
+
+            <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-bold text-gray-900">
+                SEO
+              </h2>
+
+              <p className="mt-1 text-sm text-gray-500">
+                Customize how the article appears in
+                search engines.
+              </p>
+
+              <div className="mt-5 space-y-5">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-700">
+                    SEO Title
+                  </label>
+
+                  <input
+                    type="text"
+                    value={
+                      metaTitle
+                    }
+                    onChange={(event) =>
+                      setMetaTitle(
+                        event.target
+                          .value
+                      )
+                    }
+                    placeholder="SEO title..."
+                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
+                  />
+
+                  <p className="mt-2 text-xs text-gray-500">
+                    {metaTitle.length} characters
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-700">
+                    SEO Description
+                  </label>
+
+                  <textarea
+                    value={
+                      metaDescription
+                    }
+                    onChange={(event) =>
+                      setMetaDescription(
+                        event.target
+                          .value
+                      )
+                    }
+                    rows={4}
+                    placeholder="SEO description..."
+                    className="w-full resize-y rounded-xl border border-gray-300 px-4 py-3 text-sm leading-7 outline-none focus:border-gray-900"
+                  />
+
+                  <p className="mt-2 text-xs text-gray-500">
+                    {
+                      metaDescription.length
+                    }{" "}
+                    characters
+                  </p>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          {/* ===================================================
+              SIDEBAR
+          =================================================== */}
+
+          <aside>
+            <div className="sticky top-6 space-y-6">
+              {/* PUBLICATION */}
+
+              <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h3 className="font-bold text-gray-900">
+                  Publication
+                </h3>
+
+                <div className="mt-4 space-y-3">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      saveBlog(
+                        false
+                      )
+                    }
+                    disabled={saving}
+                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    {saving
+                      ? "Saving..."
+                      : "Save Draft"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowPreview(
+                        true
+                      )
+                    }
+                    className="w-full rounded-xl border border-gray-900 px-4 py-3 text-sm font-semibold text-gray-900 hover:bg-gray-50"
+                  >
+                    Preview Article
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      saveBlog(
+                        true
+                      )
+                    }
+                    disabled={saving}
+                    className="w-full rounded-xl bg-gray-900 px-4 py-3 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
+                  >
+                    {saving
+                      ? "Updating..."
+                      : published
+                        ? "Update Article"
+                        : "Publish Article"}
+                  </button>
+                </div>
+              </section>
+
+              {/* STATUS */}
+
+              <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h3 className="font-bold text-gray-900">
+                  Status
+                </h3>
+
+                <div className="mt-4 rounded-xl bg-gray-50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm text-gray-500">
+                      Current status
+                    </span>
+
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                        published
+                          ? "bg-green-100 text-green-700"
+                          : "bg-amber-100 text-amber-700"
+                      }`}
+                    >
+                      {published
+                        ? "Published"
+                        : "Draft"}
+                    </span>
                   </div>
-                )
-              )}
 
-            </div>
-          </section>
+                  {originalPublishedAt && (
+                    <p className="mt-3 text-xs text-gray-500">
+                      Published:{" "}
+                      {new Date(
+                        originalPublishedAt
+                      ).toLocaleDateString(
+                        "en-IN",
+                        {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        }
+                      )}
+                    </p>
+                  )}
+                </div>
+              </section>
 
-          {/* DANGER ZONE */}
+              {/* FEATURED */}
 
-          <section className="rounded-2xl border border-red-200 bg-white p-5 shadow-sm sm:p-7">
+              <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={
+                      featured
+                    }
+                    onChange={(event) =>
+                      setFeatured(
+                        event.target
+                          .checked
+                      )
+                    }
+                    className="mt-1 h-4 w-4 rounded border-gray-300"
+                  />
 
-            <h2 className="text-xl font-bold text-red-600">
-              Danger Zone
-            </h2>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      Featured Article
+                    </p>
 
-            <p className="mb-5 mt-1 text-sm text-gray-500">
-              Deleting this article
-              permanently removes
-              it from your blog
-              database.
-            </p>
+                    <p className="mt-1 text-xs leading-5 text-gray-500">
+                      Mark this article as featured on
+                      the homepage.
+                    </p>
+                  </div>
+                </label>
+              </section>
 
-            <button
-              type="button"
-              onClick={() =>
-                setShowDeleteConfirm(
-                  true
-                )
-              }
-              disabled={
-                deleting ||
-                isBusy
-              }
-              className="rounded-xl bg-red-600 px-5 py-3 font-semibold text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              🗑 Delete This Blog
-            </button>
+              {/* SUMMARY */}
 
-          </section>
+              <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h3 className="font-bold text-gray-900">
+                  Article Summary
+                </h3>
 
-          {/* BOTTOM ACTIONS */}
+                <div className="mt-4 space-y-3 text-sm">
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-500">
+                      Article ID
+                    </span>
 
-          <div className="rounded-2xl border bg-gray-50 p-4 sm:p-5">
+                    <span className="font-semibold">
+                      {blogId}
+                    </span>
+                  </div>
 
-            <div className="mb-4">
-              <p className="text-sm font-semibold text-gray-900">
-                {form.published
-                  ? "This article is currently public."
-                  : "This article is currently a draft."}
-              </p>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-500">
+                      Blocks
+                    </span>
 
-              <p className="mt-1 text-xs text-gray-500">
-                Save your changes as a
-                draft or publish the
-                article when it is ready.
-              </p>
-            </div>
+                    <span className="font-semibold">
+                      {
+                        contentBlocks.length
+                      }
+                    </span>
+                  </div>
 
-            <div className="flex flex-col justify-end gap-3 sm:flex-row">
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-500">
+                      FAQs
+                    </span>
+
+                    <span className="font-semibold">
+                      {faqs.length}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-500">
+                      Tags
+                    </span>
+
+                    <span className="font-semibold">
+                      {
+                        tags
+                          .split(
+                            ","
+                          )
+                          .filter(
+                            (
+                              tag
+                            ) =>
+                              tag.trim()
+                          )
+                          .length
+                      }
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-500">
+                      Category
+                    </span>
+
+                    <span className="text-right font-semibold">
+                      {category ||
+                        "—"}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-500">
+                      Views
+                    </span>
+
+                    <span className="font-semibold">
+                      {views}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-500">
+                      Cover Image
+                    </span>
+
+                    <span className="font-semibold">
+                      {coverImagePreview
+                        ? "Available"
+                        : "None"}
+                    </span>
+                  </div>
+                </div>
+              </section>
+
+              {/* BACK */}
 
               <button
                 type="button"
@@ -3593,254 +2545,15 @@ export default function EditBlogPage() {
                     "/admin/blogs"
                   )
                 }
-                disabled={isBusy}
-                className="rounded-xl border bg-white px-6 py-3 font-semibold disabled:opacity-50"
+                className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
               >
-                Cancel
+                ← Back to Articles
               </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setShowPreview(true)
-                }
-                disabled={isBusy}
-                className="rounded-xl border bg-white px-6 py-3 font-semibold disabled:opacity-50"
-              >
-                👁 Preview
-              </button>
-
-              <button
-                type="button"
-                onClick={saveDraft}
-                disabled={isBusy}
-                className="rounded-xl border border-gray-300 bg-white px-6 py-3 font-semibold text-gray-900 hover:bg-gray-50 disabled:opacity-50"
-              >
-                {saving
-                  ? "Saving..."
-                  : "📝 Save Draft"}
-              </button>
-
-              {form.published ? (
-                <button
-                  type="button"
-                  onClick={
-                    unpublishBlog
-                  }
-                  disabled={isBusy}
-                  className="rounded-xl border border-orange-300 bg-orange-50 px-6 py-3 font-semibold text-orange-700 hover:bg-orange-100 disabled:opacity-50"
-                >
-                  {unpublishing
-                    ? "Unpublishing..."
-                    : "↩ Unpublish"}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={
-                    publishBlog
-                  }
-                  disabled={isBusy}
-                  className="rounded-xl bg-green-600 px-7 py-3 font-semibold text-white shadow-sm hover:bg-green-700 disabled:opacity-50"
-                >
-                  {publishing
-                    ? "Publishing..."
-                    : "🚀 Publish Now"}
-                </button>
-              )}
-
             </div>
-          </div>
-
+          </aside>
         </div>
-      </main>
-
-      {/* =====================================================
-          PREVIEW
-      ===================================================== */}
-
-      {showPreview && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-3 sm:p-6">
-
-          <div className="mx-auto min-h-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl">
-
-            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b bg-white px-5 py-4">
-
-              <div>
-
-                <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Article Preview
-                </div>
-
-                <div className="font-bold text-gray-900">
-                  {form.title ||
-                    "Untitled Blog"}
-                </div>
-
-              </div>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setShowPreview(
-                    false
-                  )
-                }
-                className="h-10 w-10 rounded-full bg-gray-100 text-lg font-bold hover:bg-gray-200"
-              >
-                ×
-              </button>
-
-            </div>
-
-            <article className="px-5 py-8 sm:px-10">
-
-              {form.category && (
-                <div className="mb-3 text-sm font-bold text-gray-500">
-                  {
-                    form.category
-                  }
-                </div>
-              )}
-
-              <h1 className="mb-5 text-3xl font-bold leading-tight text-gray-900 sm:text-5xl">
-                {form.title ||
-                  "Untitled Blog"}
-              </h1>
-
-              {form.excerpt && (
-                <p className="mb-7 text-lg leading-8 text-gray-600 sm:text-xl">
-                  {
-                    form.excerpt
-                  }
-                </p>
-              )}
-
-              {form.cover_image && (
-                <img
-                  src={
-                    form.cover_image
-                  }
-                  alt={
-                    form.title
-                  }
-                  className="mb-8 max-h-[520px] w-full rounded-2xl object-cover"
-                />
-              )}
-
-              {form.introduction && (
-                <div className="mb-10">
-
-                  <p className="whitespace-pre-line text-lg leading-8 text-gray-700 sm:text-xl">
-                    {
-                      form.introduction
-                    }
-                  </p>
-
-                </div>
-              )}
-
-              <div>
-                {contentBlocks.map(
-                  (
-                    block: ContentBlock,
-                    index: number
-                  ) =>
-                    renderPreviewBlock(
-                      block,
-                      index
-                    )
-                )}
-              </div>
-
-              {form.author && (
-                <div className="mt-12 border-t pt-6 text-sm text-gray-500">
-                  Written by{" "}
-                  <strong>
-                    {
-                      form.author
-                    }
-                  </strong>
-                </div>
-              )}
-
-            </article>
-
-          </div>
-
-        </div>
-      )}
-
-      {/* =====================================================
-          DELETE MODAL
-      ===================================================== */}
-
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
-
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-xl">
-              🗑
-            </div>
-
-            <h2 className="text-xl font-bold text-gray-900">
-              Delete this blog?
-            </h2>
-
-            <p className="mt-2 text-sm leading-6 text-gray-600">
-              You are about to
-              permanently delete:
-            </p>
-
-            <div className="mt-3 rounded-xl border bg-gray-50 p-3 font-semibold text-gray-900">
-              {form.title}
-            </div>
-
-            <p className="mt-4 text-sm font-medium text-red-600">
-              This action cannot
-              be undone.
-            </p>
-
-            <div className="mt-6 flex flex-col-reverse justify-end gap-3 sm:flex-row">
-
-              <button
-                type="button"
-                onClick={() =>
-                  setShowDeleteConfirm(
-                    false
-                  )
-                }
-                disabled={
-                  deleting
-                }
-                className="rounded-xl border bg-white px-5 py-3 font-semibold disabled:opacity-50"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={
-                  deleteBlog
-                }
-                disabled={
-                  deleting
-                }
-                className="rounded-xl bg-red-600 px-5 py-3 font-semibold text-white hover:bg-red-700 disabled:opacity-50"
-              >
-                {deleting
-                  ? "Deleting..."
-                  : "Yes, Delete Blog"}
-              </button>
-
-            </div>
-
-          </div>
-
-        </div>
-      )}
-    </>
+      </div>
+    </main>
   );
 }
 

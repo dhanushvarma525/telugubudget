@@ -18,29 +18,28 @@ export type BlogCategory =
   | "Tech"
   | "How-To"
   | "Apps"
-  | "Security";
+  | "Security"
+  | "Explained";
 
 export interface BlogContentBlock {
   id?: string;
 
   type: BlogBlockType;
 
-  /* =========================
-     TEXT
-  ========================= */
-
+  /*
+   * Rich text is stored as sanitized HTML here.
+   *
+   * Example:
+   * <p>This is <strong>important</strong>.</p>
+   */
   text?: string;
+
+  /*
+   * Legacy/edit-page compatibility.
+   */
   content?: string;
 
-  /* =========================
-     HEADING
-  ========================= */
-
   level?: number;
-
-  /* =========================
-     IMAGE
-  ========================= */
 
   url?: string;
   src?: string;
@@ -50,29 +49,14 @@ export interface BlogContentBlock {
   caption?: string;
   title?: string;
 
-  /* =========================
-     LIST
-  ========================= */
-
   items?: string[];
-
-  /* =========================
-     TABLE
-  ========================= */
 
   headers?: string[];
   rows?: string[][];
 
-  /* =========================
-     LINK
-  ========================= */
-
   href?: string;
-  external?: boolean;
 
-  /* =========================
-     CALLOUT
-  ========================= */
+  external?: boolean;
 
   label?: string;
 }
@@ -95,6 +79,7 @@ export interface BlogFormData {
   cover_image?: string | null;
 
   category: string;
+
   author: string;
 
   tags: string[];
@@ -104,15 +89,18 @@ export interface BlogFormData {
   faqs: BlogFAQ[];
 
   published: boolean;
+
   featured: boolean;
 
   views?: number;
 
   meta_title?: string;
+
   meta_description?: string;
 
   published_at?: string | null;
 
   created_at?: string | null;
+
   updated_at?: string | null;
 }

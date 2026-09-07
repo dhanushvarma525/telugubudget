@@ -5,27 +5,39 @@ import type {
   BlogContentBlock,
 } from "@/types/blog";
 
+import {
+  sanitizeRichText,
+} from "@/lib/sanitizeHtml";
+
 type BlogPreviewProps = {
   blog: BlogFormData;
 };
 
-/* ============================================================
+/* =========================================================
    HELPERS
-============================================================ */
+========================================================= */
 
 function getBlockText(
   block: BlogContentBlock
 ): string {
-  return block.text || block.content || "";
+  return (
+    block.text ||
+    block.content ||
+    ""
+  );
 }
 
-function formatDate(date?: string | null) {
+function formatDate(
+  date?: string | null
+) {
   if (!date) {
-    return "August 24, 2026";
+    return "September 5, 2026";
   }
 
   try {
-    return new Date(date).toLocaleDateString(
+    return new Date(
+      date
+    ).toLocaleDateString(
       "en-IN",
       {
         year: "numeric",
@@ -34,66 +46,121 @@ function formatDate(date?: string | null) {
       }
     );
   } catch {
-    return "August 24, 2026";
+    return "September 5, 2026";
   }
 }
 
-/* ============================================================
-   ARTICLE BLOCK RENDERER
-============================================================ */
+function hasHtml(value: string) {
+  return /<[^>]+>/.test(
+    value
+  );
+}
+
+/* =========================================================
+   RICH TEXT
+========================================================= */
+
+function RichText({
+  html,
+  className = "",
+}: {
+  html: string;
+  className?: string;
+}) {
+  const safeHtml =
+    sanitizeRichText(html);
+
+  if (!safeHtml) {
+    return null;
+  }
+
+  return (
+    <div
+      className={[
+        "prose prose-gray max-w-none",
+        "prose-p:my-5 prose-p:leading-8",
+        "prose-h2:mt-12 prose-h2:mb-5",
+        "prose-h3:mt-9 prose-h3:mb-4",
+        "prose-a:font-semibold prose-a:underline prose-a:underline-offset-4",
+        "prose-blockquote:border-gray-900",
+        className,
+      ].join(" ")}
+      dangerouslySetInnerHTML={{
+        __html: safeHtml,
+      }}
+    />
+  );
+}
+
+/* =========================================================
+   BLOCK RENDERER
+========================================================= */
 
 function renderBlock(
   block: BlogContentBlock,
   index: number
 ) {
   const key =
-    block.id || `block-${index}`;
+    block.id ||
+    `block-${index}`;
 
   switch (block.type) {
-    /* ========================================================
-       HEADING
-    ======================================================== */
-
     case "heading": {
-      const text = getBlockText(block);
+      const text =
+        getBlockText(block);
 
       if (!text.trim()) {
         return null;
       }
 
-      const level = block.level || 2;
+      const safe =
+        sanitizeRichText(
+          text
+        );
+
+      const level =
+        block.level || 2;
 
       if (level === 3) {
         return (
-          <h3
+          <div
             key={key}
-            className="mt-10 mb-4 text-xl font-bold leading-tight tracking-tight text-gray-950 sm:text-2xl"
-          >
-            {text}
-          </h3>
+            className="mt-10 mb-5"
+            dangerouslySetInnerHTML={{
+              __html: safe,
+            }}
+          />
         );
       }
 
       return (
-        <h2
+        <div
           key={key}
-          className="mt-14 mb-5 text-2xl font-bold leading-tight tracking-tight text-gray-950 sm:text-3xl"
-        >
-          {text}
-        </h2>
+          className="mt-14 mb-6"
+          dangerouslySetInnerHTML={{
+            __html: safe,
+          }}
+        />
       );
     }
 
-    /* ========================================================
-       PARAGRAPH
-    ======================================================== */
-
     case "text":
     case "paragraph": {
-      const text = getBlockText(block);
+      const text =
+        getBlockText(block);
 
       if (!text.trim()) {
         return null;
+      }
+
+      if (hasHtml(text)) {
+        return (
+          <RichText
+            key={key}
+            html={text}
+            className="mb-6 text-[17px] sm:text-lg"
+          />
+        );
       }
 
       return (
@@ -105,10 +172,6 @@ function renderBlock(
         </p>
       );
     }
-
-    /* ========================================================
-       IMAGE
-    ======================================================== */
 
     case "image": {
       const imageUrl =
@@ -147,19 +210,17 @@ function renderBlock(
       );
     }
 
-    /* ========================================================
-       BULLET LIST
-    ======================================================== */
-
     case "bullet-list":
     case "bullets":
     case "unordered-list": {
       const items =
         block.items?.filter(
-          (item) => item.trim()
+          Boolean
         ) || [];
 
-      if (items.length === 0) {
+      if (
+        items.length === 0
+      ) {
         return null;
       }
 
@@ -169,7 +230,10 @@ function renderBlock(
           className="my-7 list-disc space-y-3 pl-7 text-[17px] leading-8 text-gray-700 sm:text-lg"
         >
           {items.map(
-            (item, itemIndex) => (
+            (
+              item,
+              itemIndex
+            ) => (
               <li
                 key={itemIndex}
                 className="pl-1"
@@ -182,18 +246,16 @@ function renderBlock(
       );
     }
 
-    /* ========================================================
-       NUMBERED LIST
-    ======================================================== */
-
     case "numbered-list":
     case "ordered-list": {
       const items =
         block.items?.filter(
-          (item) => item.trim()
+          Boolean
         ) || [];
 
-      if (items.length === 0) {
+      if (
+        items.length === 0
+      ) {
         return null;
       }
 
@@ -203,7 +265,10 @@ function renderBlock(
           className="my-7 list-decimal space-y-3 pl-7 text-[17px] leading-8 text-gray-700 sm:text-lg"
         >
           {items.map(
-            (item, itemIndex) => (
+            (
+              item,
+              itemIndex
+            ) => (
               <li
                 key={itemIndex}
                 className="pl-1"
@@ -216,15 +281,26 @@ function renderBlock(
       );
     }
 
-    /* ========================================================
-       QUOTE
-    ======================================================== */
-
     case "quote": {
-      const text = getBlockText(block);
+      const text =
+        getBlockText(block);
 
       if (!text.trim()) {
         return null;
+      }
+
+      if (hasHtml(text)) {
+        return (
+          <blockquote
+            key={key}
+            className="my-10 border-l-4 border-gray-900 bg-gray-50 px-6 py-6 sm:px-8"
+          >
+            <RichText
+              html={text}
+              className="text-lg italic sm:text-xl"
+            />
+          </blockquote>
+        );
       }
 
       return (
@@ -239,12 +315,9 @@ function renderBlock(
       );
     }
 
-    /* ========================================================
-       CALLOUT
-    ======================================================== */
-
     case "callout": {
-      const text = getBlockText(block);
+      const text =
+        getBlockText(block);
 
       if (!text.trim()) {
         return null;
@@ -261,20 +334,24 @@ function renderBlock(
             </p>
           )}
 
-          <p className="text-base leading-8 text-gray-700 sm:text-lg sm:leading-8">
-            {text}
-          </p>
+          {hasHtml(text) ? (
+            <RichText
+              html={text}
+              className="text-base sm:text-lg"
+            />
+          ) : (
+            <p className="text-base leading-8 text-gray-700 sm:text-lg">
+              {text}
+            </p>
+          )}
         </aside>
       );
     }
 
-    /* ========================================================
-       LINK
-    ======================================================== */
-
     case "link": {
       const href =
-        block.href || "#";
+        block.href ||
+        "#";
 
       const text =
         getBlockText(block) ||
@@ -306,10 +383,6 @@ function renderBlock(
       );
     }
 
-    /* ========================================================
-       TABLE
-    ======================================================== */
-
     case "table": {
       const headers =
         block.headers || [];
@@ -331,7 +404,8 @@ function renderBlock(
         >
           <div className="overflow-x-auto">
             <table className="min-w-full border-collapse text-sm sm:text-base">
-              {headers.length > 0 && (
+              {headers.length >
+                0 && (
                 <thead>
                   <tr className="bg-gray-50">
                     {headers.map(
@@ -360,7 +434,9 @@ function renderBlock(
                     rowIndex
                   ) => (
                     <tr
-                      key={rowIndex}
+                      key={
+                        rowIndex
+                      }
                       className="border-b border-gray-100 last:border-b-0"
                     >
                       {row.map(
@@ -393,9 +469,9 @@ function renderBlock(
   }
 }
 
-/* ============================================================
-   RELATED ARTICLES PLACEHOLDER
-============================================================ */
+/* =========================================================
+   RELATED PLACEHOLDER
+========================================================= */
 
 function PreviewRelatedArticles() {
   return (
@@ -439,9 +515,9 @@ function PreviewRelatedArticles() {
   );
 }
 
-/* ============================================================
-   MAIN PREVIEW
-============================================================ */
+/* =========================================================
+   MAIN
+========================================================= */
 
 export default function BlogPreview({
   blog,
@@ -465,21 +541,8 @@ export default function BlogPreview({
 
   return (
     <div className="min-h-screen bg-white">
-
-      {/* ======================================================
-          ARTICLE
-      ====================================================== */}
-
       <article className="mx-auto w-full max-w-5xl">
-
-        {/* ====================================================
-            ARTICLE HEADER
-        ==================================================== */}
-
         <header className="px-5 pb-8 pt-4 sm:px-8 sm:pb-10 sm:pt-8 lg:px-10 lg:pt-10">
-
-          {/* CATEGORY */}
-
           {blog.category && (
             <div className="mb-5">
               <span className="inline-flex rounded-full border border-gray-200 bg-gray-50 px-3.5 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-gray-700">
@@ -488,22 +551,16 @@ export default function BlogPreview({
             </div>
           )}
 
-          {/* TITLE */}
-
           <h1 className="max-w-4xl text-4xl font-extrabold leading-[1.08] tracking-[-0.035em] text-gray-950 sm:text-5xl lg:text-[56px]">
             {blog.title ||
               "Untitled Article"}
           </h1>
-
-          {/* EXCERPT */}
 
           {blog.excerpt && (
             <p className="mt-6 max-w-3xl text-lg leading-8 text-gray-600 sm:text-xl sm:leading-9">
               {blog.excerpt}
             </p>
           )}
-
-          {/* AUTHOR / DATE */}
 
           <div className="mt-7 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-gray-500">
             <span className="font-semibold text-gray-900">
@@ -529,18 +586,15 @@ export default function BlogPreview({
               Preview
             </span>
           </div>
-
         </header>
-
-        {/* ====================================================
-            COVER IMAGE
-        ==================================================== */}
 
         {blog.cover_image && (
           <div className="px-5 sm:px-8 lg:px-10">
             <div className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 shadow-sm sm:rounded-3xl">
               <img
-                src={blog.cover_image}
+                src={
+                  blog.cover_image
+                }
                 alt={
                   blog.title ||
                   "Article cover"
@@ -551,23 +605,16 @@ export default function BlogPreview({
           </div>
         )}
 
-        {/* ====================================================
-            ARTICLE BODY
-        ==================================================== */}
-
         <div className="mx-auto max-w-3xl px-5 py-10 sm:px-8 sm:py-12">
-
-          {/* INTRODUCTION */}
-
           {blog.introduction && (
             <div className="mb-10">
               <p className="text-[18px] font-medium leading-8 text-gray-800 sm:text-xl sm:leading-9">
-                {blog.introduction}
+                {
+                  blog.introduction
+                }
               </p>
             </div>
           )}
-
-          {/* CONTENT */}
 
           <div>
             {blocks.map(
@@ -579,13 +626,9 @@ export default function BlogPreview({
             )}
           </div>
 
-          {/* ==================================================
-              FAQ
-          ================================================== */}
-
-          {faqs.length > 0 && (
+          {faqs.length >
+            0 && (
             <section className="mt-16 border-t border-gray-200 pt-10">
-
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-gray-500">
                 FAQ
               </p>
@@ -630,17 +673,12 @@ export default function BlogPreview({
                   )
                 )}
               </div>
-
             </section>
           )}
 
-          {/* ==================================================
-              TAGS
-          ================================================== */}
-
-          {tags.length > 0 && (
+          {tags.length >
+            0 && (
             <div className="mt-14 border-t border-gray-200 pt-7">
-
               <p className="mb-4 text-xs font-bold uppercase tracking-[0.15em] text-gray-500">
                 Topics
               </p>
@@ -660,23 +698,12 @@ export default function BlogPreview({
                   )
                 )}
               </div>
-
             </div>
           )}
 
-          {/* ==================================================
-              RELATED ARTICLES
-          ================================================== */}
-
           <PreviewRelatedArticles />
-
         </div>
-
       </article>
-
-      {/* ======================================================
-          PREVIEW FOOTER
-      ====================================================== */}
 
       <footer className="border-t border-gray-200 bg-gray-50">
         <div className="mx-auto max-w-5xl px-5 py-10 text-center sm:px-8">
@@ -689,7 +716,6 @@ export default function BlogPreview({
           </p>
         </div>
       </footer>
-
     </div>
   );
 }
