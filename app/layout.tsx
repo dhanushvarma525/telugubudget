@@ -1,4 +1,3 @@
-
 import type { Metadata } from "next";
 import "./globals.css";
 
@@ -44,9 +43,19 @@ export const metadata: Metadata = {
   creator: "AnantaGo",
   publisher: "AnantaGo",
 
-  alternates: {
-    canonical: siteUrl,
-  },
+  /*
+   * IMPORTANT:
+   * Do NOT set a global canonical here.
+   *
+   * Individual pages should define their own canonical URL.
+   *
+   * Example:
+   * /blog/example-article
+   * -> https://www.anatago.com/blog/example-article
+   *
+   * If we set canonical: siteUrl here, child pages can inherit
+   * the homepage as their canonical.
+   */
 
   robots: {
     index: true,
@@ -139,4 +148,3 @@ export default function RootLayout({
     </html>
   );
 }
-
