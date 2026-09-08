@@ -1,27 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl || !supabaseServiceKey) {
-  throw new Error("Missing Supabase environment variables.");
-}
-
-const supabaseAdmin = createClient(
-  supabaseUrl,
-  supabaseServiceKey,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  }
-);
-
-const BLOG_TABLE = "blogs";
-const BLOG_BUCKET = "blog-images";
+import { supabase } from "@/lib/supabase";
 
 const CATEGORIES = [
   "AI",
@@ -30,96 +8,256 @@ const CATEGORIES = [
   "Apps",
   "Security",
   "Explained",
-];
+] as const;
 
-/* =========================================================
-   HELPERS
-========================================================= */
+type BlogCategory = (typeof CATEGORIES)[number];
 
-function cleanString(
-  value: FormDataEntryValue | null
-): string {
-  if (typeof value !== "string") {
-    return "";
-  }
+type BlogRow = {
+  id: number | string;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  introduction: string | null;
+  cover_image: string | null;
+  category: string;
+  author: string | null;
+  tags: unknown;
+  content_blocks: unknown;
+  faqs: unknown;
+  published: boolean;
+  featured: boolean;
+  views: number;
+  meta_title: string | null;
+  meta_description: string | null;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
 
-  return value.trim();
-}
-
-function parseJSON<T>(
-  value: FormDataEntryValue | null,
-  fallback: T
-): T {
-  if (typeof value !== "string") {
-    return fallback;
-  }
-
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return fallback;
-  }
-
-  try {
-    return JSON.parse(trimmed) as T;
-  } catch (error) {
-    console.error("JSON FIELD PARSE ERROR:", error);
-    return fallback;
-  }
+function jsonResponse(
+  data: unknown,
+  status = 200,
+  headers?: HeadersInit
+) {
+  return NextResponse.json(data, {
+    status,
+    headers: {
+      "Cache-Control": "no-store",
+      ...headers,
+    },
+  });
 }
 
 function parseBoolean(
-  value: FormDataEntryValue | null,
+  value: unknown,
   fallback = false
 ): boolean {
-  if (typeof value !== "string") {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.toLowerCase().trim();
+
+    if (
+      normalized === "true" ||
+      normalized === "1"
+    ) {
+      return true;
+    }
+
+    if (
+      normalized === "false" ||
+      normalized === "0"
+    ) {
+      return false;
+    }
+  }
+
+  return fallback;
+}
+
+function parseJsonValue<T>(
+  value: unknown,
+  fallback: T
+): T {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
     return fallback;
   }
 
-  return value.toLowerCase() === "true";
-}
-
-function createSafeFileName(
-  fileName: string
-): string {
-  const extension = fileName.includes(".")
-    ? fileName.substring(fileName.lastIndexOf("."))
-    : "";
-
-  return `${crypto.randomUUID()}${extension.toLowerCase()}`;
-}
-
-function normalizeTags(
-  value: unknown
-): string[] {
-  if (!Array.isArray(value)) {
-    return [];
+  if (typeof value !== "string") {
+    return value as T;
   }
 
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizeSlug(value: string): string {
   return value
-    .filter(
-      (tag): tag is string =>
-        typeof tag === "string"
-    )
-    .map((tag) => tag.trim())
-    .filter(Boolean);
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
-function normalizeBlocks(
-  value: unknown
-): unknown[] {
-  return Array.isArray(value) ? value : [];
+function isValidCategory(
+  value: string
+): value is BlogCategory {
+  return CATEGORIES.includes(
+    value as BlogCategory
+  );
 }
 
-function normalizeFaqs(
-  value: unknown
-): unknown[] {
-  return Array.isArray(value) ? value : [];
+function getFileExtension(
+  filename: string
+): string {
+  const parts = filename.split(".");
+
+  if (parts.length > 1) {
+    return parts[parts.length - 1].toLowerCase();
+  }
+
+  return "jpg";
+}
+
+function getStoragePathFromPublicUrl(
+  publicUrl: string | null | undefined
+): string | null {
+  if (!publicUrl) {
+    return null;
+  }
+
+  try {
+    const marker =
+      "/storage/v1/object/public/";
+
+    const index =
+      publicUrl.indexOf(marker);
+
+    if (index === -1) {
+      return null;
+    }
+
+    const afterMarker =
+      publicUrl.slice(
+        index + marker.length
+      );
+
+    const firstSlash =
+      afterMarker.indexOf("/");
+
+    if (firstSlash === -1) {
+      return null;
+    }
+
+    return afterMarker.slice(
+      firstSlash + 1
+    );
+  } catch {
+    return null;
+  }
+}
+
+async function deleteCoverImage(
+  coverImage: string | null | undefined
+) {
+  if (!coverImage) {
+    return;
+  }
+
+  const storagePath =
+    getStoragePathFromPublicUrl(
+      coverImage
+    );
+
+  if (!storagePath) {
+    return;
+  }
+
+  try {
+    const { error } =
+      await supabase.storage
+        .from("blog-images")
+        .remove([storagePath]);
+
+    if (error) {
+      console.error(
+        "Failed to delete cover image:",
+        error
+      );
+    }
+  } catch (error) {
+    console.error(
+      "Failed to delete old cover image:",
+      error
+    );
+  }
+}
+
+async function uploadCoverImage(
+  file: File
+): Promise<string> {
+  const extension =
+    getFileExtension(file.name);
+
+  const filename =
+    `cover-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 10)}.${extension}`;
+
+  const filePath =
+    `blogs/${filename}`;
+
+  const buffer = Buffer.from(
+    await file.arrayBuffer()
+  );
+
+  const { error } =
+    await supabase.storage
+      .from("blog-images")
+      .upload(
+        filePath,
+        buffer,
+        {
+          contentType:
+            file.type ||
+            "image/jpeg",
+          upsert: false,
+        }
+      );
+
+  if (error) {
+    console.error(
+      "Cover image upload error:",
+      error
+    );
+
+    throw new Error(
+      "Failed to upload cover image."
+    );
+  }
+
+  const { data } =
+    supabase.storage
+      .from("blog-images")
+      .getPublicUrl(
+        filePath
+      );
+
+  return data.publicUrl;
 }
 
 /* =========================================================
-   GET BLOGS / ADMIN STATS
-========================================================= */
+   GET
+   ========================================================= */
 
 export async function GET(
   request: NextRequest
@@ -128,160 +266,158 @@ export async function GET(
     const { searchParams } =
       new URL(request.url);
 
-    const category =
-      searchParams.get("category")?.trim() || "";
+    const slug =
+      searchParams.get("slug");
 
-    const search =
-      searchParams.get("search")?.trim() || "";
-
-    const status =
-      searchParams.get("status")?.trim().toLowerCase() ||
-      "all";
-
-    const stats =
-      searchParams.get("stats") === "true";
+    const id =
+      searchParams.get("id");
 
     const admin =
       searchParams.get("admin") === "true";
 
     const pageParam =
-      searchParams.get("page") || "1";
+      searchParams.get("page");
 
     const limitParam =
-      searchParams.get("limit") || "20";
+      searchParams.get("limit");
 
-    const page = Math.max(
-      1,
-      Number.parseInt(pageParam, 10) || 1
-    );
+    /* -------------------------------------------------------
+       SINGLE ARTICLE
+       ------------------------------------------------------- */
 
-    const requestedLimit =
-      Number.parseInt(limitParam, 10) || 20;
+    if (slug || id) {
+      let query =
+        supabase
+          .from("blogs")
+          .select("*");
 
-    const limit = Math.min(
-      100,
-      Math.max(1, requestedLimit)
-    );
+      if (id) {
+        const numericId =
+          Number(id);
 
-    /* =====================================================
-       ADMIN DASHBOARD STATS
-    ===================================================== */
+        if (
+          !Number.isFinite(
+            numericId
+          )
+        ) {
+          return jsonResponse(
+            {
+              success: false,
+              error:
+                "Invalid article ID.",
+            },
+            400
+          );
+        }
 
-    if (admin && stats) {
-      const [
-        totalResult,
-        publishedResult,
-        draftResult,
-        categoryResults,
-      ] = await Promise.all([
-        supabaseAdmin
-          .from(BLOG_TABLE)
-          .select("id", {
-            count: "exact",
-            head: true,
-          }),
+        query =
+          query.eq(
+            "id",
+            numericId
+          );
+      } else if (slug) {
+        const trimmedSlug =
+          slug.trim();
 
-        supabaseAdmin
-          .from(BLOG_TABLE)
-          .select("id", {
-            count: "exact",
-            head: true,
-          })
-          .eq("published", true),
+        if (
+          /^\d+$/.test(
+            trimmedSlug
+          )
+        ) {
+          query =
+            query.eq(
+              "id",
+              Number(trimmedSlug)
+            );
+        } else {
+          query =
+            query.eq(
+              "slug",
+              trimmedSlug
+            );
+        }
+      }
 
-        supabaseAdmin
-          .from(BLOG_TABLE)
-          .select("id", {
-            count: "exact",
-            head: true,
-          })
-          .eq("published", false),
+      const {
+        data,
+        error,
+      } = await query
+        .order(
+          "created_at",
+          {
+            ascending: false,
+          }
+        )
+        .limit(1);
 
-        Promise.all(
-          CATEGORIES.map(async (categoryName) => {
-            const { count, error } =
-              await supabaseAdmin
-                .from(BLOG_TABLE)
-                .select("id", {
-                  count: "exact",
-                  head: true,
-                })
-                .ilike(
-                  "category",
-                  categoryName
-                );
-
-            return {
-              category: categoryName,
-              count: error ? 0 : count || 0,
-            };
-          })
-        ),
-      ]);
-
-      if (
-        totalResult.error ||
-        publishedResult.error ||
-        draftResult.error
-      ) {
+      if (error) {
         console.error(
-          "ADMIN STATS ERROR:",
-          totalResult.error ||
-            publishedResult.error ||
-            draftResult.error
+          "GET single blog error:",
+          error
         );
 
-        return NextResponse.json(
+        return jsonResponse(
           {
             success: false,
             error:
-              "Failed to load dashboard statistics.",
+              error.message,
           },
-          { status: 500 }
+          500
         );
       }
 
-      const categoryCounts =
-        categoryResults.reduce(
-          (
-            accumulator,
-            item
-          ) => {
-            accumulator[
-              item.category
-            ] = item.count;
-
-            return accumulator;
+      if (
+        !data ||
+        data.length === 0
+      ) {
+        return jsonResponse(
+          {
+            success: false,
+            error:
+              "Article not found.",
           },
-          {} as Record<string, number>
+          404
         );
+      }
 
-      return NextResponse.json(
-        {
-          success: true,
-          stats: {
-            total: totalResult.count || 0,
-            published:
-              publishedResult.count || 0,
-            drafts:
-              draftResult.count || 0,
-            categories:
-              categoryCounts,
-          },
-        },
-        {
-          status: 200,
-          headers: {
-            "Cache-Control":
-              "no-store, max-age=0",
-          },
-        }
-      );
+      return jsonResponse({
+        success: true,
+        blog: data[0],
+      });
     }
 
-    /* =====================================================
-       NORMAL BLOG QUERY
-    ===================================================== */
+    /* -------------------------------------------------------
+       ARTICLE LIST
+       ------------------------------------------------------- */
+
+    const parsedPage =
+      Number(pageParam || "1");
+
+    const parsedLimit =
+      Number(limitParam || "20");
+
+    const page =
+      Number.isFinite(
+        parsedPage
+      )
+        ? Math.max(
+            1,
+            Math.floor(parsedPage)
+          )
+        : 1;
+
+    const limit =
+      Number.isFinite(
+        parsedLimit
+      )
+        ? Math.min(
+            1000,
+            Math.max(
+              1,
+              Math.floor(parsedLimit)
+            )
+          )
+        : 20;
 
     const from =
       (page - 1) * limit;
@@ -289,193 +425,97 @@ export async function GET(
     const to =
       from + limit - 1;
 
-    let query = supabaseAdmin
-      .from(BLOG_TABLE)
-      .select(
-        `
-          id,
-          title,
-          slug,
-          excerpt,
-          introduction,
-          cover_image,
-          category,
-          author,
-          tags,
-          content_blocks,
-          faqs,
-          published,
-          featured,
-          views,
-          meta_title,
-          meta_description,
-          published_at,
-          created_at,
-          updated_at
-        `,
-        {
+    let query =
+      supabase
+        .from("blogs")
+        .select("*", {
           count: "exact",
-        }
-      );
-
-    /* =====================================================
-       PUBLIC
-    ===================================================== */
+        })
+        .order(
+          "created_at",
+          {
+            ascending: false,
+          }
+        )
+        .range(
+          from,
+          to
+        );
 
     if (!admin) {
-      query = query.eq(
-        "published",
-        true
-      );
-    }
-
-    /* =====================================================
-       ADMIN STATUS FILTER
-    ===================================================== */
-
-    if (admin) {
-      if (status === "published") {
-        query = query.eq(
+      query =
+        query.eq(
           "published",
           true
         );
-      }
-
-      if (
-        status === "draft" ||
-        status === "drafts"
-      ) {
-        query = query.eq(
-          "published",
-          false
-        );
-      }
     }
-
-    /* =====================================================
-       CATEGORY
-    ===================================================== */
-
-    if (category) {
-      query = query.ilike(
-        "category",
-        category
-      );
-    }
-
-    /* =====================================================
-       SEARCH
-    ===================================================== */
-
-    if (search) {
-      const safeSearch =
-        search.replace(
-          /[%_,]/g,
-          " "
-        );
-
-      query = query.or(
-        `title.ilike.%${safeSearch}%,excerpt.ilike.%${safeSearch}%`
-      );
-    }
-
-    /* =====================================================
-       ORDER
-    ===================================================== */
-
-    query = query.order(
-      "created_at",
-      {
-        ascending: false,
-      }
-    );
-
-    /* =====================================================
-       PAGINATION
-    ===================================================== */
-
-    query = query.range(
-      from,
-      to
-    );
 
     const {
-      data: blogs,
+      data,
       error,
       count,
     } = await query;
 
     if (error) {
       console.error(
-        "GET BLOGS SUPABASE ERROR:",
+        "GET blogs error:",
         error
       );
 
-      return NextResponse.json(
+      return jsonResponse(
         {
           success: false,
           error:
-            error.message ||
-            "Failed to load blogs.",
-          blogs: [],
-          total: 0,
-          page,
-          limit,
-          totalPages: 0,
+            error.message,
         },
-        { status: 500 }
+        500
       );
     }
 
-    return NextResponse.json(
-      {
-        success: true,
-        blogs: blogs || [],
-        total: count || 0,
-        page,
-        limit,
-        totalPages: Math.ceil(
-          (count || 0) / limit
+    const total =
+      count || 0;
+
+    return jsonResponse({
+      success: true,
+      blogs: data || [],
+      data: data || [],
+      total,
+      page,
+      limit,
+      totalPages:
+        Math.ceil(
+          total / limit
         ),
-      },
-      {
-        status: 200,
-        headers: {
-          "Cache-Control":
-            "no-store, max-age=0",
-        },
-      }
-    );
+    });
   } catch (error) {
     console.error(
-      "GET BLOGS ERROR:",
+      "GET /api/blogs unexpected error:",
       error
     );
 
-    return NextResponse.json(
+    return jsonResponse(
       {
         success: false,
         error:
           error instanceof Error
             ? error.message
-            : "Failed to load blogs.",
-        blogs: [],
-        total: 0,
+            : "Failed to load articles.",
       },
-      { status: 500 }
+      500
     );
   }
 }
 
 /* =========================================================
    POST
-========================================================= */
+   CREATE ARTICLE
+   ========================================================= */
 
 export async function POST(
   request: NextRequest
 ) {
-  let uploadedStoragePath: string | null =
-    null;
+  let uploadedCoverImage:
+    string | null = null;
 
   try {
     const contentType =
@@ -483,9 +523,25 @@ export async function POST(
         "content-type"
       ) || "";
 
-    /* =====================================================
-       FORM DATA
-    ===================================================== */
+    let title = "";
+    let slug = "";
+    let excerpt = "";
+    let introduction = "";
+    let category = "";
+    let author = "";
+    let tags: string[] = [];
+    let contentBlocks: unknown[] = [];
+    let faqs: unknown[] = [];
+    let published = false;
+    let featured = false;
+    let publishedAt:
+      | string
+      | null = null;
+    let metaTitle = "";
+    let metaDescription = "";
+    let coverFile:
+      | File
+      | null = null;
 
     if (
       contentType.includes(
@@ -495,65 +551,81 @@ export async function POST(
       const formData =
         await request.formData();
 
-      const title =
-        cleanString(
-          formData.get("title")
+      title =
+        String(
+          formData.get(
+            "title"
+          ) || ""
+        ).trim();
+
+      slug =
+        normalizeSlug(
+          String(
+            formData.get(
+              "slug"
+            ) || ""
+          )
         );
 
-      const slug =
-        cleanString(
-          formData.get("slug")
-        );
+      excerpt =
+        String(
+          formData.get(
+            "excerpt"
+          ) || ""
+        ).trim();
 
-      const excerpt =
-        cleanString(
-          formData.get("excerpt")
-        );
-
-      const introduction =
-        cleanString(
+      introduction =
+        String(
           formData.get(
             "introduction"
-          )
+          ) || ""
+        ).trim();
+
+      category =
+        String(
+          formData.get(
+            "category"
+          ) || ""
+        ).trim();
+
+      author =
+        String(
+          formData.get(
+            "author"
+          ) || ""
+        ).trim();
+
+      tags =
+        parseJsonValue<
+          string[]
+        >(
+          formData.get(
+            "tags"
+          ),
+          []
         );
 
-      const category =
-        cleanString(
-          formData.get("category")
+      contentBlocks =
+        parseJsonValue<
+          unknown[]
+        >(
+          formData.get(
+            "content_blocks"
+          ),
+          []
         );
 
-      const author =
-        cleanString(
-          formData.get("author")
-        ) || "Dhanush Varma";
-
-      const tags =
-        normalizeTags(
-          parseJSON<unknown>(
-            formData.get("tags"),
-            []
-          )
+      faqs =
+        parseJsonValue<
+          unknown[]
+        >(
+          formData.get(
+            "faqs"
+          ),
+          []
         );
 
-      const contentBlocks =
-        normalizeBlocks(
-          parseJSON<unknown>(
-            formData.get(
-              "content_blocks"
-            ),
-            []
-          )
-        );
-
-      const faqs =
-        normalizeFaqs(
-          parseJSON<unknown>(
-            formData.get("faqs"),
-            []
-          )
-        );
-
-      const published =
+      published =
         parseBoolean(
           formData.get(
             "published"
@@ -561,7 +633,7 @@ export async function POST(
           false
         );
 
-      const featured =
+      featured =
         parseBoolean(
           formData.get(
             "featured"
@@ -569,545 +641,1034 @@ export async function POST(
           false
         );
 
-      const metaTitle =
-        cleanString(
-          formData.get(
-            "meta_title"
-          )
-        ) || title;
-
-      const metaDescription =
-        cleanString(
-          formData.get(
-            "meta_description"
-          )
-        ) || excerpt;
-
-      const submittedPublishedAt =
-        cleanString(
+      const rawPublishedAt =
+        String(
           formData.get(
             "published_at"
-          )
-        );
+          ) || ""
+        ).trim();
 
-      if (!title) {
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              "Blog title is required.",
-          },
-          { status: 400 }
-        );
-      }
+      publishedAt =
+        rawPublishedAt ||
+        null;
 
-      if (!slug) {
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              "Blog slug is required.",
-          },
-          { status: 400 }
-        );
-      }
+      metaTitle =
+        String(
+          formData.get(
+            "meta_title"
+          ) || ""
+        ).trim();
 
-      if (!category) {
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              "Blog category is required.",
-          },
-          { status: 400 }
-        );
-      }
+      metaDescription =
+        String(
+          formData.get(
+            "meta_description"
+          ) || ""
+        ).trim();
 
-      if (!excerpt) {
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              "Blog excerpt is required.",
-          },
-          { status: 400 }
-        );
-      }
-
-      const {
-        data: existingBlog,
-        error: slugError,
-      } =
-        await supabaseAdmin
-          .from(BLOG_TABLE)
-          .select("id")
-          .eq("slug", slug)
-          .maybeSingle();
-
-      if (slugError) {
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              slugError.message ||
-              "Failed to check blog slug.",
-          },
-          { status: 500 }
-        );
-      }
-
-      if (existingBlog) {
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              "A blog with this slug already exists.",
-          },
-          { status: 409 }
-        );
-      }
-
-      /* ===================================================
-         COVER IMAGE
-      =================================================== */
-
-      let coverImageUrl:
-        | string
-        | null = null;
-
-      const coverImage =
+      const possibleFile =
         formData.get(
           "cover_image"
         );
 
       if (
-        coverImage instanceof File &&
-        coverImage.size > 0
+        possibleFile instanceof File &&
+        possibleFile.size > 0
       ) {
-        const allowedTypes = [
-          "image/png",
-          "image/jpeg",
-          "image/webp",
-        ];
-
-        if (
-          !allowedTypes.includes(
-            coverImage.type
-          )
-        ) {
-          return NextResponse.json(
-            {
-              success: false,
-              error:
-                "Cover image must be PNG, JPG, JPEG, or WEBP.",
-            },
-            { status: 400 }
-          );
-        }
-
-        const maxSize =
-          5 * 1024 * 1024;
-
-        if (
-          coverImage.size > maxSize
-        ) {
-          return NextResponse.json(
-            {
-              success: false,
-              error:
-                "Cover image must be smaller than 5MB.",
-            },
-            { status: 400 }
-          );
-        }
-
-        const fileName =
-          createSafeFileName(
-            coverImage.name
-          );
-
-        uploadedStoragePath =
-          `covers/${fileName}`;
-
-        const arrayBuffer =
-          await coverImage.arrayBuffer();
-
-        const fileBuffer =
-          Buffer.from(
-            arrayBuffer
-          );
-
-        const {
-          error: uploadError,
-        } =
-          await supabaseAdmin.storage
-            .from(BLOG_BUCKET)
-            .upload(
-              uploadedStoragePath,
-              fileBuffer,
-              {
-                contentType:
-                  coverImage.type,
-                cacheControl:
-                  "3600",
-                upsert: false,
-              }
-            );
-
-        if (uploadError) {
-          uploadedStoragePath =
-            null;
-
-          return NextResponse.json(
-            {
-              success: false,
-              error:
-                uploadError.message ||
-                "Failed to upload cover image.",
-            },
-            { status: 500 }
-          );
-        }
-
-        const {
-          data: publicUrlData,
-        } =
-          supabaseAdmin.storage
-            .from(BLOG_BUCKET)
-            .getPublicUrl(
-              uploadedStoragePath
-            );
-
-        coverImageUrl =
-          publicUrlData.publicUrl;
+        coverFile =
+          possibleFile;
       }
-
-      const blogData: Record<
-        string,
-        unknown
-      > = {
-        title,
-        slug,
-        excerpt,
-        introduction,
-        cover_image:
-          coverImageUrl,
-        category,
-        author,
-        tags,
-        published,
-        featured,
-        views: 0,
-        content_blocks:
-          contentBlocks,
-        faqs,
-        meta_title:
-          metaTitle,
-        meta_description:
-          metaDescription,
-        published_at:
-          published
-            ? submittedPublishedAt ||
-              new Date().toISOString()
-            : null,
-      };
-
-      const {
-        data: blog,
-        error: insertError,
-      } =
-        await supabaseAdmin
-          .from(BLOG_TABLE)
-          .insert(blogData)
-          .select()
-          .single();
-
-      if (insertError) {
-        if (
-          uploadedStoragePath
-        ) {
-          await supabaseAdmin.storage
-            .from(BLOG_BUCKET)
-            .remove([
-              uploadedStoragePath,
-            ]);
-        }
-
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              insertError.message ||
-              "Failed to save blog.",
-          },
-          { status: 500 }
-        );
-      }
-
-      return NextResponse.json(
-        {
-          success: true,
-          message: published
-            ? "Article published successfully."
-            : "Article saved as draft.",
-          blog,
-        },
-        { status: 201 }
-      );
-    }
-
-    /* =====================================================
-       JSON
-    ===================================================== */
-
-    if (
-      contentType.includes(
-        "application/json"
-      )
-    ) {
+    } else {
       const body =
         await request.json();
 
-      const title =
-        typeof body.title === "string"
-          ? body.title.trim()
-          : "";
+      title =
+        String(
+          body.title || ""
+        ).trim();
 
-      const slug =
-        typeof body.slug === "string"
-          ? body.slug.trim()
-          : "";
+      slug =
+        normalizeSlug(
+          String(
+            body.slug || ""
+          )
+        );
 
-      const excerpt =
-        typeof body.excerpt === "string"
-          ? body.excerpt.trim()
-          : "";
+      excerpt =
+        String(
+          body.excerpt || ""
+        ).trim();
 
-      const introduction =
-        typeof body.introduction ===
-        "string"
-          ? body.introduction.trim()
-          : "";
+      introduction =
+        String(
+          body.introduction || ""
+        ).trim();
 
-      const category =
-        typeof body.category === "string"
-          ? body.category.trim()
-          : "";
+      category =
+        String(
+          body.category || ""
+        ).trim();
 
-      const author =
-        typeof body.author === "string" &&
-        body.author.trim()
-          ? body.author.trim()
-          : "Dhanush Varma";
+      author =
+        String(
+          body.author || ""
+        ).trim();
 
-      const tags =
-        normalizeTags(
+      tags =
+        Array.isArray(
           body.tags
-        );
+        )
+          ? body.tags
+          : [];
 
-      const contentBlocks =
-        normalizeBlocks(
+      contentBlocks =
+        Array.isArray(
           body.content_blocks
-        );
+        )
+          ? body.content_blocks
+          : [];
 
-      const faqs =
-        normalizeFaqs(
+      faqs =
+        Array.isArray(
           body.faqs
+        )
+          ? body.faqs
+          : [];
+
+      published =
+        parseBoolean(
+          body.published,
+          false
         );
 
-      const published =
-        body.published === true;
-
-      const featured =
-        body.featured === true;
-
-      const metaTitle =
-        typeof body.meta_title ===
-          "string" &&
-        body.meta_title.trim()
-          ? body.meta_title.trim()
-          : title;
-
-      const metaDescription =
-        typeof body.meta_description ===
-          "string" &&
-        body.meta_description.trim()
-          ? body.meta_description.trim()
-          : excerpt;
-
-      if (!title) {
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              "Blog title is required.",
-          },
-          { status: 400 }
+      featured =
+        parseBoolean(
+          body.featured,
+          false
         );
-      }
 
-      if (!slug) {
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              "Blog slug is required.",
-          },
-          { status: 400 }
-        );
-      }
+      publishedAt =
+        body.published_at ||
+        null;
 
-      if (!category) {
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              "Blog category is required.",
-          },
-          { status: 400 }
-        );
-      }
+      metaTitle =
+        String(
+          body.meta_title ||
+            ""
+        ).trim();
 
-      if (!excerpt) {
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              "Blog excerpt is required.",
-          },
-          { status: 400 }
-        );
-      }
+      metaDescription =
+        String(
+          body.meta_description ||
+            ""
+        ).trim();
+    }
 
-      const {
-        data: existingBlog,
-        error: slugError,
-      } =
-        await supabaseAdmin
-          .from(BLOG_TABLE)
-          .select("id")
-          .eq("slug", slug)
-          .maybeSingle();
-
-      if (slugError) {
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              slugError.message,
-          },
-          { status: 500 }
-        );
-      }
-
-      if (existingBlog) {
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              "A blog with this slug already exists.",
-          },
-          { status: 409 }
-        );
-      }
-
-      const blogData: Record<
-        string,
-        unknown
-      > = {
-        title,
-        slug,
-        excerpt,
-        introduction,
-        cover_image:
-          typeof body.cover_image ===
-          "string"
-            ? body.cover_image
-            : null,
-        category,
-        author,
-        tags,
-        published,
-        featured,
-        views: 0,
-        content_blocks:
-          contentBlocks,
-        faqs,
-        meta_title:
-          metaTitle,
-        meta_description:
-          metaDescription,
-        published_at:
-          published
-            ? new Date().toISOString()
-            : null,
-      };
-
-      const {
-        data: blog,
-        error: insertError,
-      } =
-        await supabaseAdmin
-          .from(BLOG_TABLE)
-          .insert(blogData)
-          .select()
-          .single();
-
-      if (insertError) {
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              insertError.message ||
-              "Failed to save blog.",
-          },
-          { status: 500 }
-        );
-      }
-
-      return NextResponse.json(
+    if (!title) {
+      return jsonResponse(
         {
-          success: true,
-          message: published
-            ? "Article published successfully."
-            : "Article saved as draft.",
-          blog,
+          success: false,
+          error:
+            "Title is required.",
         },
-        { status: 201 }
+        400
       );
     }
 
-    return NextResponse.json(
+    if (!slug) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Slug is required.",
+        },
+        400
+      );
+    }
+
+    if (!category) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Category is required.",
+        },
+        400
+      );
+    }
+
+    if (
+      !isValidCategory(
+        category
+      )
+    ) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Invalid category.",
+        },
+        400
+      );
+    }
+
+    const {
+      data: existingRows,
+      error: duplicateError,
+    } =
+      await supabase
+        .from("blogs")
+        .select("id")
+        .eq(
+          "slug",
+          slug
+        )
+        .limit(1);
+
+    if (duplicateError) {
+      console.error(
+        "Duplicate slug check error:",
+        duplicateError
+      );
+
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            duplicateError.message,
+        },
+        500
+      );
+    }
+
+    if (
+      existingRows &&
+      existingRows.length > 0
+    ) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "An article with this slug already exists.",
+        },
+        409
+      );
+    }
+
+    if (coverFile) {
+      uploadedCoverImage =
+        await uploadCoverImage(
+          coverFile
+        );
+    }
+
+    const now =
+      new Date().toISOString();
+
+    const finalPublishedAt =
+      published
+        ? publishedAt ||
+          now
+        : null;
+
+    const {
+      data,
+      error,
+    } =
+      await supabase
+        .from("blogs")
+        .insert({
+          title,
+          slug,
+          excerpt:
+            excerpt || null,
+          introduction:
+            introduction ||
+            null,
+          cover_image:
+            uploadedCoverImage,
+          category,
+          author:
+            author || null,
+          tags,
+          content_blocks:
+            contentBlocks,
+          faqs,
+          published,
+          featured,
+          views: 0,
+          meta_title:
+            metaTitle || null,
+          meta_description:
+            metaDescription ||
+            null,
+          published_at:
+            finalPublishedAt,
+          created_at: now,
+          updated_at: now,
+        })
+        .select("*")
+        .limit(1);
+
+    if (error) {
+      console.error(
+        "POST insert error:",
+        error
+      );
+
+      if (
+        uploadedCoverImage
+      ) {
+        await deleteCoverImage(
+          uploadedCoverImage
+        );
+      }
+
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            error.message,
+        },
+        500
+      );
+    }
+
+    if (
+      !data ||
+      data.length === 0
+    ) {
+      if (
+        uploadedCoverImage
+      ) {
+        await deleteCoverImage(
+          uploadedCoverImage
+        );
+      }
+
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Article was not created.",
+        },
+        500
+      );
+    }
+
+    return jsonResponse(
       {
-        success: false,
-        error:
-          "Unsupported request content type.",
+        success: true,
+        blog: data[0],
       },
-      { status: 415 }
+      201
     );
   } catch (error) {
     console.error(
-      "BLOG POST ERROR:",
+      "POST /api/blogs error:",
       error
     );
 
-    return NextResponse.json(
+    if (
+      uploadedCoverImage
+    ) {
+      await deleteCoverImage(
+        uploadedCoverImage
+      );
+    }
+
+    return jsonResponse(
       {
         success: false,
         error:
           error instanceof Error
             ? error.message
-            : "Failed to save blog.",
+            : "Failed to create article.",
       },
-      { status: 500 }
+      500
+    );
+  }
+}
+
+/* =========================================================
+   PUT
+   UPDATE ARTICLE
+   ========================================================= */
+
+export async function PUT(
+  request: NextRequest
+) {
+  let uploadedNewCover:
+    | string
+    | null = null;
+
+  try {
+    const contentType =
+      request.headers.get(
+        "content-type"
+      ) || "";
+
+    if (
+      !contentType.includes(
+        "multipart/form-data"
+      )
+    ) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Update requests must use multipart/form-data.",
+        },
+        400
+      );
+    }
+
+    const formData =
+      await request.formData();
+
+    const idValue =
+      String(
+        formData.get(
+          "id"
+        ) || ""
+      ).trim();
+
+    const originalSlug =
+      String(
+        formData.get(
+          "original_slug"
+        ) || ""
+      ).trim();
+
+    const title =
+      String(
+        formData.get(
+          "title"
+        ) || ""
+      ).trim();
+
+    const slug =
+      normalizeSlug(
+        String(
+          formData.get(
+            "slug"
+          ) || ""
+        )
+      );
+
+    const excerpt =
+      String(
+        formData.get(
+          "excerpt"
+        ) || ""
+      ).trim();
+
+    const introduction =
+      String(
+        formData.get(
+          "introduction"
+        ) || ""
+      ).trim();
+
+    const category =
+      String(
+        formData.get(
+          "category"
+        ) || ""
+      ).trim();
+
+    const author =
+      String(
+        formData.get(
+          "author"
+        ) || ""
+      ).trim();
+
+    const tags =
+      parseJsonValue<
+        string[]
+      >(
+        formData.get(
+          "tags"
+        ),
+        []
+      );
+
+    const contentBlocks =
+      parseJsonValue<
+        unknown[]
+      >(
+        formData.get(
+          "content_blocks"
+        ),
+        []
+      );
+
+    const faqs =
+      parseJsonValue<
+        unknown[]
+      >(
+        formData.get(
+          "faqs"
+        ),
+        []
+      );
+
+    const published =
+      parseBoolean(
+        formData.get(
+          "published"
+        ),
+        false
+      );
+
+    const featured =
+      parseBoolean(
+        formData.get(
+          "featured"
+        ),
+        false
+      );
+
+    const rawPublishedAt =
+      String(
+        formData.get(
+          "published_at"
+        ) || ""
+      ).trim();
+
+    const metaTitle =
+      String(
+        formData.get(
+          "meta_title"
+        ) || ""
+      ).trim();
+
+    const metaDescription =
+      String(
+        formData.get(
+          "meta_description"
+        ) || ""
+      ).trim();
+
+    const removeCoverImage =
+      parseBoolean(
+        formData.get(
+          "remove_cover_image"
+        ),
+        false
+      );
+
+    const possibleCoverFile =
+      formData.get(
+        "cover_image"
+      );
+
+    const newCoverFile =
+      possibleCoverFile instanceof
+        File &&
+      possibleCoverFile.size > 0
+        ? possibleCoverFile
+        : null;
+
+    /* -------------------------------------------------------
+       VALIDATION
+       ------------------------------------------------------- */
+
+    if (!idValue) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Article ID is required.",
+        },
+        400
+      );
+    }
+
+    const numericId =
+      Number(idValue);
+
+    if (
+      !Number.isFinite(
+        numericId
+      )
+    ) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Invalid article ID.",
+        },
+        400
+      );
+    }
+
+    if (!title) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Title is required.",
+        },
+        400
+      );
+    }
+
+    if (!slug) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Slug is required.",
+        },
+        400
+      );
+    }
+
+    if (!category) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Category is required.",
+        },
+        400
+      );
+    }
+
+    if (
+      !isValidCategory(
+        category
+      )
+    ) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Invalid category.",
+        },
+        400
+      );
+    }
+
+    /* -------------------------------------------------------
+       FIND EXISTING ARTICLE
+       ------------------------------------------------------- */
+
+    const {
+      data: existingRows,
+      error: existingError,
+    } =
+      await supabase
+        .from("blogs")
+        .select("*")
+        .eq(
+          "id",
+          numericId
+        )
+        .limit(1);
+
+    if (existingError) {
+      console.error(
+        "Find article by ID error:",
+        existingError
+      );
+
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            existingError.message,
+        },
+        500
+      );
+    }
+
+    let existingBlog =
+      (existingRows?.[0] as
+        | BlogRow
+        | undefined) ||
+      null;
+
+    /*
+     * Fallback to original slug.
+     *
+     * This protects older edit URLs.
+     */
+    if (
+      !existingBlog &&
+      originalSlug
+    ) {
+      const {
+        data: slugRows,
+        error: slugError,
+      } =
+        await supabase
+          .from("blogs")
+          .select("*")
+          .eq(
+            "slug",
+            originalSlug
+          )
+          .limit(1);
+
+      if (slugError) {
+        console.error(
+          "Find article by original slug error:",
+          slugError
+        );
+
+        return jsonResponse(
+          {
+            success: false,
+            error:
+              slugError.message,
+          },
+          500
+        );
+      }
+
+      existingBlog =
+        (slugRows?.[0] as
+          | BlogRow
+          | undefined) ||
+        null;
+    }
+
+    if (!existingBlog) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Article not found.",
+        },
+        404
+      );
+    }
+
+    const existingId =
+      Number(
+        existingBlog.id
+      );
+
+    /* -------------------------------------------------------
+       DUPLICATE SLUG CHECK
+       ------------------------------------------------------- */
+
+    if (
+      slug !== existingBlog.slug
+    ) {
+      const {
+        data: duplicateRows,
+        error: duplicateError,
+      } =
+        await supabase
+          .from("blogs")
+          .select("id")
+          .eq(
+            "slug",
+            slug
+          )
+          .neq(
+            "id",
+            existingId
+          )
+          .limit(1);
+
+      if (duplicateError) {
+        console.error(
+          "Slug duplicate check error:",
+          duplicateError
+        );
+
+        return jsonResponse(
+          {
+            success: false,
+            error:
+              duplicateError.message,
+          },
+          500
+        );
+      }
+
+      if (
+        duplicateRows &&
+        duplicateRows.length > 0
+      ) {
+        return jsonResponse(
+          {
+            success: false,
+            error:
+              "Another article already uses this slug.",
+          },
+          409
+        );
+      }
+    }
+
+    /* -------------------------------------------------------
+       COVER IMAGE
+       ------------------------------------------------------- */
+
+    let finalCoverImage =
+      existingBlog.cover_image;
+
+    if (newCoverFile) {
+      uploadedNewCover =
+        await uploadCoverImage(
+          newCoverFile
+        );
+
+      finalCoverImage =
+        uploadedNewCover;
+    } else if (
+      removeCoverImage
+    ) {
+      finalCoverImage =
+        null;
+    }
+
+    /* -------------------------------------------------------
+       PUBLICATION DATE
+       ------------------------------------------------------- */
+
+    let finalPublishedAt =
+      existingBlog.published_at;
+
+    if (published) {
+      finalPublishedAt =
+        existingBlog.published_at ||
+        rawPublishedAt ||
+        new Date().toISOString();
+    } else {
+      /*
+       * Keep the existing date while
+       * setting published=false.
+       */
+      finalPublishedAt =
+        existingBlog.published_at;
+    }
+
+    /* -------------------------------------------------------
+       UPDATE DATABASE
+       ------------------------------------------------------- */
+
+    const updatePayload = {
+      title,
+      slug,
+      excerpt:
+        excerpt || null,
+      introduction:
+        introduction || null,
+      cover_image:
+        finalCoverImage,
+      category,
+      author:
+        author || null,
+      tags,
+      content_blocks:
+        contentBlocks,
+      faqs,
+      published,
+      featured,
+      meta_title:
+        metaTitle || null,
+      meta_description:
+        metaDescription || null,
+      published_at:
+        finalPublishedAt,
+      updated_at:
+        new Date().toISOString(),
+    };
+
+    console.log(
+      "[PUT /api/blogs] Updating article:",
+      existingId
+    );
+
+    /*
+     * IMPORTANT:
+     *
+     * Do NOT depend on UPDATE ... RETURNING
+     * to provide the article.
+     *
+     * Some Supabase/RLS configurations can
+     * successfully perform the update but return
+     * an empty result from .select().
+     *
+     * Therefore:
+     *
+     * 1. UPDATE
+     * 2. Check for error
+     * 3. SELECT the updated article separately
+     */
+    const {
+      error: updateError,
+    } =
+      await supabase
+        .from("blogs")
+        .update(
+          updatePayload
+        )
+        .eq(
+          "id",
+          existingId
+        );
+
+    if (updateError) {
+      console.error(
+        "PUT update error:",
+        updateError
+      );
+
+      if (
+        uploadedNewCover
+      ) {
+        await deleteCoverImage(
+          uploadedNewCover
+        );
+      }
+
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            updateError.message,
+        },
+        500
+      );
+    }
+
+    /* -------------------------------------------------------
+       FETCH UPDATED ARTICLE
+       ------------------------------------------------------- */
+
+    const {
+      data: updatedRows,
+      error: fetchUpdatedError,
+    } =
+      await supabase
+        .from("blogs")
+        .select("*")
+        .eq(
+          "id",
+          existingId
+        )
+        .limit(1);
+
+    if (fetchUpdatedError) {
+      console.error(
+        "Fetch updated article error:",
+        fetchUpdatedError
+      );
+
+      /*
+       * The database update already happened.
+       * Do not delete the newly uploaded image
+       * because the article now points to it.
+       */
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Article was updated, but the updated article could not be loaded. " +
+            fetchUpdatedError.message,
+        },
+        500
+      );
+    }
+
+    if (
+      !updatedRows ||
+      updatedRows.length === 0
+    ) {
+      console.error(
+        "Updated article could not be found after update:",
+        existingId
+      );
+
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Article was updated, but it could not be retrieved afterward.",
+        },
+        500
+      );
+    }
+
+    const updatedBlog =
+      updatedRows[0] as BlogRow;
+
+    /* -------------------------------------------------------
+       DELETE OLD COVER IMAGE
+       ------------------------------------------------------- */
+
+    if (
+      uploadedNewCover &&
+      existingBlog.cover_image
+    ) {
+      await deleteCoverImage(
+        existingBlog.cover_image
+      );
+    }
+
+    if (
+      removeCoverImage &&
+      !uploadedNewCover &&
+      existingBlog.cover_image
+    ) {
+      await deleteCoverImage(
+        existingBlog.cover_image
+      );
+    }
+
+    console.log(
+      "[PUT /api/blogs] Article updated successfully:",
+      updatedBlog.id
+    );
+
+    return jsonResponse({
+      success: true,
+      blog: updatedBlog,
+    });
+  } catch (error) {
+    console.error(
+      "PUT /api/blogs unexpected error:",
+      error
+    );
+
+    /*
+     * Only delete the newly uploaded image
+     * when the request itself failed before
+     * successful completion.
+     */
+    if (
+      uploadedNewCover
+    ) {
+      await deleteCoverImage(
+        uploadedNewCover
+      );
+    }
+
+    return jsonResponse(
+      {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to update article.",
+      },
+      500
     );
   }
 }
 
 /* =========================================================
    PATCH
-   Publish / Unpublish Article
-========================================================= */
+   PUBLISH / UNPUBLISH
+   ========================================================= */
 
 export async function PATCH(
   request: NextRequest
@@ -1117,100 +1678,195 @@ export async function PATCH(
       await request.json();
 
     const id =
-      typeof body.id === "number"
-        ? body.id
-        : typeof body.id === "string"
-          ? Number(body.id)
-          : NaN;
+      body.id;
 
-    if (!Number.isFinite(id)) {
-      return NextResponse.json(
+    if (
+      id === undefined ||
+      id === null ||
+      id === ""
+    ) {
+      return jsonResponse(
         {
           success: false,
           error:
-            "Valid article ID is required.",
+            "Article ID is required.",
         },
-        { status: 400 }
+        400
+      );
+    }
+
+    const numericId =
+      Number(id);
+
+    if (
+      !Number.isFinite(
+        numericId
+      )
+    ) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Invalid article ID.",
+        },
+        400
       );
     }
 
     const published =
-      body.published === true;
-
-    const updateData: Record<
-      string,
-      unknown
-    > = {
-      published,
-      updated_at:
-        new Date().toISOString(),
-    };
-
-    /*
-     * When publishing:
-     * - Set published_at now if it does not exist.
-     *
-     * When turning back into draft:
-     * - Clear published_at.
-     */
-
-    if (published) {
-      updateData.published_at =
-        new Date().toISOString();
-    } else {
-      updateData.published_at = null;
-    }
-
-    const {
-      data: blog,
-      error,
-    } = await supabaseAdmin
-      .from(BLOG_TABLE)
-      .update(updateData)
-      .eq("id", id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error(
-        "PUBLISH UPDATE ERROR:",
-        error
+      parseBoolean(
+        body.published,
+        false
       );
 
-      return NextResponse.json(
+    /* -------------------------------------------------------
+       FIND CURRENT ARTICLE
+       ------------------------------------------------------- */
+
+    const {
+      data: existingRows,
+      error: findError,
+    } =
+      await supabase
+        .from("blogs")
+        .select(
+          "id,published,published_at"
+        )
+        .eq(
+          "id",
+          numericId
+        )
+        .limit(1);
+
+    if (findError) {
+      return jsonResponse(
         {
           success: false,
           error:
-            error.message ||
-            "Failed to update article.",
+            findError.message,
         },
-        { status: 500 }
+        500
       );
     }
 
-    return NextResponse.json(
-      {
-        success: true,
-        message: published
-          ? "Article published successfully."
-          : "Article moved to drafts.",
-        blog,
-      },
-      {
-        status: 200,
-        headers: {
-          "Cache-Control":
-            "no-store, max-age=0",
+    if (
+      !existingRows ||
+      existingRows.length === 0
+    ) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Article not found.",
         },
-      }
-    );
+        404
+      );
+    }
+
+    const existing =
+      existingRows[0];
+
+    let publishedAt =
+      existing.published_at;
+
+    if (
+      published &&
+      !publishedAt
+    ) {
+      publishedAt =
+        new Date().toISOString();
+    }
+
+    /* -------------------------------------------------------
+       UPDATE
+       ------------------------------------------------------- */
+
+    const {
+      error: updateError,
+    } =
+      await supabase
+        .from("blogs")
+        .update({
+          published,
+          published_at:
+            publishedAt,
+          updated_at:
+            new Date().toISOString(),
+        })
+        .eq(
+          "id",
+          numericId
+        );
+
+    if (updateError) {
+      console.error(
+        "PATCH publish error:",
+        updateError
+      );
+
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            updateError.message,
+        },
+        500
+      );
+    }
+
+    /* -------------------------------------------------------
+       FETCH UPDATED ARTICLE
+       ------------------------------------------------------- */
+
+    const {
+      data: updatedRows,
+      error: fetchError,
+    } =
+      await supabase
+        .from("blogs")
+        .select("*")
+        .eq(
+          "id",
+          numericId
+        )
+        .limit(1);
+
+    if (fetchError) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            fetchError.message,
+        },
+        500
+      );
+    }
+
+    if (
+      !updatedRows ||
+      updatedRows.length === 0
+    ) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Article was updated but could not be retrieved.",
+        },
+        500
+      );
+    }
+
+    return jsonResponse({
+      success: true,
+      blog: updatedRows[0],
+    });
   } catch (error) {
     console.error(
-      "PATCH BLOG ERROR:",
+      "PATCH /api/blogs error:",
       error
     );
 
-    return NextResponse.json(
+    return jsonResponse(
       {
         success: false,
         error:
@@ -1218,14 +1874,14 @@ export async function PATCH(
             ? error.message
             : "Failed to update article.",
       },
-      { status: 500 }
+      500
     );
   }
 }
 
 /* =========================================================
    DELETE
-========================================================= */
+   ========================================================= */
 
 export async function DELETE(
   request: NextRequest
@@ -1234,158 +1890,140 @@ export async function DELETE(
     const { searchParams } =
       new URL(request.url);
 
-    const idParam =
-      searchParams.get("id");
-
     const id =
-      idParam
-        ? Number(idParam)
-        : NaN;
+      searchParams.get(
+        "id"
+      );
 
-    if (!Number.isFinite(id)) {
-      return NextResponse.json(
+    if (!id) {
+      return jsonResponse(
         {
           success: false,
           error:
-            "Valid article ID is required.",
+            "Article ID is required.",
         },
-        { status: 400 }
+        400
       );
     }
 
-    /*
-     * Get cover image first so we can
-     * remove it from Supabase Storage.
-     */
+    const numericId =
+      Number(id);
+
+    if (
+      !Number.isFinite(
+        numericId
+      )
+    ) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Invalid article ID.",
+        },
+        400
+      );
+    }
+
+    /* -------------------------------------------------------
+       FIND ARTICLE
+       ------------------------------------------------------- */
 
     const {
-      data: blog,
-      error: fetchError,
+      data: rows,
+      error: findError,
     } =
-      await supabaseAdmin
-        .from(BLOG_TABLE)
+      await supabase
+        .from("blogs")
         .select(
-          "id, cover_image"
+          "id,cover_image"
         )
-        .eq("id", id)
-        .maybeSingle();
+        .eq(
+          "id",
+          numericId
+        )
+        .limit(1);
 
-    if (fetchError) {
-      return NextResponse.json(
+    if (findError) {
+      return jsonResponse(
         {
           success: false,
           error:
-            fetchError.message ||
-            "Failed to find article.",
+            findError.message,
         },
-        { status: 500 }
+        500
       );
     }
 
-    if (!blog) {
-      return NextResponse.json(
+    if (
+      !rows ||
+      rows.length === 0
+    ) {
+      return jsonResponse(
         {
           success: false,
           error:
             "Article not found.",
         },
-        { status: 404 }
+        404
       );
     }
 
-    /*
-     * Delete database record.
-     */
+    const blog =
+      rows[0];
+
+    /* -------------------------------------------------------
+       DELETE ARTICLE
+       ------------------------------------------------------- */
 
     const {
       error: deleteError,
     } =
-      await supabaseAdmin
-        .from(BLOG_TABLE)
+      await supabase
+        .from("blogs")
         .delete()
-        .eq("id", id);
+        .eq(
+          "id",
+          numericId
+        );
 
     if (deleteError) {
       console.error(
-        "DELETE BLOG ERROR:",
+        "DELETE blog error:",
         deleteError
       );
 
-      return NextResponse.json(
+      return jsonResponse(
         {
           success: false,
           error:
-            deleteError.message ||
-            "Failed to delete article.",
+            deleteError.message,
         },
-        { status: 500 }
+        500
       );
     }
 
-    /*
-     * Best-effort cover image cleanup.
-     */
+    /* -------------------------------------------------------
+       DELETE COVER IMAGE
+       ------------------------------------------------------- */
 
-    if (
-      typeof blog.cover_image ===
-      "string" &&
-      blog.cover_image
-    ) {
-      try {
-        const marker =
-          `/object/public/${BLOG_BUCKET}/`;
-
-        const markerIndex =
-          blog.cover_image.indexOf(
-            marker
-          );
-
-        if (markerIndex !== -1) {
-          const storagePath =
-            decodeURIComponent(
-              blog.cover_image.substring(
-                markerIndex +
-                  marker.length
-              )
-            );
-
-          if (storagePath) {
-            await supabaseAdmin.storage
-              .from(BLOG_BUCKET)
-              .remove([
-                storagePath,
-              ]);
-          }
-        }
-      } catch (storageError) {
-        console.error(
-          "COVER IMAGE CLEANUP ERROR:",
-          storageError
-        );
-      }
+    if (blog.cover_image) {
+      await deleteCoverImage(
+        blog.cover_image
+      );
     }
 
-    return NextResponse.json(
-      {
-        success: true,
-        message:
-          "Article deleted successfully.",
-      },
-      {
-        status: 200,
-        headers: {
-          "Cache-Control":
-            "no-store, max-age=0",
-        },
-      }
-    );
+    return jsonResponse({
+      success: true,
+      message:
+        "Article deleted successfully.",
+    });
   } catch (error) {
     console.error(
-      "DELETE BLOG ERROR:",
+      "DELETE /api/blogs error:",
       error
     );
 
-    return NextResponse.json(
+    return jsonResponse(
       {
         success: false,
         error:
@@ -1393,7 +2031,7 @@ export async function DELETE(
             ? error.message
             : "Failed to delete article.",
       },
-      { status: 500 }
+      500
     );
   }
 }
