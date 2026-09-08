@@ -1,4 +1,3 @@
-
 @import "tailwindcss";
 
 /* =========================================================
@@ -319,3 +318,48 @@ img {
   }
 }
 
+/* =========================================================
+   RESPONSIVE BANNER ADS
+========================================================= */
+
+.banner-ad {
+  width: 100%;
+  max-width: 970px;
+  min-height: 90px;
+
+  margin: 30px auto;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  overflow: hidden;
+}
+
+/* =========================================================
+   MOBILE BANNER ADS
+========================================================= */
+
+@media (max-width: 768px) {
+  .banner-ad {
+    width: 100%;
+    max-width: 100%;
+
+    min-height: 100px;
+
+    margin: 24px auto;
+
+    padding: 0 8px;
+  }
+}
+
+/* =========================================================
+   VERY SMALL MOBILE DEVICES
+========================================================= */
+
+@media (max-width: 380px) {
+  .banner-ad {
+    padding: 0 4px;
+    margin: 20px auto;
+  }
+}

@@ -1,6 +1,6 @@
+
 import Link from "next/link";
 import FeaturedSlider from "@/components/FeaturedSlider";
-import AdBanner from "@/components/AdBanner";
 
 const categories = [
   {
@@ -53,12 +53,6 @@ type Blog = {
 
 /* =========================================================
    BLOG FETCH
-
-   Performance:
-   - Uses Next.js ISR caching
-   - Revalidates every 60 seconds
-   - Fetches only 40 articles instead of 100
-   - Avoids no-store
 ========================================================= */
 
 async function getBlogs(): Promise<Blog[]> {
@@ -92,12 +86,6 @@ async function getBlogs(): Promise<Blog[]> {
       ? data.blogs
       : [];
 
-    /*
-      The API should already return published articles.
-      We keep this safety check but avoid unnecessary sorting
-      if the API is already ordered correctly.
-    */
-
     return articles
       .filter((article) => article.published !== false)
       .sort((a, b) => {
@@ -128,7 +116,9 @@ async function getBlogs(): Promise<Blog[]> {
 function formatDate(
   dateString?: string | null
 ) {
-  if (!dateString) return "";
+  if (!dateString) {
+    return "";
+  }
 
   const date = new Date(dateString);
 
@@ -187,7 +177,9 @@ function ArticleCard({
                 article.title
               }
               loading={priority ? "eager" : "lazy"}
-              fetchPriority={priority ? "high" : "low"}
+              fetchPriority={
+                priority ? "high" : "low"
+              }
               decoding="async"
               className="
                 h-full
@@ -207,12 +199,7 @@ function ArticleCard({
 
         {/* CONTENT */}
 
-        <div
-          className="
-            p-3
-            sm:p-5
-          "
-        >
+        <div className="p-3 sm:p-5">
           {/* CATEGORY */}
 
           {article.category && (
@@ -460,8 +447,6 @@ export default async function HomePage() {
 
   /* =======================================================
      FEATURED
-
-     Maximum 5
   ======================================================= */
 
   const featuredBlogs = blogs
@@ -474,8 +459,6 @@ export default async function HomePage() {
 
   /* =======================================================
      LATEST
-
-     Maximum 6
   ======================================================= */
 
   const latestArticles: Blog[] = [];
@@ -494,8 +477,6 @@ export default async function HomePage() {
 
   /* =======================================================
      CATEGORY ARTICLES
-
-     Maximum 4 per category
   ======================================================= */
 
   const categoryArticles: Record<
@@ -503,18 +484,9 @@ export default async function HomePage() {
     Blog[]
   > = {};
 
-  /*
-    Initialize category arrays.
-  */
-
   for (const category of categories) {
     categoryArticles[category.name] = [];
   }
-
-  /*
-    One pass through blogs instead of repeatedly running
-    .filter() for every category.
-  */
 
   for (const blog of blogs) {
     const categoryName =
@@ -730,13 +702,6 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* =====================================================
-          HOMEPAGE AD
-          ONE AD ONLY
-      ===================================================== */}
-
-      <AdBanner position="top" />
 
       {/* =====================================================
           FEATURED STORIES
@@ -1041,3 +1006,4 @@ export default async function HomePage() {
     </main>
   );
 }
+

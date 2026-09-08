@@ -1,4 +1,6 @@
+
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 
 import Header from "@/components/Header";
@@ -45,16 +47,9 @@ export const metadata: Metadata = {
 
   /*
    * IMPORTANT:
-   * Do NOT set a global canonical here.
+   * Do NOT set a global canonical URL here.
    *
    * Individual pages should define their own canonical URL.
-   *
-   * Example:
-   * /blog/example-article
-   * -> https://www.anatago.com/blog/example-article
-   *
-   * If we set canonical: siteUrl here, child pages can inherit
-   * the homepage as their canonical.
    */
 
   robots: {
@@ -103,6 +98,7 @@ const websiteSchema = {
   "@type": "WebSite",
 
   name: "AnantaGo",
+
   url: siteUrl,
 
   description:
@@ -127,6 +123,7 @@ export default function RootLayout({
   return (
     <html lang="en" data-scroll-behavior="smooth">
       <head>
+        {/* Website Structured Data */}
         <script
           id="website-schema"
           type="application/ld+json"
@@ -134,17 +131,35 @@ export default function RootLayout({
             __html: JSON.stringify(websiteSchema),
           }}
         />
+
+        {/* =================================================
+            MONETAG VIGNETTE
+        ================================================= */}
+        <Script
+          id="monetag-vignette"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function(s){
+                s.dataset.zone='11750750',
+                s.src='https://n6wxm.com/vignette.min.js'
+              })([document.documentElement, document.body]
+                .filter(Boolean)
+                .pop()
+                .appendChild(document.createElement('script')))
+            `,
+          }}
+        />
       </head>
 
       <body className="min-h-screen bg-white text-zinc-900 antialiased">
         <Header />
 
-        <main className="min-h-screen">
-          {children}
-        </main>
+        <main className="min-h-screen">{children}</main>
 
         <Footer />
       </body>
     </html>
   );
 }
+

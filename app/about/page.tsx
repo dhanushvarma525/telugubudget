@@ -1,9 +1,20 @@
 import type { Metadata } from "next";
 
+const siteUrl = "https://www.anatago.com";
+
 export const metadata: Metadata = {
   title: "About AnantaGo",
   description:
     "Learn more about AnantaGo, a technology publication covering AI, tech, apps, security, how-to guides and digital life.",
+
+  alternates: {
+    canonical: `${siteUrl}/about`,
+  },
+
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function AboutPage() {
@@ -111,7 +122,7 @@ export default function AboutPage() {
               We aim to publish useful and understandable articles rather
               than simply producing content for the sake of publishing.
               Articles are written with clarity, practical value and the
-              reader's experience in mind.
+              reader&apos;s experience in mind.
             </p>
 
             <p className="mt-4">
