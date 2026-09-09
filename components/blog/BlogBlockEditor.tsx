@@ -132,6 +132,105 @@ function createId() {
     .slice(2)}`;
 }
 
+/* =========================================================
+   HEADING CLEANER
+========================================================= */
+
+/*
+ * Heading blocks MUST contain plain text only.
+ *
+ * Examples:
+ *
+ * ## <p>The Bottom Line</p>
+ * <h2><p>The Bottom Line</p></h2>
+ * <h2>The Bottom Line</h2>
+ * ## The Bottom Line
+ *
+ * all become:
+ *
+ * The Bottom Line
+ */
+
+function cleanHeadingText(value: string) {
+  if (!value) {
+    return "";
+  }
+
+  let cleaned = String(value);
+
+  /*
+   * Remove leading Markdown heading syntax.
+   */
+  cleaned = cleaned.replace(
+    /^\s*#{1,6}\s*/,
+    ""
+  );
+
+  /*
+   * If HTML exists, extract only visible text.
+   */
+  if (/<[a-z][\s\S]*>/i.test(cleaned)) {
+    const parser = new DOMParser();
+
+    const documentNode =
+      parser.parseFromString(
+        cleaned,
+        "text/html"
+      );
+
+    cleaned =
+      documentNode.body.textContent ||
+      "";
+  }
+
+  /*
+   * Remove Markdown heading syntax again
+   * after HTML extraction.
+   */
+  cleaned = cleaned
+    .replace(
+      /^\s*#{1,6}\s*/,
+      ""
+    )
+    .replace(
+      /\s+/g,
+      " "
+    )
+    .trim();
+
+  return cleaned;
+}
+
+/* =========================================================
+   PLAIN TEXT CLEANER
+========================================================= */
+
+/*
+ * Used only for headings.
+ *
+ * This protects against accidental values such as:
+ *
+ * <p>Heading</p>
+ * ## Heading
+ * <h2>Heading</h2>
+ */
+
+function getCleanHeadingValue(
+  block: BlogContentBlock
+) {
+  return cleanHeadingText(
+    String(
+      block.text ||
+        block.content ||
+        ""
+    )
+  );
+}
+
+/* =========================================================
+   BLOCK CREATION
+========================================================= */
+
 function createBlock(
   type: BlogContentBlock["type"]
 ): BlogContentBlock {
@@ -217,6 +316,10 @@ function createBlock(
   }
 }
 
+/* =========================================================
+   BLOCK TEXT
+========================================================= */
+
 function getBlockText(
   block: BlogContentBlock
 ) {
@@ -228,26 +331,8 @@ function getBlockText(
 }
 
 /* =========================================================
-   HTML COLOR / FORMAT NORMALIZATION
+   NORMALIZE RICH TEXT HTML
 ========================================================= */
-
-/*
- * Browser implementations of document.execCommand()
- * are inconsistent.
- *
- * Depending on browser/version, foreColor/hiliteColor
- * can produce markup such as:
- *
- * <font color="#2563EB">text</font>
- *
- * or:
- *
- * <span style="color: rgb(37, 99, 235);">text</span>
- *
- * The published article renderer expects safe inline
- * styles, so we normalize browser-generated <font>
- * elements into <span> elements.
- */
 
 function normalizeEditorHtml(
   html: string
@@ -266,18 +351,7 @@ function normalizeEditorHtml(
     );
 
   /*
-   * Convert all <font> elements into
-   * <span> elements.
-   *
-   * This handles both:
-   *
-   * <font color="#2563EB">
-   *
-   * and:
-   *
-   * <font color="#2563EB" style="...">
-   *
-   * Existing safe inline styling is preserved.
+   * Convert <font> into <span>.
    */
   documentNode
     .querySelectorAll("font")
@@ -323,10 +397,7 @@ function normalizeEditorHtml(
     });
 
   /*
-   * Normalize the formatting properties
-   * that this editor intentionally supports.
-   *
-   * We do NOT touch arbitrary CSS.
+   * Normalize supported inline styles.
    */
   documentNode
     .querySelectorAll(
@@ -365,10 +436,6 @@ function normalizeEditorHtml(
           style.textAlign.trim();
       }
 
-      /*
-       * If style became empty,
-       * remove the attribute.
-       */
       if (
         !style.cssText.trim()
       ) {
@@ -536,12 +603,7 @@ export function RichTextEditor({
         savedRange.current
       );
     } catch {
-      /*
-       * A saved Range can become invalid
-       * after DOM updates. In that case,
-       * simply leave the current selection
-       * untouched.
-       */
+      // Ignore invalid saved ranges.
     }
   }
 
@@ -559,14 +621,6 @@ export function RichTextEditor({
       return;
     }
 
-    /*
-     * Normal typing should not replace
-     * innerHTML because doing so can move
-     * the caret.
-     *
-     * Formatting commands explicitly
-     * request normalization.
-     */
     if (normalize) {
       const normalized =
         normalizeEditorHtml(
@@ -577,19 +631,11 @@ export function RichTextEditor({
         editor.innerHTML !==
         normalized
       ) {
-        /*
-         * Save selection before changing
-         * the DOM.
-         */
         saveSelection();
 
         editor.innerHTML =
           normalized;
 
-        /*
-         * Restore the selection after
-         * normalization.
-         */
         restoreSelection();
       }
 
@@ -643,7 +689,7 @@ export function RichTextEditor({
   }
 
   /* -------------------------------------------------------
-     Format
+     Format block
   ------------------------------------------------------- */
 
   function formatBlock(
@@ -676,7 +722,7 @@ export function RichTextEditor({
   }
 
   /* -------------------------------------------------------
-     Apply text color
+     Text color
   ------------------------------------------------------- */
 
   function applyTextColor(
@@ -693,15 +739,6 @@ export function RichTextEditor({
 
     editor.focus();
 
-    /*
-     * Apply the browser command.
-     *
-     * Some browsers return <font color="">
-     * and others return <span style="">.
-     *
-     * emitChange(true) immediately
-     * normalizes both formats.
-     */
     document.execCommand(
       "foreColor",
       false,
@@ -714,7 +751,7 @@ export function RichTextEditor({
   }
 
   /* -------------------------------------------------------
-     Remove only highlight formatting
+     Remove highlight
   ------------------------------------------------------- */
 
   function removeHighlightFromElement(
@@ -749,18 +786,6 @@ export function RichTextEditor({
       return;
     }
 
-    /*
-     * Only remove background-color.
-     *
-     * This intentionally preserves:
-     *
-     * color
-     * font-weight
-     * font-style
-     * text-decoration
-     * text-align
-     * and other inline formatting.
-     */
     element.style.backgroundColor =
       "";
 
@@ -792,7 +817,7 @@ export function RichTextEditor({
   }
 
   /* -------------------------------------------------------
-     Apply highlight
+     Highlight
   ------------------------------------------------------- */
 
   function applyHighlight(
@@ -809,21 +834,6 @@ export function RichTextEditor({
 
     editor.focus();
 
-    /*
-     * IMPORTANT:
-     *
-     * Never use removeFormat() here.
-     *
-     * removeFormat() can remove:
-     * - bold
-     * - italic
-     * - underline
-     * - text color
-     * - links
-     * - other formatting
-     *
-     * We only remove background color.
-     */
     if (
       color ===
       "transparent"
@@ -838,10 +848,6 @@ export function RichTextEditor({
         const range =
           selection.getRangeAt(0);
 
-        /*
-         * Collect all highlighted
-         * elements inside the editor.
-         */
         const highlightedElements =
           Array.from(
             editor.querySelectorAll(
@@ -863,10 +869,6 @@ export function RichTextEditor({
           }
         );
 
-        /*
-         * Also check ancestors of the
-         * current selection.
-         */
         let current =
           selection.anchorNode
             ?.parentElement || null;
@@ -900,38 +902,25 @@ export function RichTextEditor({
       return;
     }
 
-    /*
-     * Apply the requested highlight.
-     *
-     * hiliteColor is preferred.
-     */
     document.execCommand(
       "hiliteColor",
       false,
       color
     );
 
-    /*
-     * backColor is used by some
-     * browser implementations.
-     */
     document.execCommand(
       "backColor",
       false,
       color
     );
 
-    /*
-     * Normalize any <font> output
-     * and preserve the highlight.
-     */
     emitChange(true);
 
     saveSelection();
   }
 
   /* -------------------------------------------------------
-     Link
+     Link dialog
   ------------------------------------------------------- */
 
   function openLinkDialog() {
@@ -1442,9 +1431,7 @@ export function RichTextEditor({
           <ToolButton
             label="Underline"
             onClick={() =>
-              exec(
-                "underline"
-              )
+              exec("underline")
             }
           >
             <Underline size={16} />
@@ -1453,9 +1440,7 @@ export function RichTextEditor({
           <ToolButton
             label="Strikethrough"
             onClick={() =>
-              exec(
-                "strikeThrough"
-              )
+              exec("strikeThrough")
             }
           >
             <Strikethrough
@@ -1682,7 +1667,6 @@ export function RichTextEditor({
             className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:bg-gray-50"
           >
             <Search size={15} />
-
             Internal link
           </button>
 
@@ -1792,8 +1776,7 @@ export function RichTextEditor({
                   }
                   onChange={(event) =>
                     setLinkText(
-                      event.target
-                        .value
+                      event.target.value
                     )
                   }
                   className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-gray-900"
@@ -1812,8 +1795,7 @@ export function RichTextEditor({
                   }
                   onChange={(event) =>
                     setLinkUrl(
-                      event.target
-                        .value
+                      event.target.value
                     )
                   }
                   className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-gray-900"
@@ -1829,8 +1811,7 @@ export function RichTextEditor({
                   }
                   onChange={(event) =>
                     setOpenNewTab(
-                      event.target
-                        .checked
+                      event.target.checked
                     )
                   }
                   className="h-4 w-4 rounded border-gray-300"
@@ -1913,8 +1894,7 @@ export function RichTextEditor({
                   }
                   onChange={(event) => {
                     const value =
-                      event.target
-                        .value;
+                      event.target.value;
 
                     setArticleSearch(
                       value
@@ -2038,9 +2018,9 @@ export default function BlogBlockEditor({
   const [
     uploadingImage,
     setUploadingImage,
-  ] = useState<
-    number | null
-  >(null);
+  ] = useState<number | null>(
+    null
+  );
 
   const [
     uploadError,
@@ -2058,6 +2038,79 @@ export default function BlogBlockEditor({
     >({});
 
   /* -------------------------------------------------------
+     IMPORTANT:
+     Repair malformed heading blocks when loaded.
+  ------------------------------------------------------- */
+
+  const headingRepairKey =
+    useRef("");
+
+  useEffect(() => {
+    if (!blocks.length) {
+      return;
+    }
+
+    const repairKey = blocks
+      .map((block) =>
+        block.type === "heading"
+          ? `${block.id}:${getBlockText(block)}`
+          : `${block.id}:${block.type}`
+      )
+      .join("|");
+
+    if (
+      headingRepairKey.current ===
+      repairKey
+    ) {
+      return;
+    }
+
+    headingRepairKey.current =
+      repairKey;
+
+    let changed = false;
+
+    const repairedBlocks =
+      blocks.map((block) => {
+        if (
+          block.type !==
+          "heading"
+        ) {
+          return block;
+        }
+
+        const originalText =
+          getBlockText(block);
+
+        const cleaned =
+          cleanHeadingText(
+            originalText
+          );
+
+        if (
+          cleaned ===
+          originalText
+        ) {
+          return block;
+        }
+
+        changed = true;
+
+        return {
+          ...block,
+          text: cleaned,
+          content: cleaned,
+        };
+      });
+
+    if (changed) {
+      onChange(
+        repairedBlocks
+      );
+    }
+  }, [blocks, onChange]);
+
+  /* -------------------------------------------------------
      Block updates
   ------------------------------------------------------- */
 
@@ -2069,10 +2122,50 @@ export default function BlogBlockEditor({
       ...blocks,
     ];
 
-    next[index] = {
-      ...next[index],
-      ...updates,
-    };
+    const current =
+      next[index];
+
+    if (!current) {
+      return;
+    }
+
+    /*
+     * Extra protection:
+     * heading blocks can NEVER receive
+     * HTML/Markdown content.
+     */
+    if (
+      current.type ===
+      "heading"
+    ) {
+      const incomingText =
+        typeof updates.text ===
+        "string"
+          ? updates.text
+          : typeof updates.content ===
+            "string"
+          ? updates.content
+          : getBlockText(
+              current
+            );
+
+      const cleaned =
+        cleanHeadingText(
+          incomingText
+        );
+
+      next[index] = {
+        ...current,
+        ...updates,
+        text: cleaned,
+        content: cleaned,
+      };
+    } else {
+      next[index] = {
+        ...current,
+        ...updates,
+      };
+    }
 
     onChange(next);
   }
@@ -2128,6 +2221,10 @@ export default function BlogBlockEditor({
     const original =
       blocks[index];
 
+    if (!original) {
+      return;
+    }
+
     const duplicate = {
       ...original,
       id: createId(),
@@ -2152,6 +2249,27 @@ export default function BlogBlockEditor({
             )
           : undefined,
     };
+
+    /*
+     * Also clean duplicated headings.
+     */
+    if (
+      duplicate.type ===
+      "heading"
+    ) {
+      const cleaned =
+        cleanHeadingText(
+          getBlockText(
+            duplicate
+          )
+        );
+
+      duplicate.text =
+        cleaned;
+
+      duplicate.content =
+        cleaned;
+    }
 
     const next = [
       ...blocks,
@@ -2654,7 +2772,7 @@ export default function BlogBlockEditor({
         {/* BLOCK BODY */}
 
         <div className="p-4 sm:p-5">
-          {/* TEXT */}
+          {/* TEXT / PARAGRAPH */}
 
           {(
             type === "text" ||
@@ -2679,7 +2797,16 @@ export default function BlogBlockEditor({
             />
           )}
 
-          {/* HEADING */}
+          {/* =================================================
+              HEADING
+
+              IMPORTANT:
+              Heading is a plain input.
+
+              It NEVER uses contentEditable.
+              It NEVER stores HTML.
+              It NEVER stores Markdown.
+          ================================================= */}
 
           {type ===
             "heading" && (
@@ -2707,7 +2834,7 @@ export default function BlogBlockEditor({
                       }
                     )
                   }
-                  className="rounded-xl border border-gray-200 px-4 py-3 text-sm"
+                  className="rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-gray-900"
                 >
                   <option value={2}>
                     H2
@@ -2719,23 +2846,67 @@ export default function BlogBlockEditor({
                 </select>
               </div>
 
-              <RichTextEditor
-                value={getBlockText(
-                  block
-                )}
-                onChange={(value) =>
-                  updateBlock(
-                    index,
-                    {
-                      text: value,
-                      content:
-                        value,
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-gray-800">
+                  Heading text
+                </label>
+
+                <input
+                  type="text"
+                  value={getCleanHeadingValue(
+                    block
+                  )}
+                  onChange={(event) => {
+                    const cleaned =
+                      cleanHeadingText(
+                        event.target
+                          .value
+                      );
+
+                    updateBlock(
+                      index,
+                      {
+                        text:
+                          cleaned,
+                        content:
+                          cleaned,
+                      }
+                    );
+                  }}
+                  onBlur={() => {
+                    const cleaned =
+                      cleanHeadingText(
+                        getBlockText(
+                          block
+                        )
+                      );
+
+                    if (
+                      cleaned !==
+                      getBlockText(
+                        block
+                      )
+                    ) {
+                      updateBlock(
+                        index,
+                        {
+                          text:
+                            cleaned,
+                          content:
+                            cleaned,
+                        }
+                      );
                     }
-                  )
-                }
-                placeholder="Heading..."
-                minHeight="110px"
-              />
+                  }}
+                  placeholder="Enter heading text..."
+                  className="w-full rounded-xl border border-gray-200 px-4 py-4 text-lg font-semibold text-gray-900 outline-none focus:border-gray-900"
+                />
+
+                <p className="mt-2 text-xs text-gray-500">
+                  Headings are automatically stored as plain text.
+                  HTML and Markdown are removed.
+                </p>
+              </div>
             </div>
           )}
 
@@ -2854,8 +3025,7 @@ export default function BlogBlockEditor({
                     updateBlock(
                       index,
                       {
-                        alt: event
-                          .target
+                        alt: event.target
                           .value,
                       }
                     )
@@ -2880,8 +3050,7 @@ export default function BlogBlockEditor({
                       index,
                       {
                         caption:
-                          event
-                            .target
+                          event.target
                             .value,
                       }
                     )
@@ -2940,8 +3109,7 @@ export default function BlogBlockEditor({
                         updateListItem(
                           index,
                           itemIndex,
-                          event
-                            .target
+                          event.target
                             .value
                         )
                       }
@@ -3019,8 +3187,7 @@ export default function BlogBlockEditor({
                     index,
                     {
                       label:
-                        event
-                          .target
+                        event.target
                           .value,
                     }
                   )
@@ -3062,8 +3229,7 @@ export default function BlogBlockEditor({
                   updateBlock(
                     index,
                     {
-                      text: event
-                        .target
+                      text: event.target
                         .value,
                     }
                   )
@@ -3081,8 +3247,7 @@ export default function BlogBlockEditor({
                   updateBlock(
                     index,
                     {
-                      href: event
-                        .target
+                      href: event.target
                         .value,
                     }
                   )
@@ -3102,8 +3267,7 @@ export default function BlogBlockEditor({
                       index,
                       {
                         external:
-                          event
-                            .target
+                          event.target
                             .checked,
                       }
                     )
@@ -3147,8 +3311,7 @@ export default function BlogBlockEditor({
                                   updateTableHeader(
                                     index,
                                     columnIndex,
-                                    event
-                                      .target
+                                    event.target
                                       .value
                                   )
                                 }
@@ -3210,8 +3373,7 @@ export default function BlogBlockEditor({
                                       index,
                                       rowIndex,
                                       columnIndex,
-                                      event
-                                        .target
+                                      event.target
                                         .value
                                     )
                                   }

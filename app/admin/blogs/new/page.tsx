@@ -15,6 +15,12 @@ import type {
   BlogFormData,
 } from "@/types/blog";
 
+/*
+ * =========================================================
+ * SLUG
+ * =========================================================
+ */
+
 function createSlug(value: string) {
   return value
     .toLowerCase()
@@ -118,6 +124,241 @@ function calculateTitleSimilarity(
 
 /*
  * =========================================================
+ * CONTENT CLEANING
+ * =========================================================
+ *
+ * IMPORTANT:
+ *
+ * Headings are stored as plain text.
+ *
+ * Text/paragraph/quote/callout blocks may contain safe HTML.
+ *
+ * This prevents accidental values such as:
+ *
+ * ## <p>The Bottom Line</p>
+ *
+ * from being saved.
+ */
+
+/*
+ * Clean heading text.
+ *
+ * Examples:
+ *
+ * ## The Bottom Line
+ *      ↓
+ * The Bottom Line
+ *
+ * ## <p>The Bottom Line</p>
+ *      ↓
+ * The Bottom Line
+ *
+ * <h2>The Bottom Line</h2>
+ *      ↓
+ * The Bottom Line
+ */
+
+function cleanHeadingText(value: string) {
+  if (!value) {
+    return "";
+  }
+
+  if (typeof window === "undefined") {
+    return value
+      .replace(/<[^>]*>/g, "")
+      .replace(/^#{1,6}\s*/, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  const parser = new DOMParser();
+
+  const doc = parser.parseFromString(
+    value,
+    "text/html"
+  );
+
+  return (doc.body.textContent || "")
+    .replace(/^#{1,6}\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/*
+ * Convert accidental Markdown bold
+ * into HTML understood by the article renderer.
+ *
+ * Example:
+ *
+ * **Google Search Europe**
+ *
+ * becomes:
+ *
+ * <strong>Google Search Europe</strong>
+ */
+
+function convertMarkdownBoldToHtml(
+  value: string
+) {
+  if (!value) {
+    return "";
+  }
+
+  return value.replace(
+    /\*\*(.+?)\*\*/g,
+    "<strong>$1</strong>"
+  );
+}
+
+/*
+ * Clean content blocks before sending them
+ * to the API.
+ */
+
+function normalizeContentBlocks(
+  blocks: BlogContentBlock[]
+): BlogContentBlock[] {
+  return blocks.map((block) => {
+    /*
+     * =====================================================
+     * HEADING
+     * =====================================================
+     *
+     * ALWAYS plain text.
+     */
+
+    if (block.type === "heading") {
+      const raw = String(
+        block.text ??
+          block.content ??
+          ""
+      );
+
+      const cleaned =
+        cleanHeadingText(raw);
+
+      return {
+        ...block,
+        text: cleaned,
+        content: cleaned,
+      };
+    }
+
+    /*
+     * =====================================================
+     * TEXT / PARAGRAPH
+     * =====================================================
+     */
+
+    if (
+      block.type === "text" ||
+      block.type === "paragraph"
+    ) {
+      const raw = String(
+        block.text ??
+          block.content ??
+          ""
+      );
+
+      const cleaned =
+        convertMarkdownBoldToHtml(raw);
+
+      return {
+        ...block,
+        text: cleaned,
+        content: cleaned,
+      };
+    }
+
+    /*
+     * =====================================================
+     * QUOTE
+     * =====================================================
+     */
+
+    if (block.type === "quote") {
+      const raw = String(
+        block.text ??
+          block.content ??
+          ""
+      );
+
+      const cleaned =
+        convertMarkdownBoldToHtml(raw);
+
+      return {
+        ...block,
+        text: cleaned,
+        content: cleaned,
+      };
+    }
+
+    /*
+     * =====================================================
+     * CALLOUT
+     * =====================================================
+     */
+
+    if (block.type === "callout") {
+      const raw = String(
+        block.text ??
+          block.content ??
+          ""
+      );
+
+      const cleaned =
+        convertMarkdownBoldToHtml(raw);
+
+      return {
+        ...block,
+        text: cleaned,
+        content: cleaned,
+      };
+    }
+
+    /*
+     * =====================================================
+     * LISTS
+     * =====================================================
+     *
+     * Preserve your existing supported block types.
+     */
+
+    if (
+      block.type === "bullet-list" ||
+      block.type === "bullets" ||
+      block.type === "unordered-list" ||
+      block.type === "numbered-list" ||
+      block.type === "ordered-list"
+    ) {
+      return {
+        ...block,
+        items: Array.isArray(block.items)
+          ? block.items.map((item) =>
+              convertMarkdownBoldToHtml(
+                String(item)
+              )
+            )
+          : block.items,
+      };
+    }
+
+    /*
+     * =====================================================
+     * IMAGE / LINK / TABLE / OTHER
+     * =====================================================
+     *
+     * Do not modify structured blocks.
+     */
+
+    return {
+      ...block,
+    };
+  });
+}
+
+/*
+ * =========================================================
  * TYPES
  * =========================================================
  */
@@ -195,10 +436,6 @@ export default function NewBlogPage() {
   /*
    * =========================================================
    * LOAD EXISTING TITLES
-   *
-   * IMPORTANT:
-   * /api/blogs?admin=true is protected.
-   * Therefore we must send the Supabase access token.
    * =========================================================
    */
 
@@ -593,7 +830,9 @@ export default function NewBlogPage() {
           .filter(Boolean),
 
         content_blocks:
-          contentBlocks,
+          normalizeContentBlocks(
+            contentBlocks
+          ),
 
         faqs,
 
@@ -834,7 +1073,9 @@ export default function NewBlogPage() {
       );
 
       /*
+       * =====================================================
        * TAGS
+       * =====================================================
        */
 
       const cleanTags =
@@ -853,14 +1094,19 @@ export default function NewBlogPage() {
       );
 
       /*
+       * =====================================================
        * CONTENT BLOCKS
+       *
+       * THIS IS THE IMPORTANT FIX.
+       *
+       * Normalize everything immediately before
+       * sending it to the API.
+       * =====================================================
        */
 
       const cleanContentBlocks =
-        contentBlocks.map(
-          (block) => ({
-            ...block,
-          })
+        normalizeContentBlocks(
+          contentBlocks
         );
 
       formData.append(
@@ -871,7 +1117,9 @@ export default function NewBlogPage() {
       );
 
       /*
+       * =====================================================
        * FAQ
+       * =====================================================
        */
 
       const cleanFaqs =
@@ -891,7 +1139,9 @@ export default function NewBlogPage() {
       );
 
       /*
+       * =====================================================
        * PUBLICATION
+       * =====================================================
        */
 
       formData.append(
@@ -909,7 +1159,9 @@ export default function NewBlogPage() {
       );
 
       /*
+       * =====================================================
        * SEO
+       * =====================================================
        */
 
       formData.append(
@@ -925,7 +1177,9 @@ export default function NewBlogPage() {
       );
 
       /*
+       * =====================================================
        * PUBLISHED DATE
+       * =====================================================
        */
 
       if (publish) {
@@ -936,7 +1190,9 @@ export default function NewBlogPage() {
       }
 
       /*
+       * =====================================================
        * COVER IMAGE
+       * =====================================================
        */
 
       if (coverImage) {
@@ -983,10 +1239,6 @@ export default function NewBlogPage() {
       /*
        * =====================================================
        * API REQUEST
-       *
-       * IMPORTANT:
-       * Do NOT manually set Content-Type.
-       * The browser handles multipart/form-data.
        * =====================================================
        */
 

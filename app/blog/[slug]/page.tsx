@@ -1,3 +1,4 @@
+
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -20,22 +21,31 @@ const BASE_URL = "https://www.anatago.com";
 type ContentBlock = {
   id?: string;
   type?: string;
+
   heading?: string;
   title?: string;
+
   text?: string;
   content?: string;
+
   image?: string;
   image_url?: string;
   src?: string;
+
   alt?: string;
   caption?: string;
+
   items?: string[];
+
   rows?: string[][];
   headers?: string[];
+
   url?: string;
   href?: string;
   label?: string;
+
   external?: boolean;
+
   level?: number;
   headingType?: string;
 };
@@ -48,28 +58,38 @@ type FAQ = {
 
 type Blog = {
   id: number;
+
   title: string;
   slug: string;
+
   excerpt: string | null;
   introduction: string | null;
+
   cover_image: string | null;
+
   category: string | null;
   author: string | null;
+
   tags: string[] | null;
+
   content_blocks: ContentBlock[] | null;
   faqs: FAQ[] | null;
+
   published: boolean;
   featured: boolean | null;
+
   views: number | null;
+
   meta_title: string | null;
   meta_description: string | null;
+
   published_at: string | null;
   created_at: string | null;
   updated_at: string | null;
 };
 
 /* =========================================================
-   HELPERS
+   BASIC HELPERS
 ========================================================= */
 
 function decodeSlug(slug: string) {
@@ -85,7 +105,10 @@ function absoluteUrl(path: string) {
     return BASE_URL;
   }
 
-  if (path.startsWith("http://") || path.startsWith("https://")) {
+  if (
+    path.startsWith("http://") ||
+    path.startsWith("https://")
+  ) {
     return path;
   }
 
@@ -121,6 +144,97 @@ function categorySlug(category: string) {
     .toLowerCase()
     .trim()
     .replace(/\s+/g, "-");
+}
+
+/* =========================================================
+   CLEAN HEADING TEXT
+========================================================= */
+
+/**
+ * IMPORTANT:
+ *
+ * Some older blog records contain malformed heading values such as:
+ *
+ * ## <p>Why Google Says Search Quality Could Get Worse</p>
+ *
+ * or:
+ *
+ * <h2>Why Google Says Search Quality Could Get Worse</h2>
+ *
+ * This function converts them into clean plain heading text.
+ *
+ * It is intentionally used ONLY for heading blocks.
+ */
+function cleanHeadingText(value: unknown) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  let text = value;
+
+  // Decode escaped HTML first.
+  text = decodeHtmlEntities(text);
+
+  // Remove Markdown heading prefixes.
+  text = text.replace(/^\s*#{1,6}\s*/, "");
+
+  // Remove common HTML wrappers.
+  text = text.replace(/<\/?p\b[^>]*>/gi, "");
+  text = text.replace(/<\/?h[1-6]\b[^>]*>/gi, "");
+  text = text.replace(/<\/?div\b[^>]*>/gi, "");
+  text = text.replace(/<br\s*\/?>/gi, " ");
+
+  // Remove any remaining HTML tags.
+  text = text.replace(/<[^>]*>/g, "");
+
+  // Decode again in case removing wrappers exposed entities.
+  text = decodeHtmlEntities(text);
+
+  // Convert whitespace to normal spaces.
+  text = text.replace(/\s+/g, " ").trim();
+
+  return text;
+}
+
+/* =========================================================
+   DECODE HTML ENTITIES
+========================================================= */
+
+function decodeHtmlEntities(value: string) {
+  if (!value) {
+    return "";
+  }
+
+  let decoded = value;
+
+  /*
+   * Decode multiple times so content such as:
+   *
+   * &amp;lt;p&amp;gt;Hello&amp;lt;/p&amp;gt;
+   *
+   * can become:
+   *
+   * <p>Hello</p>
+   */
+
+  for (let i = 0; i < 3; i++) {
+    const previous = decoded;
+
+    decoded = decoded
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">")
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'")
+      .replace(/&#x27;/gi, "'")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&amp;/gi, "&");
+
+    if (decoded === previous) {
+      break;
+    }
+  }
+
+  return decoded;
 }
 
 /* =========================================================
@@ -224,7 +338,10 @@ function sanitizeRichText(html: string) {
     return "";
   }
 
-  let safe = html;
+  /*
+   * Decode escaped HTML before sanitizing it.
+   */
+  let safe = decodeHtmlEntities(html);
 
   /* -------------------------------------------------------
      CONVERT LEGACY FONT COLOR MARKUP
@@ -503,7 +620,9 @@ function sanitizeRichText(html: string) {
 ========================================================= */
 
 function containsHtml(value: string) {
-  return /<\/?[a-z][\s\S]*>/i.test(value);
+  const decoded = decodeHtmlEntities(value);
+
+  return /<\/?[a-z][\s\S]*>/i.test(decoded);
 }
 
 /* =========================================================
@@ -517,7 +636,8 @@ function RichText({
   html: string;
   className?: string;
 }) {
-  const safeHtml = sanitizeRichText(html);
+  const decodedHtml = decodeHtmlEntities(html);
+  const safeHtml = sanitizeRichText(decodedHtml);
 
   if (!safeHtml) {
     return null;
@@ -727,7 +847,6 @@ export async function generateMetadata({
       : [{ name: "AnantaGo" }],
 
     creator: blog.author || "AnantaGo",
-
     publisher: "AnantaGo",
 
     openGraph: {
@@ -824,8 +943,25 @@ function renderContentBlock(
     type === "h4" ||
     type === "section"
   ) {
-    const headingText =
-      heading || text;
+    /*
+     * IMPORTANT FIX:
+     *
+     * Never render raw heading HTML/Markdown.
+     *
+     * Examples:
+     *
+     * ## <p>Heading</p>
+     * ### <p>Heading</p>
+     * <h2>Heading</h2>
+     *
+     * all become:
+     *
+     * Heading
+     */
+
+    const headingText = cleanHeadingText(
+      heading || text
+    );
 
     if (!headingText) {
       return null;
@@ -975,7 +1111,10 @@ function renderContentBlock(
         className="my-7 list-disc space-y-3 pl-7 text-[17px] leading-8 text-gray-700 sm:text-lg"
       >
         {items.map(
-          (item, itemIndex) => (
+          (
+            item,
+            itemIndex
+          ) => (
             <li
               key={itemIndex}
               className="pl-1"
@@ -1017,7 +1156,10 @@ function renderContentBlock(
         className="my-7 list-decimal space-y-3 pl-7 text-[17px] leading-8 text-gray-700 sm:text-lg"
       >
         {items.map(
-          (item, itemIndex) => (
+          (
+            item,
+            itemIndex
+          ) => (
             <li
               key={itemIndex}
               className="pl-1"
@@ -1085,7 +1227,7 @@ function renderContentBlock(
       >
         {heading && (
           <h3 className="mb-3 text-lg font-bold text-gray-900 sm:text-xl">
-            {heading}
+            {cleanHeadingText(heading)}
           </h3>
         )}
 
@@ -1117,7 +1259,7 @@ function renderContentBlock(
 
     const label =
       normalizeText(block.label) ||
-      heading ||
+      cleanHeadingText(heading) ||
       text ||
       "Read more";
 
@@ -1222,7 +1364,11 @@ function renderContentBlock(
                           key={cellIndex}
                           className="px-4 py-4 leading-7 text-gray-700"
                         >
-                          {cell}
+                          {containsHtml(cell) ? (
+                            <RichText html={cell} />
+                          ) : (
+                            cell
+                          )}
                         </td>
                       )
                     )}
@@ -1318,6 +1464,7 @@ export default async function BlogPage({
   const articleSchema = {
     "@context": "https://schema.org",
     "@type": "Article",
+
     "@id": `${canonicalUrl}#article`,
 
     mainEntityOfPage: {
@@ -1416,7 +1563,6 @@ export default async function BlogPage({
           blog.category
             ? 4
             : 3,
-
         name: blog.title,
         item: canonicalUrl,
       },
@@ -1461,7 +1607,9 @@ export default async function BlogPage({
                     "Answer",
 
                   text:
-                    faq.answer,
+                    decodeHtmlEntities(
+                      faq.answer || ""
+                    ),
                 },
               })
             ),
@@ -1678,14 +1826,35 @@ export default async function BlogPage({
                     (
                       paragraph,
                       index
-                    ) => (
-                      <p
-                        key={index}
-                        className="mb-5"
-                      >
-                        {paragraph.trim()}
-                      </p>
-                    )
+                    ) => {
+                      const cleanParagraph =
+                        paragraph.trim();
+
+                      if (
+                        containsHtml(
+                          cleanParagraph
+                        )
+                      ) {
+                        return (
+                          <RichText
+                            key={index}
+                            html={
+                              cleanParagraph
+                            }
+                            className="mb-5"
+                          />
+                        );
+                      }
+
+                      return (
+                        <p
+                          key={index}
+                          className="mb-5"
+                        >
+                          {cleanParagraph}
+                        </p>
+                      );
+                    }
                   )}
               </div>
             </section>
@@ -1759,9 +1928,21 @@ export default async function BlogPage({
                       </summary>
 
                       <div className="mt-4 leading-7 text-gray-700">
-                        {
-                          faq.answer
-                        }
+                        {containsHtml(
+                          faq.answer || ""
+                        ) ? (
+                          <RichText
+                            html={
+                              faq.answer ||
+                              ""
+                            }
+                          />
+                        ) : (
+                          decodeHtmlEntities(
+                            faq.answer ||
+                              ""
+                          )
+                        )}
                       </div>
                     </details>
                   )
@@ -1923,3 +2104,4 @@ export default async function BlogPage({
     </>
   );
 }
+
