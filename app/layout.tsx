@@ -127,6 +127,13 @@ export default function RootLayout({
   return (
     <html lang="en" data-scroll-behavior="smooth">
       <head>
+        {/* Pinterest Website Verification */}
+        <meta
+          name="p:domain_verify"
+          content="665792574e413ce526ea1f63eee3de47"
+        />
+
+        {/* Website Structured Data */}
         <script
           id="website-schema"
           type="application/ld+json"
