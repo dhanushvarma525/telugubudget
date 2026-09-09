@@ -340,6 +340,9 @@ export async function GET(
     const admin =
       searchParams.get("admin") === "true";
 
+    const status =
+      searchParams.get("status");
+
     const pageParam =
       searchParams.get("page");
 
@@ -347,14 +350,42 @@ export async function GET(
       searchParams.get("limit");
 
     /* -------------------------------------------------------
+       PROTECT ADMIN REQUESTS
+       ------------------------------------------------------- */
+
+    if (admin) {
+      const auth =
+        await requireAdmin(request);
+
+      if (
+        auth.error ||
+        !auth.user
+      ) {
+        return jsonResponse(
+          {
+            success: false,
+            error:
+              auth.error ||
+              "Authentication required.",
+          },
+          401
+        );
+      }
+    }
+
+    /* -------------------------------------------------------
        SINGLE ARTICLE
        ------------------------------------------------------- */
 
     if (slug || id) {
       let query =
-        supabase
-          .from("blogs")
-          .select("*");
+        admin
+          ? supabaseAdmin
+              .from("blogs")
+              .select("*")
+          : supabase
+              .from("blogs")
+              .select("*");
 
       if (id) {
         const numericId =
@@ -401,6 +432,18 @@ export async function GET(
               trimmedSlug
             );
         }
+      }
+
+      /*
+       * Public single-article requests
+       * may only see published articles.
+       */
+      if (!admin) {
+        query =
+          query.eq(
+            "published",
+            true
+          );
       }
 
       const {
@@ -491,11 +534,60 @@ export async function GET(
       from + limit - 1;
 
     let query =
-      supabase
-        .from("blogs")
-        .select("*", {
-          count: "exact",
-        })
+      admin
+        ? supabaseAdmin
+            .from("blogs")
+            .select("*", {
+              count: "exact",
+            })
+        : supabase
+            .from("blogs")
+            .select("*", {
+              count: "exact",
+            });
+
+    /* -------------------------------------------------------
+       STATUS FILTER
+       ------------------------------------------------------- */
+
+    if (!admin) {
+      /*
+       * Public API:
+       * only published articles.
+       */
+      query =
+        query.eq(
+          "published",
+          true
+        );
+    } else if (
+      status === "draft"
+    ) {
+      /*
+       * Admin Drafts page:
+       * only unpublished articles.
+       */
+      query =
+        query.eq(
+          "published",
+          false
+        );
+    } else if (
+      status === "published"
+    ) {
+      /*
+       * Admin Published page:
+       * only published articles.
+       */
+      query =
+        query.eq(
+          "published",
+          true
+        );
+    }
+
+    query =
+      query
         .order(
           "created_at",
           {
@@ -506,14 +598,6 @@ export async function GET(
           from,
           to
         );
-
-    if (!admin) {
-      query =
-        query.eq(
-          "published",
-          true
-        );
-    }
 
     const {
       data,
@@ -896,10 +980,6 @@ export async function POST(
       );
     }
 
-    /* -------------------------------------------------------
-       DUPLICATE SLUG CHECK
-       ------------------------------------------------------- */
-
     const {
       data: existingRows,
       error: duplicateError,
@@ -943,10 +1023,6 @@ export async function POST(
       );
     }
 
-    /* -------------------------------------------------------
-       UPLOAD COVER IMAGE
-       ------------------------------------------------------- */
-
     if (coverFile) {
       uploadedCoverImage =
         await uploadCoverImage(
@@ -962,10 +1038,6 @@ export async function POST(
         ? publishedAt ||
           now
         : null;
-
-    /* -------------------------------------------------------
-       INSERT ARTICLE
-       ------------------------------------------------------- */
 
     const {
       data,
@@ -1285,10 +1357,6 @@ export async function PUT(
         ? possibleCoverFile
         : null;
 
-    /* -------------------------------------------------------
-       VALIDATION
-       ------------------------------------------------------- */
-
     if (!idValue) {
       return jsonResponse(
         {
@@ -1366,10 +1434,6 @@ export async function PUT(
       );
     }
 
-    /* -------------------------------------------------------
-       FIND EXISTING ARTICLE
-       ------------------------------------------------------- */
-
     const {
       data: existingRows,
       error: existingError,
@@ -1405,11 +1469,6 @@ export async function PUT(
         | undefined) ||
       null;
 
-    /*
-     * Fallback to original slug.
-     *
-     * This protects older edit URLs.
-     */
     if (
       !existingBlog &&
       originalSlug
@@ -1466,10 +1525,6 @@ export async function PUT(
         existingBlog.id
       );
 
-    /* -------------------------------------------------------
-       DUPLICATE SLUG CHECK
-       ------------------------------------------------------- */
-
     if (
       slug !== existingBlog.slug
     ) {
@@ -1521,10 +1576,6 @@ export async function PUT(
       }
     }
 
-    /* -------------------------------------------------------
-       COVER IMAGE
-       ------------------------------------------------------- */
-
     let finalCoverImage =
       existingBlog.cover_image;
 
@@ -1543,10 +1594,6 @@ export async function PUT(
         null;
     }
 
-    /* -------------------------------------------------------
-       PUBLICATION DATE
-       ------------------------------------------------------- */
-
     let finalPublishedAt =
       existingBlog.published_at;
 
@@ -1556,17 +1603,9 @@ export async function PUT(
         rawPublishedAt ||
         new Date().toISOString();
     } else {
-      /*
-       * Keep the existing date while
-       * setting published=false.
-       */
       finalPublishedAt =
         existingBlog.published_at;
     }
-
-    /* -------------------------------------------------------
-       UPDATE DATABASE
-       ------------------------------------------------------- */
 
     const updatePayload = {
       title,
@@ -1600,23 +1639,6 @@ export async function PUT(
       "[PUT /api/blogs] Updating article:",
       existingId
     );
-
-    /*
-     * IMPORTANT:
-     *
-     * Do NOT depend on UPDATE ... RETURNING
-     * to provide the article.
-     *
-     * Some Supabase/RLS configurations can
-     * successfully perform the update but return
-     * an empty result from .select().
-     *
-     * Therefore:
-     *
-     * 1. UPDATE
-     * 2. Check for error
-     * 3. SELECT the updated article separately
-     */
 
     const {
       error: updateError,
@@ -1655,10 +1677,6 @@ export async function PUT(
       );
     }
 
-    /* -------------------------------------------------------
-       FETCH UPDATED ARTICLE
-       ------------------------------------------------------- */
-
     const {
       data: updatedRows,
       error: fetchUpdatedError,
@@ -1678,11 +1696,6 @@ export async function PUT(
         fetchUpdatedError
       );
 
-      /*
-       * The database update already happened.
-       * Do not delete the newly uploaded image
-       * because the article now points to it.
-       */
       return jsonResponse(
         {
           success: false,
@@ -1698,11 +1711,6 @@ export async function PUT(
       !updatedRows ||
       updatedRows.length === 0
     ) {
-      console.error(
-        "Updated article could not be found after update:",
-        existingId
-      );
-
       return jsonResponse(
         {
           success: false,
@@ -1715,10 +1723,6 @@ export async function PUT(
 
     const updatedBlog =
       updatedRows[0] as BlogRow;
-
-    /* -------------------------------------------------------
-       DELETE OLD COVER IMAGE
-       ------------------------------------------------------- */
 
     if (
       uploadedNewCover &&
@@ -1754,11 +1758,6 @@ export async function PUT(
       error
     );
 
-    /*
-     * Only delete the newly uploaded image
-     * when the request itself failed before
-     * successful completion.
-     */
     if (
       uploadedNewCover
     ) {
@@ -1852,10 +1851,6 @@ export async function PATCH(
         false
       );
 
-    /* -------------------------------------------------------
-       FIND CURRENT ARTICLE
-       ------------------------------------------------------- */
-
     const {
       data: existingRows,
       error: findError,
@@ -1910,10 +1905,6 @@ export async function PATCH(
         new Date().toISOString();
     }
 
-    /* -------------------------------------------------------
-       UPDATE
-       ------------------------------------------------------- */
-
     const {
       error: updateError,
     } =
@@ -1946,10 +1937,6 @@ export async function PATCH(
         500
       );
     }
-
-    /* -------------------------------------------------------
-       FETCH UPDATED ARTICLE
-       ------------------------------------------------------- */
 
     const {
       data: updatedRows,
@@ -2075,10 +2062,6 @@ export async function DELETE(
       );
     }
 
-    /* -------------------------------------------------------
-       FIND ARTICLE
-       ------------------------------------------------------- */
-
     const {
       data: rows,
       error: findError,
@@ -2122,10 +2105,6 @@ export async function DELETE(
     const blog =
       rows[0];
 
-    /* -------------------------------------------------------
-       DELETE ARTICLE
-       ------------------------------------------------------- */
-
     const {
       error: deleteError,
     } =
@@ -2152,10 +2131,6 @@ export async function DELETE(
         500
       );
     }
-
-    /* -------------------------------------------------------
-       DELETE COVER IMAGE
-       ------------------------------------------------------- */
 
     if (blog.cover_image) {
       await deleteCoverImage(

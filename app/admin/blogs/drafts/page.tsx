@@ -4,8 +4,10 @@ import {
   useEffect,
   useState,
 } from "react";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+
 import {
   ArrowLeft,
   Edit3,
@@ -16,6 +18,7 @@ import {
   Trash2,
   CheckCircle2,
 } from "lucide-react";
+
 import { supabase } from "@/lib/supabase";
 
 type Blog = {
@@ -72,6 +75,29 @@ export default function DraftsPage() {
   const [deletingId, setDeletingId] =
     useState<number | null>(null);
 
+  async function getAccessToken() {
+    const {
+      data: {
+        session,
+      },
+    } =
+      await supabase.auth.getSession();
+
+    if (
+      !session?.access_token
+    ) {
+      router.replace(
+        "/admin/login"
+      );
+
+      throw new Error(
+        "Your admin session has expired. Please sign in again."
+      );
+    }
+
+    return session.access_token;
+  }
+
   async function loadDrafts(
     requestedPage = page
   ) {
@@ -79,19 +105,8 @@ export default function DraftsPage() {
       setLoading(true);
       setError("");
 
-      const {
-        data: {
-          user,
-        },
-      } =
-        await supabase.auth.getUser();
-
-      if (!user) {
-        router.replace(
-          "/admin/login"
-        );
-        return;
-      }
+      const accessToken =
+        await getAccessToken();
 
       const params =
         new URLSearchParams();
@@ -113,13 +128,23 @@ export default function DraftsPage() {
 
       params.set(
         "page",
-        String(requestedPage)
+        String(
+          Math.max(
+            1,
+            requestedPage
+          )
+        )
       );
 
       const response =
         await fetch(
           `/api/blogs?${params.toString()}`,
           {
+            method: "GET",
+            headers: {
+              Authorization:
+                `Bearer ${accessToken}`,
+            },
             cache: "no-store",
           }
         );
@@ -138,29 +163,48 @@ export default function DraftsPage() {
       }
 
       setBlogs(
-        data.blogs || []
+        Array.isArray(
+          data.blogs
+        )
+          ? data.blogs
+          : []
       );
 
       setTotal(
-        data.total || 0
+        Number(
+          data.total || 0
+        )
       );
 
       setTotalPages(
         Math.max(
           1,
-          data.totalPages || 1
+          Number(
+            data.totalPages || 1
+          )
         )
       );
 
       setPage(
-        data.page ||
-          requestedPage
+        Number(
+          data.page ||
+            requestedPage
+        )
       );
     } catch (err) {
       console.error(
         "LOAD DRAFTS ERROR:",
         err
       );
+
+      if (
+        err instanceof Error &&
+        err.message.includes(
+          "admin session has expired"
+        )
+      ) {
+        return;
+      }
 
       setError(
         err instanceof Error
@@ -182,6 +226,9 @@ export default function DraftsPage() {
     try {
       setPublishingId(id);
 
+      const accessToken =
+        await getAccessToken();
+
       const response =
         await fetch(
           "/api/blogs",
@@ -190,6 +237,8 @@ export default function DraftsPage() {
             headers: {
               "Content-Type":
                 "application/json",
+              Authorization:
+                `Bearer ${accessToken}`,
             },
             body: JSON.stringify({
               id,
@@ -249,11 +298,18 @@ export default function DraftsPage() {
     try {
       setDeletingId(id);
 
+      const accessToken =
+        await getAccessToken();
+
       const response =
         await fetch(
           `/api/blogs?id=${id}`,
           {
             method: "DELETE",
+            headers: {
+              Authorization:
+                `Bearer ${accessToken}`,
+            },
           }
         );
 
@@ -295,6 +351,7 @@ export default function DraftsPage() {
   return (
     <main className="min-h-screen bg-zinc-50">
       <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+
         {/* Header */}
 
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -304,6 +361,7 @@ export default function DraftsPage() {
               className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-zinc-500 transition hover:text-zinc-900"
             >
               <ArrowLeft className="h-4 w-4" />
+
               Dashboard
             </Link>
 
@@ -349,6 +407,7 @@ export default function DraftsPage() {
               className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white transition hover:bg-zinc-800"
             >
               <Plus className="h-4 w-4" />
+
               New Article
             </Link>
           </div>
@@ -400,6 +459,7 @@ export default function DraftsPage() {
                 className="mt-5 inline-flex h-10 items-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
               >
                 <Plus className="h-4 w-4" />
+
                 Create Article
               </Link>
             </div>
@@ -412,6 +472,7 @@ export default function DraftsPage() {
                     className="p-4 transition hover:bg-zinc-50 sm:p-5"
                   >
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="rounded-lg bg-zinc-100 px-2.5 py-1 text-xs font-semibold text-zinc-600">
@@ -440,11 +501,13 @@ export default function DraftsPage() {
                       </div>
 
                       <div className="flex flex-wrap gap-2">
+
                         <Link
-                          href={`/admin/blogs/${blog.id}/edit`}
+                          href={`/admin/blogs/${blog.slug}/edit`}
                           className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100"
                         >
                           <Edit3 className="h-3.5 w-3.5" />
+
                           Edit
                         </Link>
 
@@ -494,6 +557,7 @@ export default function DraftsPage() {
 
                           Delete
                         </button>
+
                       </div>
                     </div>
                   </div>
@@ -515,7 +579,9 @@ export default function DraftsPage() {
                     page - 1
                   )
                 }
-                disabled={page === 1}
+                disabled={
+                  page === 1
+                }
                 className="inline-flex h-9 items-center gap-1 rounded-lg border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-600 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 ← Previous
@@ -543,6 +609,7 @@ export default function DraftsPage() {
               </button>
             </div>
           )}
+
       </div>
     </main>
   );
