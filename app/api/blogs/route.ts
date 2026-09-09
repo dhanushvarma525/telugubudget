@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const CATEGORIES = [
   "AI",
@@ -116,18 +117,6 @@ function isValidCategory(
   );
 }
 
-function getFileExtension(
-  filename: string
-): string {
-  const parts = filename.split(".");
-
-  if (parts.length > 1) {
-    return parts[parts.length - 1].toLowerCase();
-  }
-
-  return "jpg";
-}
-
 function getStoragePathFromPublicUrl(
   publicUrl: string | null | undefined
 ): string | null {
@@ -166,6 +155,10 @@ function getStoragePathFromPublicUrl(
   }
 }
 
+/* =========================================================
+   DELETE COVER IMAGE
+   ========================================================= */
+
 async function deleteCoverImage(
   coverImage: string | null | undefined
 ) {
@@ -184,7 +177,7 @@ async function deleteCoverImage(
 
   try {
     const { error } =
-      await supabase.storage
+      await supabaseAdmin.storage
         .from("blog-images")
         .remove([storagePath]);
 
@@ -202,16 +195,56 @@ async function deleteCoverImage(
   }
 }
 
+/* =========================================================
+   UPLOAD COVER IMAGE
+   ========================================================= */
+
 async function uploadCoverImage(
   file: File
 ): Promise<string> {
+  const allowedTypes = [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+  ];
+
+  const maxSize =
+    10 * 1024 * 1024;
+
+  if (!allowedTypes.includes(file.type)) {
+    throw new Error(
+      "Only JPG, PNG, WEBP and GIF images are allowed."
+    );
+  }
+
+  if (file.size === 0) {
+    throw new Error(
+      "The selected cover image is empty."
+    );
+  }
+
+  if (file.size > maxSize) {
+    throw new Error(
+      "Cover image must be 10MB or smaller."
+    );
+  }
+
+  const extensionMap: Record<
+    string,
+    string
+  > = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+  };
+
   const extension =
-    getFileExtension(file.name);
+    extensionMap[file.type] || "jpg";
 
   const filename =
-    `cover-${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2, 10)}.${extension}`;
+    `cover-${Date.now()}-${crypto.randomUUID()}.${extension}`;
 
   const filePath =
     `blogs/${filename}`;
@@ -220,39 +253,70 @@ async function uploadCoverImage(
     await file.arrayBuffer()
   );
 
-  const { error } =
-    await supabase.storage
+  console.log(
+    "[BLOG COVER] Uploading:",
+    {
+      filePath,
+      type: file.type,
+      size: file.size,
+    }
+  );
+
+  const {
+    error: uploadError,
+  } =
+    await supabaseAdmin.storage
       .from("blog-images")
       .upload(
         filePath,
         buffer,
         {
-          contentType:
-            file.type ||
-            "image/jpeg",
+          contentType: file.type,
+          cacheControl:
+            "31536000",
           upsert: false,
         }
       );
 
-  if (error) {
+  if (uploadError) {
     console.error(
-      "Cover image upload error:",
-      error
+      "[BLOG COVER] Supabase upload error:",
+      uploadError
     );
 
     throw new Error(
-      "Failed to upload cover image."
+      `Cover image upload failed: ${uploadError.message}`
     );
   }
 
-  const { data } =
-    supabase.storage
+  const {
+    data: publicUrlData,
+  } =
+    supabaseAdmin.storage
       .from("blog-images")
       .getPublicUrl(
         filePath
       );
 
-  return data.publicUrl;
+  const publicUrl =
+    publicUrlData?.publicUrl;
+
+  if (!publicUrl) {
+    console.error(
+      "[BLOG COVER] Public URL was not generated."
+    );
+
+    throw new Error(
+      "Cover image uploaded, but a public URL could not be generated."
+    );
+  }
+
+  console.log(
+    "[BLOG COVER] Upload successful:",
+    publicUrl
+  );
+
+  return publicUrl;
 }
 
 /* =========================================================
@@ -855,6 +919,10 @@ export async function POST(
       );
     }
 
+    /* -------------------------------------------------------
+       UPLOAD COVER IMAGE
+       ------------------------------------------------------- */
+
     if (coverFile) {
       uploadedCoverImage =
         await uploadCoverImage(
@@ -870,6 +938,10 @@ export async function POST(
         ? publishedAt ||
           now
         : null;
+
+    /* -------------------------------------------------------
+       INSERT ARTICLE
+       ------------------------------------------------------- */
 
     const {
       data,
