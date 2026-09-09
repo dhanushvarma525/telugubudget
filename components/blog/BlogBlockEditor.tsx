@@ -136,21 +136,6 @@ function createId() {
    HEADING CLEANER
 ========================================================= */
 
-/*
- * Heading blocks MUST contain plain text only.
- *
- * Examples:
- *
- * ## <p>The Bottom Line</p>
- * <h2><p>The Bottom Line</p></h2>
- * <h2>The Bottom Line</h2>
- * ## The Bottom Line
- *
- * all become:
- *
- * The Bottom Line
- */
-
 function cleanHeadingText(value: string) {
   if (!value) {
     return "";
@@ -158,17 +143,11 @@ function cleanHeadingText(value: string) {
 
   let cleaned = String(value);
 
-  /*
-   * Remove leading Markdown heading syntax.
-   */
   cleaned = cleaned.replace(
     /^\s*#{1,6}\s*/,
     ""
   );
 
-  /*
-   * If HTML exists, extract only visible text.
-   */
   if (/<[a-z][\s\S]*>/i.test(cleaned)) {
     const parser = new DOMParser();
 
@@ -183,10 +162,6 @@ function cleanHeadingText(value: string) {
       "";
   }
 
-  /*
-   * Remove Markdown heading syntax again
-   * after HTML extraction.
-   */
   cleaned = cleaned
     .replace(
       /^\s*#{1,6}\s*/,
@@ -200,20 +175,6 @@ function cleanHeadingText(value: string) {
 
   return cleaned;
 }
-
-/* =========================================================
-   PLAIN TEXT CLEANER
-========================================================= */
-
-/*
- * Used only for headings.
- *
- * This protects against accidental values such as:
- *
- * <p>Heading</p>
- * ## Heading
- * <h2>Heading</h2>
- */
 
 function getCleanHeadingValue(
   block: BlogContentBlock
@@ -351,7 +312,8 @@ function normalizeEditorHtml(
     );
 
   /*
-   * Convert <font> into <span>.
+   * Convert legacy <font> elements
+   * into supported <span> elements.
    */
   documentNode
     .querySelectorAll("font")
@@ -397,7 +359,7 @@ function normalizeEditorHtml(
     });
 
   /*
-   * Normalize supported inline styles.
+   * Normalize only supported inline styles.
    */
   documentNode
     .querySelectorAll(
@@ -469,6 +431,10 @@ function ToolButton({
       title={label}
       aria-label={label}
       onMouseDown={(event) => {
+        /*
+         * Prevent the editor from losing its selection
+         * before the toolbar command executes.
+         */
         event.preventDefault();
         onClick();
       }}
@@ -497,6 +463,12 @@ export function RichTextEditor({
   const editorRef =
     useRef<HTMLDivElement>(null);
 
+  /*
+   * This range is ONLY used for toolbar operations.
+   *
+   * Normal typing does NOT restore or save the range.
+   * This is important for stable Space/caret behavior.
+   */
   const savedRange =
     useRef<Range | null>(null);
 
@@ -546,10 +518,13 @@ export function RichTextEditor({
       return;
     }
 
+    /*
+     * Never replace the editor DOM while the user is actively
+     * typing. Doing so can reset the caret.
+     */
     if (
-      document.activeElement !==
-        editor &&
-      editor.innerHTML !== value
+      document.activeElement !== editor &&
+      editor.innerHTML !== (value || "")
     ) {
       editor.innerHTML =
         value || "";
@@ -557,14 +532,42 @@ export function RichTextEditor({
   }, [value]);
 
   /* -------------------------------------------------------
+     Check whether a range belongs to this editor
+  ------------------------------------------------------- */
+
+  function isRangeInsideEditor(
+    range: Range | null
+  ) {
+    const editor =
+      editorRef.current;
+
+    if (!editor || !range) {
+      return false;
+    }
+
+    return (
+      editor.contains(
+        range.startContainer
+      ) &&
+      editor.contains(
+        range.endContainer
+      )
+    );
+  }
+
+  /* -------------------------------------------------------
      Selection
   ------------------------------------------------------- */
 
   function saveSelection() {
+    const editor =
+      editorRef.current;
+
     const selection =
       window.getSelection();
 
     if (
+      !editor ||
       !selection ||
       selection.rangeCount === 0
     ) {
@@ -575,35 +578,45 @@ export function RichTextEditor({
       selection.getRangeAt(0);
 
     if (
-      editorRef.current &&
-      editorRef.current.contains(
+      !editor.contains(
         range.commonAncestorContainer
       )
     ) {
-      savedRange.current =
-        range.cloneRange();
+      return;
     }
+
+    savedRange.current =
+      range.cloneRange();
   }
 
   function restoreSelection() {
     const selection =
       window.getSelection();
 
+    const range =
+      savedRange.current;
+
     if (
       !selection ||
-      !savedRange.current
+      !range ||
+      !isRangeInsideEditor(range)
     ) {
-      return;
+      return false;
     }
 
     try {
       selection.removeAllRanges();
 
       selection.addRange(
-        savedRange.current
+        range
       );
+
+      return true;
     } catch {
-      // Ignore invalid saved ranges.
+      savedRange.current =
+        null;
+
+      return false;
     }
   }
 
@@ -627,16 +640,57 @@ export function RichTextEditor({
           editor.innerHTML
         );
 
+      /*
+       * Only replace the DOM when normalization actually
+       * changed the HTML.
+       */
       if (
         editor.innerHTML !==
         normalized
       ) {
-        saveSelection();
+        const selection =
+          window.getSelection();
+
+        let range: Range | null =
+          null;
+
+        if (
+          selection &&
+          selection.rangeCount > 0 &&
+          editor.contains(
+            selection.getRangeAt(
+              0
+            ).commonAncestorContainer
+          )
+        ) {
+          range =
+            selection
+              .getRangeAt(0)
+              .cloneRange();
+        }
 
         editor.innerHTML =
           normalized;
 
-        restoreSelection();
+        /*
+         * Restore the current selection after normalization.
+         */
+        if (
+          range &&
+          isRangeInsideEditor(
+            range
+          )
+        ) {
+          try {
+            selection?.removeAllRanges();
+
+            selection?.addRange(
+              range
+            );
+          } catch {
+            // Ignore invalid ranges.
+          }
+        }
       }
 
       onChange(
@@ -646,6 +700,12 @@ export function RichTextEditor({
       return;
     }
 
+    /*
+     * Normal typing path.
+     *
+     * Do not touch editor.innerHTML here.
+     * Do not save/restore selection here.
+     */
     onChange(
       editor.innerHTML
     );
@@ -659,14 +719,18 @@ export function RichTextEditor({
     command: string,
     commandValue?: string
   ) {
-    restoreSelection();
-
     const editor =
       editorRef.current;
 
     if (!editor) {
       return;
     }
+
+    /*
+     * Toolbar commands restore the last selection.
+     * Normal typing never comes through this function.
+     */
+    restoreSelection();
 
     editor.focus();
 
@@ -685,6 +749,10 @@ export function RichTextEditor({
       requiresNormalization
     );
 
+    /*
+     * Save the new selection after the command,
+     * so another toolbar action operates on the new position.
+     */
     saveSelection();
   }
 
@@ -699,14 +767,14 @@ export function RichTextEditor({
       | "h3"
       | "blockquote"
   ) {
-    restoreSelection();
-
     const editor =
       editorRef.current;
 
     if (!editor) {
       return;
     }
+
+    restoreSelection();
 
     editor.focus();
 
@@ -728,14 +796,14 @@ export function RichTextEditor({
   function applyTextColor(
     color: string
   ) {
-    restoreSelection();
-
     const editor =
       editorRef.current;
 
     if (!editor) {
       return;
     }
+
+    restoreSelection();
 
     editor.focus();
 
@@ -823,14 +891,14 @@ export function RichTextEditor({
   function applyHighlight(
     color: string
   ) {
-    restoreSelection();
-
     const editor =
       editorRef.current;
 
     if (!editor) {
       return;
     }
+
+    restoreSelection();
 
     editor.focus();
 
@@ -857,14 +925,18 @@ export function RichTextEditor({
 
         highlightedElements.forEach(
           (element) => {
-            if (
-              range.intersectsNode(
-                element
-              )
-            ) {
-              removeHighlightFromElement(
-                element as HTMLElement
-              );
+            try {
+              if (
+                range.intersectsNode(
+                  element
+                )
+              ) {
+                removeHighlightFromElement(
+                  element as HTMLElement
+                );
+              }
+            } catch {
+              // Ignore invalid nodes.
             }
           }
         );
@@ -924,6 +996,10 @@ export function RichTextEditor({
   ------------------------------------------------------- */
 
   function openLinkDialog() {
+    /*
+     * Save the exact current editor selection before
+     * opening the dialog.
+     */
     saveSelection();
 
     const selection =
@@ -978,7 +1054,24 @@ export function RichTextEditor({
   }
 
   function insertLink() {
-    restoreSelection();
+    const editor =
+      editorRef.current;
+
+    if (!editor) {
+      return;
+    }
+
+    if (
+      !restoreSelection()
+    ) {
+      setShowLinkDialog(
+        false
+      );
+
+      return;
+    }
+
+    editor.focus();
 
     const selection =
       window.getSelection();
@@ -1062,6 +1155,9 @@ export function RichTextEditor({
       );
     }
 
+    /*
+     * Apply target/rel to the resulting anchor.
+     */
     const currentSelection =
       window.getSelection();
 
@@ -1093,15 +1189,21 @@ export function RichTextEditor({
     }
 
     if (anchor) {
-      anchor.target =
-        openNewTab
-          ? "_blank"
-          : "";
+      if (openNewTab) {
+        anchor.target =
+          "_blank";
 
-      anchor.rel =
-        openNewTab
-          ? "noopener noreferrer"
-          : "";
+        anchor.rel =
+          "noopener noreferrer";
+      } else {
+        anchor.removeAttribute(
+          "target"
+        );
+
+        anchor.removeAttribute(
+          "rel"
+        );
+      }
     }
 
     emitChange(true);
@@ -1110,7 +1212,7 @@ export function RichTextEditor({
       false
     );
 
-    editorRef.current?.focus();
+    editor.focus();
 
     saveSelection();
   }
@@ -1120,14 +1222,14 @@ export function RichTextEditor({
   ------------------------------------------------------- */
 
   function removeLink() {
-    restoreSelection();
-
     const editor =
       editorRef.current;
 
     if (!editor) {
       return;
     }
+
+    restoreSelection();
 
     editor.focus();
 
@@ -1247,6 +1349,10 @@ export function RichTextEditor({
   }
 
   function openInternalPicker() {
+    /*
+     * Important:
+     * save the caret before opening the modal.
+     */
     saveSelection();
 
     setArticleSearch(
@@ -1265,12 +1371,20 @@ export function RichTextEditor({
   function insertInternalArticle(
     article: ArticleSearchResult
   ) {
-    restoreSelection();
-
     const editor =
       editorRef.current;
 
     if (!editor) {
+      return;
+    }
+
+    if (
+      !restoreSelection()
+    ) {
+      setShowInternalPicker(
+        false
+      );
+
       return;
     }
 
@@ -1324,11 +1438,9 @@ export function RichTextEditor({
 
       selection?.removeAllRanges();
 
-      if (selection) {
-        selection.addRange(
-          range
-        );
-      }
+      selection?.addRange(
+        range
+      );
     } else {
       editor.appendChild(
         anchor
@@ -1353,6 +1465,15 @@ export function RichTextEditor({
   function handleKeyDown(
     event: React.KeyboardEvent<HTMLDivElement>
   ) {
+    /*
+     * IMPORTANT:
+     *
+     * Do not call saveSelection() here.
+     *
+     * Normal keyboard typing must be completely controlled
+     * by contentEditable/browser caret behavior.
+     */
+
     if (
       event.ctrlKey ||
       event.metaKey
@@ -1364,24 +1485,32 @@ export function RichTextEditor({
         event.preventDefault();
 
         exec("bold");
+
+        return;
       }
 
       if (key === "i") {
         event.preventDefault();
 
         exec("italic");
+
+        return;
       }
 
       if (key === "u") {
         event.preventDefault();
 
         exec("underline");
+
+        return;
       }
 
       if (key === "k") {
         event.preventDefault();
 
         openLinkDialog();
+
+        return;
       }
 
       if (key === "z") {
@@ -1392,12 +1521,16 @@ export function RichTextEditor({
             ? "redo"
             : "undo"
         );
+
+        return;
       }
 
       if (key === "y") {
         event.preventDefault();
 
         exec("redo");
+
+        return;
       }
     }
   }
@@ -1692,17 +1825,34 @@ export function RichTextEditor({
         </div>
       </div>
 
+      {/* =====================================================
+          EDITABLE CONTENT
+      ===================================================== */}
+
       <div
         ref={editorRef}
         contentEditable
         suppressContentEditableWarning
-        onInput={() =>
-          emitChange(false)
-        }
+        onInput={() => {
+          /*
+           * IMPORTANT:
+           * No selection manipulation here.
+           * No innerHTML replacement here.
+           *
+           * This keeps typing and Space completely natural.
+           */
+          emitChange(false);
+        }}
         onKeyDown={handleKeyDown}
-        onMouseUp={saveSelection}
-        onKeyUp={saveSelection}
-        onFocus={saveSelection}
+        onMouseUp={() => {
+          /*
+           * Save selection only after the user interacts
+           * with the editor using the mouse.
+           *
+           * This is needed for toolbar operations.
+           */
+          saveSelection();
+        }}
         data-placeholder={placeholder}
         className="prose prose-gray max-w-none px-5 py-5 text-[17px] leading-8 outline-none"
         style={{
@@ -1893,15 +2043,15 @@ export function RichTextEditor({
                     articleSearch
                   }
                   onChange={(event) => {
-                    const value =
+                    const searchValue =
                       event.target.value;
 
                     setArticleSearch(
-                      value
+                      searchValue
                     );
 
                     void loadInternalArticles(
-                      value
+                      searchValue
                     );
                   }}
                   className="w-full rounded-xl border border-gray-200 py-3 pl-10 pr-4 text-sm outline-none focus:border-gray-900"
@@ -2038,8 +2188,7 @@ export default function BlogBlockEditor({
     >({});
 
   /* -------------------------------------------------------
-     IMPORTANT:
-     Repair malformed heading blocks when loaded.
+     Heading repair
   ------------------------------------------------------- */
 
   const headingRepairKey =
@@ -2118,22 +2267,17 @@ export default function BlogBlockEditor({
     index: number,
     updates: Partial<BlogContentBlock>
   ) {
-    const next = [
-      ...blocks,
-    ];
-
     const current =
-      next[index];
+      blocks[index];
 
     if (!current) {
       return;
     }
 
-    /*
-     * Extra protection:
-     * heading blocks can NEVER receive
-     * HTML/Markdown content.
-     */
+    const next = [
+      ...blocks,
+    ];
+
     if (
       current.type ===
       "heading"
@@ -2250,9 +2394,6 @@ export default function BlogBlockEditor({
           : undefined,
     };
 
-    /*
-     * Also clean duplicated headings.
-     */
     if (
       duplicate.type ===
       "heading"
@@ -2797,16 +2938,7 @@ export default function BlogBlockEditor({
             />
           )}
 
-          {/* =================================================
-              HEADING
-
-              IMPORTANT:
-              Heading is a plain input.
-
-              It NEVER uses contentEditable.
-              It NEVER stores HTML.
-              It NEVER stores Markdown.
-          ================================================= */}
+          {/* HEADING */}
 
           {type ===
             "heading" && (
