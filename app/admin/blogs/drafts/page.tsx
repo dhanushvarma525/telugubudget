@@ -33,12 +33,8 @@ type Blog = {
 
 const BLOGS_PER_PAGE = 20;
 
-function formatDate(
-  value: string
-) {
-  return new Date(
-    value
-  ).toLocaleDateString(
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString(
     "en-IN",
     {
       day: "2-digit",
@@ -46,6 +42,18 @@ function formatDate(
       year: "numeric",
     }
   );
+}
+
+async function getAccessToken() {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.access_token) {
+    return null;
+  }
+
+  return session.access_token;
 }
 
 export default function DraftsPage() {
@@ -75,29 +83,6 @@ export default function DraftsPage() {
   const [deletingId, setDeletingId] =
     useState<number | null>(null);
 
-  async function getAccessToken() {
-    const {
-      data: {
-        session,
-      },
-    } =
-      await supabase.auth.getSession();
-
-    if (
-      !session?.access_token
-    ) {
-      router.replace(
-        "/admin/login"
-      );
-
-      throw new Error(
-        "Your admin session has expired. Please sign in again."
-      );
-    }
-
-    return session.access_token;
-  }
-
   async function loadDrafts(
     requestedPage = page
   ) {
@@ -107,6 +92,13 @@ export default function DraftsPage() {
 
       const accessToken =
         await getAccessToken();
+
+      if (!accessToken) {
+        router.replace(
+          "/admin/login"
+        );
+        return;
+      }
 
       const params =
         new URLSearchParams();
@@ -128,12 +120,7 @@ export default function DraftsPage() {
 
       params.set(
         "page",
-        String(
-          Math.max(
-            1,
-            requestedPage
-          )
-        )
+        String(requestedPage)
       );
 
       const response =
@@ -153,6 +140,15 @@ export default function DraftsPage() {
         await response.json();
 
       if (
+        response.status === 401
+      ) {
+        router.replace(
+          "/admin/login"
+        );
+        return;
+      }
+
+      if (
         !response.ok ||
         !data.success
       ) {
@@ -163,17 +159,13 @@ export default function DraftsPage() {
       }
 
       setBlogs(
-        Array.isArray(
-          data.blogs
-        )
+        Array.isArray(data.blogs)
           ? data.blogs
           : []
       );
 
       setTotal(
-        Number(
-          data.total || 0
-        )
+        Number(data.total || 0)
       );
 
       setTotalPages(
@@ -196,15 +188,6 @@ export default function DraftsPage() {
         "LOAD DRAFTS ERROR:",
         err
       );
-
-      if (
-        err instanceof Error &&
-        err.message.includes(
-          "admin session has expired"
-        )
-      ) {
-        return;
-      }
 
       setError(
         err instanceof Error
@@ -229,6 +212,13 @@ export default function DraftsPage() {
       const accessToken =
         await getAccessToken();
 
+      if (!accessToken) {
+        router.replace(
+          "/admin/login"
+        );
+        return;
+      }
+
       const response =
         await fetch(
           "/api/blogs",
@@ -249,6 +239,15 @@ export default function DraftsPage() {
 
       const data =
         await response.json();
+
+      if (
+        response.status === 401
+      ) {
+        router.replace(
+          "/admin/login"
+        );
+        return;
+      }
 
       if (
         !response.ok ||
@@ -301,6 +300,13 @@ export default function DraftsPage() {
       const accessToken =
         await getAccessToken();
 
+      if (!accessToken) {
+        router.replace(
+          "/admin/login"
+        );
+        return;
+      }
+
       const response =
         await fetch(
           `/api/blogs?id=${id}`,
@@ -315,6 +321,15 @@ export default function DraftsPage() {
 
       const data =
         await response.json();
+
+      if (
+        response.status === 401
+      ) {
+        router.replace(
+          "/admin/login"
+        );
+        return;
+      }
 
       if (
         !response.ok ||
@@ -352,8 +367,6 @@ export default function DraftsPage() {
     <main className="min-h-screen bg-zinc-50">
       <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
 
-        {/* Header */}
-
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <Link
@@ -361,7 +374,6 @@ export default function DraftsPage() {
               className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-zinc-500 transition hover:text-zinc-900"
             >
               <ArrowLeft className="h-4 w-4" />
-
               Dashboard
             </Link>
 
@@ -407,21 +419,16 @@ export default function DraftsPage() {
               className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white transition hover:bg-zinc-800"
             >
               <Plus className="h-4 w-4" />
-
               New Article
             </Link>
           </div>
         </div>
-
-        {/* Error */}
 
         {error && (
           <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
           </div>
         )}
-
-        {/* Count */}
 
         <div className="mb-4">
           <p className="text-sm text-zinc-500">
@@ -434,8 +441,6 @@ export default function DraftsPage() {
                 }`}
           </p>
         </div>
-
-        {/* Draft list */}
 
         <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
           {loading ? (
@@ -459,115 +464,106 @@ export default function DraftsPage() {
                 className="mt-5 inline-flex h-10 items-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"
               >
                 <Plus className="h-4 w-4" />
-
                 Create Article
               </Link>
             </div>
           ) : (
             <div className="divide-y divide-zinc-100">
-              {blogs.map(
-                (blog) => (
-                  <div
-                    key={blog.id}
-                    className="p-4 transition hover:bg-zinc-50 sm:p-5"
-                  >
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              {blogs.map((blog) => (
+                <div
+                  key={blog.id}
+                  className="p-4 transition hover:bg-zinc-50 sm:p-5"
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-lg bg-zinc-100 px-2.5 py-1 text-xs font-semibold text-zinc-600">
+                          {blog.category}
+                        </span>
 
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="rounded-lg bg-zinc-100 px-2.5 py-1 text-xs font-semibold text-zinc-600">
-                            {blog.category}
-                          </span>
-
-                          <span className="rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
-                            Draft
-                          </span>
-                        </div>
-
-                        <h2 className="mt-3 line-clamp-2 text-base font-semibold text-zinc-950 sm:text-lg">
-                          {blog.title}
-                        </h2>
-
-                        <p className="mt-1 truncate text-xs text-zinc-400">
-                          /blog/{blog.slug}
-                        </p>
-
-                        <p className="mt-2 text-xs text-zinc-500">
-                          Created{" "}
-                          {formatDate(
-                            blog.created_at
-                          )}
-                        </p>
+                        <span className="rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                          Draft
+                        </span>
                       </div>
 
-                      <div className="flex flex-wrap gap-2">
+                      <h2 className="mt-3 line-clamp-2 text-base font-semibold text-zinc-950 sm:text-lg">
+                        {blog.title}
+                      </h2>
 
-                        <Link
-                          href={`/admin/blogs/${blog.slug}/edit`}
-                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100"
-                        >
-                          <Edit3 className="h-3.5 w-3.5" />
+                      <p className="mt-1 truncate text-xs text-zinc-400">
+                        /blog/{blog.slug}
+                      </p>
 
-                          Edit
-                        </Link>
+                      <p className="mt-2 text-xs text-zinc-500">
+                        Created{" "}
+                        {formatDate(
+                          blog.created_at
+                        )}
+                      </p>
+                    </div>
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handlePublish(
-                              blog.id
-                            )
-                          }
-                          disabled={
-                            publishingId ===
+                    <div className="flex flex-wrap gap-2">
+                      <Link
+                        href={`/admin/blogs/${blog.id}/edit`}
+                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100"
+                      >
+                        <Edit3 className="h-3.5 w-3.5" />
+                        Edit
+                      </Link>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handlePublish(
                             blog.id
-                          }
-                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {publishingId ===
-                          blog.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                          )}
+                          )
+                        }
+                        disabled={
+                          publishingId ===
+                          blog.id
+                        }
+                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {publishingId ===
+                        blog.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                        )}
 
-                          Publish
-                        </button>
+                        Publish
+                      </button>
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleDelete(
-                              blog.id,
-                              blog.title
-                            )
-                          }
-                          disabled={
-                            deletingId ===
-                            blog.id
-                          }
-                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {deletingId ===
-                          blog.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-3.5 w-3.5" />
-                          )}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleDelete(
+                            blog.id,
+                            blog.title
+                          )
+                        }
+                        disabled={
+                          deletingId ===
+                          blog.id
+                        }
+                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {deletingId ===
+                        blog.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
 
-                          Delete
-                        </button>
-
-                      </div>
+                        Delete
+                      </button>
                     </div>
                   </div>
-                )
-              )}
+                </div>
+              ))}
             </div>
           )}
         </div>
-
-        {/* Pagination */}
 
         {!loading &&
           totalPages > 1 && (
@@ -579,9 +575,7 @@ export default function DraftsPage() {
                     page - 1
                   )
                 }
-                disabled={
-                  page === 1
-                }
+                disabled={page === 1}
                 className="inline-flex h-9 items-center gap-1 rounded-lg border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-600 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 ← Previous
@@ -609,7 +603,6 @@ export default function DraftsPage() {
               </button>
             </div>
           )}
-
       </div>
     </main>
   );

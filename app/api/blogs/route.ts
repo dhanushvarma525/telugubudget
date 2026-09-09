@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+
 import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/adminAuth";
+
+/* =========================================================
+   CONFIGURATION
+========================================================= */
 
 const CATEGORIES = [
   "AI",
@@ -21,9 +26,9 @@ type BlogRow = {
   excerpt: string | null;
   introduction: string | null;
   cover_image: string | null;
-  category: string;
+  category: BlogCategory;
   author: string | null;
-  tags: unknown;
+  tags: string[] | null;
   content_blocks: unknown;
   faqs: unknown;
   published: boolean;
@@ -36,79 +41,105 @@ type BlogRow = {
   updated_at: string;
 };
 
+/* =========================================================
+   RESPONSE HELPER
+========================================================= */
+
 function jsonResponse(
   data: unknown,
-  status = 200,
-  headers?: HeadersInit
+  status = 200
 ) {
   return NextResponse.json(data, {
     status,
     headers: {
       "Cache-Control": "no-store",
-      ...headers,
     },
   });
 }
 
+/* =========================================================
+   BOOLEAN PARSER
+========================================================= */
+
 function parseBoolean(
-  value: unknown,
+  value: FormDataEntryValue | string | null | undefined,
   fallback = false
 ): boolean {
-  if (typeof value === "boolean") {
-    return value;
+  if (value === null || value === undefined) {
+    return fallback;
   }
 
-  if (typeof value === "string") {
-    const normalized = value.toLowerCase().trim();
+  if (typeof value !== "string") {
+    return fallback;
+  }
 
-    if (
-      normalized === "true" ||
-      normalized === "1"
-    ) {
-      return true;
-    }
+  const normalized = value.trim().toLowerCase();
 
-    if (
-      normalized === "false" ||
-      normalized === "0"
-    ) {
-      return false;
-    }
+  if (
+    normalized === "true" ||
+    normalized === "1" ||
+    normalized === "yes"
+  ) {
+    return true;
+  }
+
+  if (
+    normalized === "false" ||
+    normalized === "0" ||
+    normalized === "no"
+  ) {
+    return false;
   }
 
   return fallback;
 }
 
+/* =========================================================
+   JSON PARSER
+========================================================= */
+
 function parseJsonValue<T>(
-  value: unknown,
+  value: FormDataEntryValue | null | undefined,
   fallback: T
 ): T {
-  if (
-    value === null ||
-    value === undefined ||
-    value === ""
-  ) {
+  if (value === null || value === undefined) {
     return fallback;
   }
 
   if (typeof value !== "string") {
-    return value as T;
+    return fallback;
+  }
+
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return fallback;
   }
 
   try {
-    return JSON.parse(value) as T;
+    return JSON.parse(trimmed) as T;
   } catch {
     return fallback;
   }
 }
 
+/* =========================================================
+   SLUG NORMALIZER
+========================================================= */
+
 function normalizeSlug(value: string): string {
   return value
     .trim()
     .toLowerCase()
+    .replace(/['"]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .replace(/^-+|-+$/g, "")
+    .replace(/-+/g, "-");
 }
+
+/* =========================================================
+   CATEGORY VALIDATION
+========================================================= */
 
 function isValidCategory(
   value: string
@@ -118,39 +149,37 @@ function isValidCategory(
   );
 }
 
+/* =========================================================
+   STORAGE URL -> PATH
+========================================================= */
+
 function getStoragePathFromPublicUrl(
-  publicUrl: string | null | undefined
+  url: string | null | undefined
 ): string | null {
-  if (!publicUrl) {
+  if (!url) {
     return null;
   }
 
   try {
-    const marker =
-      "/storage/v1/object/public/";
+    const parsed = new URL(url);
 
-    const index =
-      publicUrl.indexOf(marker);
+    const marker =
+      "/storage/v1/object/public/blog-images/";
+
+    const index = parsed.pathname.indexOf(marker);
 
     if (index === -1) {
       return null;
     }
 
-    const afterMarker =
-      publicUrl.slice(
+    const path =
+      parsed.pathname.slice(
         index + marker.length
       );
 
-    const firstSlash =
-      afterMarker.indexOf("/");
-
-    if (firstSlash === -1) {
-      return null;
-    }
-
-    return afterMarker.slice(
-      firstSlash + 1
-    );
+    return path
+      ? decodeURIComponent(path)
+      : null;
   } catch {
     return null;
   }
@@ -158,7 +187,7 @@ function getStoragePathFromPublicUrl(
 
 /* =========================================================
    DELETE COVER IMAGE
-   ========================================================= */
+========================================================= */
 
 async function deleteCoverImage(
   coverImage: string | null | undefined
@@ -167,30 +196,21 @@ async function deleteCoverImage(
     return;
   }
 
-  const storagePath =
-    getStoragePathFromPublicUrl(
-      coverImage
-    );
+  const path =
+    getStoragePathFromPublicUrl(coverImage);
 
-  if (!storagePath) {
+  if (!path) {
     return;
   }
 
-  try {
-    const { error } =
-      await supabaseAdmin.storage
-        .from("blog-images")
-        .remove([storagePath]);
+  const { error } =
+    await supabaseAdmin.storage
+      .from("blog-images")
+      .remove([path]);
 
-    if (error) {
-      console.error(
-        "Failed to delete cover image:",
-        error
-      );
-    }
-  } catch (error) {
+  if (error) {
     console.error(
-      "Failed to delete old cover image:",
+      "DELETE COVER IMAGE ERROR:",
       error
     );
   }
@@ -198,95 +218,80 @@ async function deleteCoverImage(
 
 /* =========================================================
    UPLOAD COVER IMAGE
-   ========================================================= */
+========================================================= */
 
 async function uploadCoverImage(
   file: File
 ): Promise<string> {
+  if (!file || file.size === 0) {
+    throw new Error(
+      "Cover image file is empty."
+    );
+  }
+
   const allowedTypes = [
     "image/jpeg",
     "image/png",
     "image/webp",
-    "image/gif",
   ];
-
-  const maxSize =
-    10 * 1024 * 1024;
 
   if (!allowedTypes.includes(file.type)) {
     throw new Error(
-      "Only JPG, PNG, WEBP and GIF images are allowed."
+      "Cover image must be JPG, PNG, or WEBP."
     );
   }
 
-  if (file.size === 0) {
-    throw new Error(
-      "The selected cover image is empty."
-    );
-  }
+  const maxSize =
+    5 * 1024 * 1024;
 
   if (file.size > maxSize) {
     throw new Error(
-      "Cover image must be 10MB or smaller."
+      "Cover image must be smaller than 5MB."
     );
   }
 
-  const extensionMap: Record<
-    string,
-    string
-  > = {
-    "image/jpeg": "jpg",
-    "image/png": "png",
-    "image/webp": "webp",
-    "image/gif": "gif",
-  };
-
   const extension =
-    extensionMap[file.type] || "jpg";
+    file.name
+      .split(".")
+      .pop()
+      ?.toLowerCase() || "jpg";
 
-  const filename =
-    `cover-${Date.now()}-${crypto.randomUUID()}.${extension}`;
+  const safeExtension =
+    ["jpg", "jpeg", "png", "webp"].includes(
+      extension
+    )
+      ? extension
+      : "jpg";
 
-  const filePath =
-    `blogs/${filename}`;
+  const fileName = `${crypto.randomUUID()}.${safeExtension}`;
 
-  const buffer = Buffer.from(
-    await file.arrayBuffer()
-  );
+  const filePath = `covers/${fileName}`;
 
-  console.log(
-    "[BLOG COVER] Uploading:",
-    {
-      filePath,
-      type: file.type,
-      size: file.size,
-    }
-  );
+  const arrayBuffer =
+    await file.arrayBuffer();
 
-  const {
-    error: uploadError,
-  } =
+  const { error } =
     await supabaseAdmin.storage
       .from("blog-images")
       .upload(
         filePath,
-        buffer,
+        arrayBuffer,
         {
           contentType: file.type,
-          cacheControl:
-            "31536000",
+          cacheControl: "3600",
           upsert: false,
         }
       );
 
-  if (uploadError) {
+  if (error) {
     console.error(
-      "[BLOG COVER] Supabase upload error:",
-      uploadError
+      "SUPABASE COVER UPLOAD ERROR:",
+      error
     );
 
     throw new Error(
-      `Cover image upload failed: ${uploadError.message}`
+      error.message ||
+        "Failed to upload cover image."
     );
   }
 
@@ -295,41 +300,29 @@ async function uploadCoverImage(
   } =
     supabaseAdmin.storage
       .from("blog-images")
-      .getPublicUrl(
-        filePath
-      );
+      .getPublicUrl(filePath);
 
-  const publicUrl =
-    publicUrlData?.publicUrl;
-
-  if (!publicUrl) {
-    console.error(
-      "[BLOG COVER] Public URL was not generated."
-    );
-
+  if (
+    !publicUrlData?.publicUrl
+  ) {
     throw new Error(
-      "Cover image uploaded, but a public URL could not be generated."
+      "Cover image uploaded, but public URL could not be created."
     );
   }
 
-  console.log(
-    "[BLOG COVER] Upload successful:",
-    publicUrl
-  );
-
-  return publicUrl;
+  return publicUrlData.publicUrl;
 }
 
 /* =========================================================
    GET
-   ========================================================= */
+========================================================= */
 
 export async function GET(
   request: NextRequest
 ) {
   try {
     const { searchParams } =
-      new URL(request.url);
+      request.nextUrl;
 
     const slug =
       searchParams.get("slug");
@@ -349,9 +342,22 @@ export async function GET(
     const limitParam =
       searchParams.get("limit");
 
-    /* -------------------------------------------------------
-       PROTECT ADMIN REQUESTS
-       ------------------------------------------------------- */
+    const page = Math.max(
+      1,
+      Number(pageParam) || 1
+    );
+
+    const limit = Math.min(
+      100,
+      Math.max(
+        1,
+        Number(limitParam) || 10
+      )
+    );
+
+    /* =====================================================
+       ADMIN AUTHENTICATION
+    ===================================================== */
 
     if (admin) {
       const auth =
@@ -373,94 +379,52 @@ export async function GET(
       }
     }
 
-    /* -------------------------------------------------------
+    /* =====================================================
        SINGLE ARTICLE
-       ------------------------------------------------------- */
+    ===================================================== */
 
     if (slug || id) {
       let query =
-        admin
-          ? supabaseAdmin
-              .from("blogs")
-              .select("*")
-          : supabase
-              .from("blogs")
-              .select("*");
+        supabaseAdmin
+          .from("blogs")
+          .select("*")
+          .limit(1);
+
+      if (slug) {
+        query = query.eq(
+          "slug",
+          slug
+        );
+      }
 
       if (id) {
-        const numericId =
-          Number(id);
-
-        if (
-          !Number.isFinite(
-            numericId
-          )
-        ) {
-          return jsonResponse(
-            {
-              success: false,
-              error:
-                "Invalid article ID.",
-            },
-            400
-          );
-        }
-
-        query =
-          query.eq(
-            "id",
-            numericId
-          );
-      } else if (slug) {
-        const trimmedSlug =
-          slug.trim();
-
-        if (
-          /^\d+$/.test(
-            trimmedSlug
-          )
-        ) {
-          query =
-            query.eq(
-              "id",
-              Number(trimmedSlug)
-            );
-        } else {
-          query =
-            query.eq(
-              "slug",
-              trimmedSlug
-            );
-        }
+        query = query.eq(
+          "id",
+          id
+        );
       }
 
       /*
-       * Public single-article requests
-       * may only see published articles.
+       * Public requests must only see published
+       * articles.
+       *
+       * Admin requests can see drafts.
        */
       if (!admin) {
-        query =
-          query.eq(
-            "published",
-            true
-          );
+        query = query.eq(
+          "published",
+          true
+        );
       }
 
       const {
         data,
         error,
-      } = await query
-        .order(
-          "created_at",
-          {
-            ascending: false,
-          }
-        )
-        .limit(1);
+      } = await query.maybeSingle();
 
       if (error) {
         console.error(
-          "GET single blog error:",
+          "GET SINGLE BLOG ERROR:",
           error
         );
 
@@ -468,16 +432,14 @@ export async function GET(
           {
             success: false,
             error:
-              error.message,
+              error.message ||
+              "Failed to fetch article.",
           },
           500
         );
       }
 
-      if (
-        !data ||
-        data.length === 0
-      ) {
+      if (!data) {
         return jsonResponse(
           {
             success: false,
@@ -490,42 +452,13 @@ export async function GET(
 
       return jsonResponse({
         success: true,
-        blog: data[0],
+        blog: data,
       });
     }
 
-    /* -------------------------------------------------------
-       ARTICLE LIST
-       ------------------------------------------------------- */
-
-    const parsedPage =
-      Number(pageParam || "1");
-
-    const parsedLimit =
-      Number(limitParam || "20");
-
-    const page =
-      Number.isFinite(
-        parsedPage
-      )
-        ? Math.max(
-            1,
-            Math.floor(parsedPage)
-          )
-        : 1;
-
-    const limit =
-      Number.isFinite(
-        parsedLimit
-      )
-        ? Math.min(
-            1000,
-            Math.max(
-              1,
-              Math.floor(parsedLimit)
-            )
-          )
-        : 20;
+    /* =====================================================
+       BLOG LIST
+    ===================================================== */
 
     const from =
       (page - 1) * limit;
@@ -533,71 +466,67 @@ export async function GET(
     const to =
       from + limit - 1;
 
-    let query =
-      admin
-        ? supabaseAdmin
-            .from("blogs")
-            .select("*", {
-              count: "exact",
-            })
-        : supabase
-            .from("blogs")
-            .select("*", {
-              count: "exact",
-            });
+    /*
+     * Admin uses supabaseAdmin after authentication.
+     *
+     * Public uses the normal Supabase client and only
+     * receives published articles.
+     */
+    let query = admin
+      ? supabaseAdmin
+          .from("blogs")
+          .select("*", {
+            count: "exact",
+          })
+      : supabase
+          .from("blogs")
+          .select("*", {
+            count: "exact",
+          })
+          .eq("published", true);
 
-    /* -------------------------------------------------------
-       STATUS FILTER
-       ------------------------------------------------------- */
+    /* =====================================================
+       ADMIN STATUS FILTER
+    ===================================================== */
 
-    if (!admin) {
-      /*
-       * Public API:
-       * only published articles.
-       */
-      query =
-        query.eq(
-          "published",
-          true
-        );
-    } else if (
-      status === "draft"
-    ) {
-      /*
-       * Admin Drafts page:
-       * only unpublished articles.
-       */
-      query =
-        query.eq(
+    if (admin) {
+      if (status === "draft") {
+        query = query.eq(
           "published",
           false
         );
-    } else if (
-      status === "published"
-    ) {
-      /*
-       * Admin Published page:
-       * only published articles.
-       */
-      query =
-        query.eq(
+      }
+
+      if (status === "published") {
+        query = query.eq(
           "published",
           true
         );
+      }
     }
 
-    query =
-      query
-        .order(
-          "created_at",
-          {
-            ascending: false,
-          }
-        )
-        .range(
-          from,
-          to
-        );
+    /* =====================================================
+       ORDER + PAGINATION
+    ===================================================== */
+
+    query = query
+      .order(
+        "published_at",
+        {
+          ascending: false,
+          nullsFirst: false,
+        }
+      )
+      .order(
+        "created_at",
+        {
+          ascending: false,
+        }
+      )
+      .range(
+        from,
+        to
+      );
 
     const {
       data,
@@ -607,7 +536,7 @@ export async function GET(
 
     if (error) {
       console.error(
-        "GET blogs error:",
+        "GET BLOGS ERROR:",
         error
       );
 
@@ -615,30 +544,26 @@ export async function GET(
         {
           success: false,
           error:
-            error.message,
+            error.message ||
+            "Failed to fetch articles.",
         },
         500
       );
     }
 
-    const total =
-      count || 0;
-
     return jsonResponse({
       success: true,
       blogs: data || [],
-      data: data || [],
-      total,
+      total: count || 0,
       page,
       limit,
-      totalPages:
-        Math.ceil(
-          total / limit
-        ),
+      totalPages: Math.ceil(
+        (count || 0) / limit
+      ),
     });
   } catch (error) {
     console.error(
-      "GET /api/blogs unexpected error:",
+      "GET BLOGS UNEXPECTED ERROR:",
       error
     );
 
@@ -648,7 +573,7 @@ export async function GET(
         error:
           error instanceof Error
             ? error.message
-            : "Failed to load articles.",
+            : "Unexpected server error.",
       },
       500
     );
@@ -657,287 +582,142 @@ export async function GET(
 
 /* =========================================================
    POST
-   CREATE ARTICLE
-   ========================================================= */
+========================================================= */
 
 export async function POST(
   request: NextRequest
 ) {
-  const auth =
-    await requireAdmin(request);
-
-  if (
-    auth.error ||
-    !auth.user
-  ) {
-    return jsonResponse(
-      {
-        success: false,
-        error:
-          auth.error ||
-          "Authentication required.",
-      },
-      401
-    );
-  }
-
-  let uploadedCoverImage:
-    | string
-    | null = null;
-
   try {
-    const contentType =
-      request.headers.get(
-        "content-type"
-      ) || "";
+    /* =====================================================
+       ADMIN AUTH
+    ===================================================== */
 
-    let title = "";
-    let slug = "";
-    let excerpt = "";
-    let introduction = "";
-    let category = "";
-    let author = "";
-    let tags: string[] = [];
-    let contentBlocks: unknown[] = [];
-    let faqs: unknown[] = [];
-    let published = false;
-    let featured = false;
-    let publishedAt:
-      | string
-      | null = null;
-    let metaTitle = "";
-    let metaDescription = "";
-    let coverFile:
-      | File
-      | null = null;
+    const auth =
+      await requireAdmin(request);
 
     if (
-      contentType.includes(
-        "multipart/form-data"
-      )
+      auth.error ||
+      !auth.user
     ) {
-      const formData =
-        await request.formData();
-
-      title =
-        String(
-          formData.get(
-            "title"
-          ) || ""
-        ).trim();
-
-      slug =
-        normalizeSlug(
-          String(
-            formData.get(
-              "slug"
-            ) || ""
-          )
-        );
-
-      excerpt =
-        String(
-          formData.get(
-            "excerpt"
-          ) || ""
-        ).trim();
-
-      introduction =
-        String(
-          formData.get(
-            "introduction"
-          ) || ""
-        ).trim();
-
-      category =
-        String(
-          formData.get(
-            "category"
-          ) || ""
-        ).trim();
-
-      author =
-        String(
-          formData.get(
-            "author"
-          ) || ""
-        ).trim();
-
-      tags =
-        parseJsonValue<
-          string[]
-        >(
-          formData.get(
-            "tags"
-          ),
-          []
-        );
-
-      contentBlocks =
-        parseJsonValue<
-          unknown[]
-        >(
-          formData.get(
-            "content_blocks"
-          ),
-          []
-        );
-
-      faqs =
-        parseJsonValue<
-          unknown[]
-        >(
-          formData.get(
-            "faqs"
-          ),
-          []
-        );
-
-      published =
-        parseBoolean(
-          formData.get(
-            "published"
-          ),
-          false
-        );
-
-      featured =
-        parseBoolean(
-          formData.get(
-            "featured"
-          ),
-          false
-        );
-
-      const rawPublishedAt =
-        String(
-          formData.get(
-            "published_at"
-          ) || ""
-        ).trim();
-
-      publishedAt =
-        rawPublishedAt ||
-        null;
-
-      metaTitle =
-        String(
-          formData.get(
-            "meta_title"
-          ) || ""
-        ).trim();
-
-      metaDescription =
-        String(
-          formData.get(
-            "meta_description"
-          ) || ""
-        ).trim();
-
-      const possibleFile =
-        formData.get(
-          "cover_image"
-        );
-
-      if (
-        possibleFile instanceof File &&
-        possibleFile.size > 0
-      ) {
-        coverFile =
-          possibleFile;
-      }
-    } else {
-      const body =
-        await request.json();
-
-      title =
-        String(
-          body.title || ""
-        ).trim();
-
-      slug =
-        normalizeSlug(
-          String(
-            body.slug || ""
-          )
-        );
-
-      excerpt =
-        String(
-          body.excerpt || ""
-        ).trim();
-
-      introduction =
-        String(
-          body.introduction || ""
-        ).trim();
-
-      category =
-        String(
-          body.category || ""
-        ).trim();
-
-      author =
-        String(
-          body.author || ""
-        ).trim();
-
-      tags =
-        Array.isArray(
-          body.tags
-        )
-          ? body.tags
-          : [];
-
-      contentBlocks =
-        Array.isArray(
-          body.content_blocks
-        )
-          ? body.content_blocks
-          : [];
-
-      faqs =
-        Array.isArray(
-          body.faqs
-        )
-          ? body.faqs
-          : [];
-
-      published =
-        parseBoolean(
-          body.published,
-          false
-        );
-
-      featured =
-        parseBoolean(
-          body.featured,
-          false
-        );
-
-      publishedAt =
-        body.published_at ||
-        null;
-
-      metaTitle =
-        String(
-          body.meta_title ||
-            ""
-        ).trim();
-
-      metaDescription =
-        String(
-          body.meta_description ||
-            ""
-        ).trim();
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            auth.error ||
+            "Authentication required.",
+        },
+        401
+      );
     }
+
+    /* =====================================================
+       FORM DATA
+    ===================================================== */
+
+    const formData =
+      await request.formData();
+
+    const title =
+      String(
+        formData.get("title") || ""
+      ).trim();
+
+    const slugInput =
+      String(
+        formData.get("slug") || ""
+      ).trim();
+
+    const slug =
+      normalizeSlug(
+        slugInput || title
+      );
+
+    const category =
+      String(
+        formData.get("category") ||
+          ""
+      ).trim();
+
+    const author =
+      String(
+        formData.get("author") ||
+          ""
+      ).trim();
+
+    const excerpt =
+      String(
+        formData.get("excerpt") ||
+          ""
+      ).trim();
+
+    const introduction =
+      String(
+        formData.get(
+          "introduction"
+        ) || ""
+      ).trim();
+
+    const tags =
+      parseJsonValue<string[]>(
+        formData.get("tags"),
+        []
+      );
+
+    const contentBlocks =
+      parseJsonValue(
+        formData.get(
+          "content_blocks"
+        ),
+        []
+      );
+
+    const faqs =
+      parseJsonValue(
+        formData.get("faqs"),
+        []
+      );
+
+    const published =
+      parseBoolean(
+        formData.get("published"),
+        false
+      );
+
+    const featured =
+      parseBoolean(
+        formData.get("featured"),
+        false
+      );
+
+    const metaTitle =
+      String(
+        formData.get(
+          "meta_title"
+        ) || ""
+      ).trim();
+
+    const metaDescription =
+      String(
+        formData.get(
+          "meta_description"
+        ) || ""
+      ).trim();
+
+    const coverImageEntry =
+      formData.get(
+        "cover_image"
+      );
+
+    /* =====================================================
+       VALIDATION
+    ===================================================== */
 
     if (!title) {
       return jsonResponse(
         {
           success: false,
           error:
-            "Title is required.",
+            "Article title is required.",
         },
         400
       );
@@ -948,71 +728,69 @@ export async function POST(
         {
           success: false,
           error:
-            "Slug is required.",
+            "Article slug is required.",
         },
         400
       );
     }
 
-    if (!category) {
+    if (!isValidCategory(category)) {
       return jsonResponse(
         {
           success: false,
           error:
-            "Category is required.",
+            "Invalid article category.",
         },
         400
       );
     }
 
     if (
-      !isValidCategory(
-        category
-      )
+      !Array.isArray(tags)
     ) {
       return jsonResponse(
         {
           success: false,
           error:
-            "Invalid category.",
+            "Tags must be a valid array.",
         },
         400
       );
     }
 
+    /* =====================================================
+       DUPLICATE SLUG CHECK
+    ===================================================== */
+
     const {
-      data: existingRows,
-      error: duplicateError,
+      data: existing,
+      error:
+        existingError,
     } =
       await supabaseAdmin
         .from("blogs")
         .select("id")
-        .eq(
-          "slug",
-          slug
-        )
-        .limit(1);
+        .eq("slug", slug)
+        .maybeSingle();
 
-    if (duplicateError) {
+    if (existingError) {
       console.error(
-        "Duplicate slug check error:",
-        duplicateError
+        "CHECK EXISTING BLOG ERROR:",
+        existingError
       );
 
       return jsonResponse(
         {
           success: false,
           error:
-            duplicateError.message,
+            existingError.message ||
+            "Failed to check article slug.",
         },
         500
       );
     }
 
-    if (
-      existingRows &&
-      existingRows.length > 0
-    ) {
+    if (existing) {
       return jsonResponse(
         {
           success: false,
@@ -1023,20 +801,49 @@ export async function POST(
       );
     }
 
-    if (coverFile) {
-      uploadedCoverImage =
-        await uploadCoverImage(
-          coverFile
+    /* =====================================================
+       COVER IMAGE
+    ===================================================== */
+
+    let coverImage:
+      | string
+      | null = null;
+
+    if (
+      coverImageEntry instanceof File &&
+      coverImageEntry.size > 0
+    ) {
+      try {
+        coverImage =
+          await uploadCoverImage(
+            coverImageEntry
+          );
+      } catch (error) {
+        console.error(
+          "COVER UPLOAD ERROR:",
+          error
         );
+
+        return jsonResponse(
+          {
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Failed to upload cover image.",
+          },
+          500
+        );
+      }
     }
 
-    const now =
-      new Date().toISOString();
+    /* =====================================================
+       INSERT BLOG
+    ===================================================== */
 
-    const finalPublishedAt =
+    const publishedAt =
       published
-        ? publishedAt ||
-          now
+        ? new Date().toISOString()
         : null;
 
     const {
@@ -1051,10 +858,9 @@ export async function POST(
           excerpt:
             excerpt || null,
           introduction:
-            introduction ||
-            null,
+            introduction || null,
           cover_image:
-            uploadedCoverImage,
+            coverImage,
           category,
           author:
             author || null,
@@ -1071,24 +877,25 @@ export async function POST(
             metaDescription ||
             null,
           published_at:
-            finalPublishedAt,
-          created_at: now,
-          updated_at: now,
+            publishedAt,
         })
         .select("*")
-        .limit(1);
+        .single();
 
     if (error) {
       console.error(
-        "POST insert error:",
+        "INSERT BLOG ERROR:",
         error
       );
 
-      if (
-        uploadedCoverImage
-      ) {
+      /*
+       * If database insert fails after an image upload,
+       * clean up the uploaded image so Storage doesn't
+       * accumulate orphaned files.
+       */
+      if (coverImage) {
         await deleteCoverImage(
-          uploadedCoverImage
+          coverImage
         );
       }
 
@@ -1096,29 +903,8 @@ export async function POST(
         {
           success: false,
           error:
-            error.message,
-        },
-        500
-      );
-    }
-
-    if (
-      !data ||
-      data.length === 0
-    ) {
-      if (
-        uploadedCoverImage
-      ) {
-        await deleteCoverImage(
-          uploadedCoverImage
-        );
-      }
-
-      return jsonResponse(
-        {
-          success: false,
-          error:
-            "Article was not created.",
+            error.message ||
+            "Failed to save article.",
         },
         500
       );
@@ -1127,23 +913,17 @@ export async function POST(
     return jsonResponse(
       {
         success: true,
-        blog: data[0],
+        blog: data,
+        message:
+          "Article created successfully.",
       },
       201
     );
   } catch (error) {
     console.error(
-      "POST /api/blogs error:",
+      "POST BLOG UNEXPECTED ERROR:",
       error
     );
-
-    if (
-      uploadedCoverImage
-    ) {
-      await deleteCoverImage(
-        uploadedCoverImage
-      );
-    }
 
     return jsonResponse(
       {
@@ -1151,7 +931,7 @@ export async function POST(
         error:
           error instanceof Error
             ? error.message
-            : "Failed to create article.",
+            : "Unexpected server error.",
       },
       500
     );
@@ -1160,93 +940,88 @@ export async function POST(
 
 /* =========================================================
    PUT
-   UPDATE ARTICLE
-   ========================================================= */
+========================================================= */
 
 export async function PUT(
   request: NextRequest
 ) {
-  const auth =
-    await requireAdmin(request);
-
-  if (
-    auth.error ||
-    !auth.user
-  ) {
-    return jsonResponse(
-      {
-        success: false,
-        error:
-          auth.error ||
-          "Authentication required.",
-      },
-      401
-    );
-  }
-
-  let uploadedNewCover:
-    | string
-    | null = null;
-
   try {
-    const contentType =
-      request.headers.get(
-        "content-type"
-      ) || "";
+    /* =====================================================
+       ADMIN AUTH
+    ===================================================== */
+
+    const auth =
+      await requireAdmin(request);
 
     if (
-      !contentType.includes(
-        "multipart/form-data"
-      )
+      auth.error ||
+      !auth.user
     ) {
       return jsonResponse(
         {
           success: false,
           error:
-            "Update requests must use multipart/form-data.",
+            auth.error ||
+            "Authentication required.",
+        },
+        401
+      );
+    }
+
+    /* =====================================================
+       FORM DATA
+    ===================================================== */
+
+    const formData =
+      await request.formData();
+
+    const id =
+      String(
+        formData.get("id") || ""
+      ).trim();
+
+    if (!id) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Article ID is required.",
         },
         400
       );
     }
 
-    const formData =
-      await request.formData();
-
-    const idValue =
-      String(
-        formData.get(
-          "id"
-        ) || ""
-      ).trim();
-
-    const originalSlug =
-      String(
-        formData.get(
-          "original_slug"
-        ) || ""
-      ).trim();
-
     const title =
       String(
-        formData.get(
-          "title"
-        ) || ""
+        formData.get("title") || ""
+      ).trim();
+
+    const slugInput =
+      String(
+        formData.get("slug") || ""
       ).trim();
 
     const slug =
       normalizeSlug(
-        String(
-          formData.get(
-            "slug"
-          ) || ""
-        )
+        slugInput || title
       );
+
+    const category =
+      String(
+        formData.get("category") ||
+          ""
+      ).trim();
+
+    const author =
+      String(
+        formData.get("author") ||
+          ""
+      ).trim();
 
     const excerpt =
       String(
-        formData.get(
-          "excerpt"
-        ) || ""
+        formData.get("excerpt") ||
+          ""
       ).trim();
 
     const introduction =
@@ -1256,34 +1031,14 @@ export async function PUT(
         ) || ""
       ).trim();
 
-    const category =
-      String(
-        formData.get(
-          "category"
-        ) || ""
-      ).trim();
-
-    const author =
-      String(
-        formData.get(
-          "author"
-        ) || ""
-      ).trim();
-
     const tags =
-      parseJsonValue<
-        string[]
-      >(
-        formData.get(
-          "tags"
-        ),
+      parseJsonValue<string[]>(
+        formData.get("tags"),
         []
       );
 
     const contentBlocks =
-      parseJsonValue<
-        unknown[]
-      >(
+      parseJsonValue(
         formData.get(
           "content_blocks"
         ),
@@ -1291,37 +1046,22 @@ export async function PUT(
       );
 
     const faqs =
-      parseJsonValue<
-        unknown[]
-      >(
-        formData.get(
-          "faqs"
-        ),
+      parseJsonValue(
+        formData.get("faqs"),
         []
       );
 
     const published =
       parseBoolean(
-        formData.get(
-          "published"
-        ),
+        formData.get("published"),
         false
       );
 
     const featured =
       parseBoolean(
-        formData.get(
-          "featured"
-        ),
+        formData.get("featured"),
         false
       );
-
-    const rawPublishedAt =
-      String(
-        formData.get(
-          "published_at"
-        ) || ""
-      ).trim();
 
     const metaTitle =
       String(
@@ -1337,6 +1077,11 @@ export async function PUT(
         ) || ""
       ).trim();
 
+    const coverImageEntry =
+      formData.get(
+        "cover_image"
+      );
+
     const removeCoverImage =
       parseBoolean(
         formData.get(
@@ -1345,53 +1090,16 @@ export async function PUT(
         false
       );
 
-    const possibleCoverFile =
-      formData.get(
-        "cover_image"
-      );
-
-    const newCoverFile =
-      possibleCoverFile instanceof
-        File &&
-      possibleCoverFile.size > 0
-        ? possibleCoverFile
-        : null;
-
-    if (!idValue) {
-      return jsonResponse(
-        {
-          success: false,
-          error:
-            "Article ID is required.",
-        },
-        400
-      );
-    }
-
-    const numericId =
-      Number(idValue);
-
-    if (
-      !Number.isFinite(
-        numericId
-      )
-    ) {
-      return jsonResponse(
-        {
-          success: false,
-          error:
-            "Invalid article ID.",
-        },
-        400
-      );
-    }
+    /* =====================================================
+       VALIDATION
+    ===================================================== */
 
     if (!title) {
       return jsonResponse(
         {
           success: false,
           error:
-            "Title is required.",
+            "Article title is required.",
         },
         400
       );
@@ -1402,111 +1110,53 @@ export async function PUT(
         {
           success: false,
           error:
-            "Slug is required.",
+            "Article slug is required.",
         },
         400
       );
     }
 
-    if (!category) {
+    if (!isValidCategory(category)) {
       return jsonResponse(
         {
           success: false,
           error:
-            "Category is required.",
+            "Invalid article category.",
         },
         400
       );
     }
 
-    if (
-      !isValidCategory(
-        category
-      )
-    ) {
-      return jsonResponse(
-        {
-          success: false,
-          error:
-            "Invalid category.",
-        },
-        400
-      );
-    }
+    /* =====================================================
+       FIND EXISTING BLOG
+    ===================================================== */
 
     const {
-      data: existingRows,
-      error: existingError,
+      data: existingBlog,
+      error:
+        existingBlogError,
     } =
       await supabaseAdmin
         .from("blogs")
         .select("*")
-        .eq(
-          "id",
-          numericId
-        )
-        .limit(1);
+        .eq("id", id)
+        .maybeSingle();
 
-    if (existingError) {
+    if (existingBlogError) {
       console.error(
-        "Find article by ID error:",
-        existingError
+        "FIND BLOG FOR UPDATE ERROR:",
+        existingBlogError
       );
 
       return jsonResponse(
         {
           success: false,
           error:
-            existingError.message,
+            existingBlogError.message ||
+            "Failed to find article.",
         },
         500
       );
-    }
-
-    let existingBlog =
-      (existingRows?.[0] as
-        | BlogRow
-        | undefined) ||
-      null;
-
-    if (
-      !existingBlog &&
-      originalSlug
-    ) {
-      const {
-        data: slugRows,
-        error: slugError,
-      } =
-        await supabaseAdmin
-          .from("blogs")
-          .select("*")
-          .eq(
-            "slug",
-            originalSlug
-          )
-          .limit(1);
-
-      if (slugError) {
-        console.error(
-          "Find article by original slug error:",
-          slugError
-        );
-
-        return jsonResponse(
-          {
-            success: false,
-            error:
-              slugError.message,
-          },
-          500
-        );
-      }
-
-      existingBlog =
-        (slugRows?.[0] as
-          | BlogRow
-          | undefined) ||
-        null;
     }
 
     if (!existingBlog) {
@@ -1520,150 +1170,168 @@ export async function PUT(
       );
     }
 
-    const existingId =
-      Number(
-        existingBlog.id
+    /* =====================================================
+       DUPLICATE SLUG CHECK
+    ===================================================== */
+
+    const {
+      data: duplicateBlog,
+      error:
+        duplicateError,
+    } =
+      await supabaseAdmin
+        .from("blogs")
+        .select("id")
+        .eq("slug", slug)
+        .neq("id", id)
+        .maybeSingle();
+
+    if (duplicateError) {
+      console.error(
+        "CHECK DUPLICATE SLUG ERROR:",
+        duplicateError
       );
 
-    if (
-      slug !== existingBlog.slug
-    ) {
-      const {
-        data: duplicateRows,
-        error: duplicateError,
-      } =
-        await supabaseAdmin
-          .from("blogs")
-          .select("id")
-          .eq(
-            "slug",
-            slug
-          )
-          .neq(
-            "id",
-            existingId
-          )
-          .limit(1);
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            duplicateError.message ||
+            "Failed to check article slug.",
+        },
+        500
+      );
+    }
 
-      if (duplicateError) {
+    if (duplicateBlog) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Another article with this slug already exists.",
+        },
+        409
+      );
+    }
+
+    /* =====================================================
+       COVER IMAGE
+    ===================================================== */
+
+    let coverImage =
+      existingBlog.cover_image;
+
+    let newCoverImage:
+      | string
+      | null = null;
+
+    if (
+      coverImageEntry instanceof File &&
+      coverImageEntry.size > 0
+    ) {
+      try {
+        newCoverImage =
+          await uploadCoverImage(
+            coverImageEntry
+          );
+
+        coverImage =
+          newCoverImage;
+      } catch (error) {
         console.error(
-          "Slug duplicate check error:",
-          duplicateError
+          "COVER UPLOAD ERROR:",
+          error
         );
 
         return jsonResponse(
           {
             success: false,
             error:
-              duplicateError.message,
+              error instanceof Error
+                ? error.message
+                : "Failed to upload cover image.",
           },
           500
         );
       }
-
-      if (
-        duplicateRows &&
-        duplicateRows.length > 0
-      ) {
-        return jsonResponse(
-          {
-            success: false,
-            error:
-              "Another article already uses this slug.",
-          },
-          409
-        );
-      }
-    }
-
-    let finalCoverImage =
-      existingBlog.cover_image;
-
-    if (newCoverFile) {
-      uploadedNewCover =
-        await uploadCoverImage(
-          newCoverFile
-        );
-
-      finalCoverImage =
-        uploadedNewCover;
     } else if (
       removeCoverImage
     ) {
-      finalCoverImage =
-        null;
+      coverImage = null;
     }
 
-    let finalPublishedAt =
+    /* =====================================================
+       PUBLISHED DATE
+    ===================================================== */
+
+    let publishedAt =
       existingBlog.published_at;
 
-    if (published) {
-      finalPublishedAt =
-        existingBlog.published_at ||
-        rawPublishedAt ||
+    if (
+      published &&
+      !existingBlog.published
+    ) {
+      publishedAt =
         new Date().toISOString();
-    } else {
-      finalPublishedAt =
-        existingBlog.published_at;
     }
 
-    const updatePayload = {
-      title,
-      slug,
-      excerpt:
-        excerpt || null,
-      introduction:
-        introduction || null,
-      cover_image:
-        finalCoverImage,
-      category,
-      author:
-        author || null,
-      tags,
-      content_blocks:
-        contentBlocks,
-      faqs,
-      published,
-      featured,
-      meta_title:
-        metaTitle || null,
-      meta_description:
-        metaDescription || null,
-      published_at:
-        finalPublishedAt,
-      updated_at:
-        new Date().toISOString(),
-    };
+    if (!published) {
+      publishedAt = null;
+    }
 
-    console.log(
-      "[PUT /api/blogs] Updating article:",
-      existingId
-    );
+    /* =====================================================
+       UPDATE
+    ===================================================== */
 
     const {
-      error: updateError,
+      data,
+      error,
     } =
       await supabaseAdmin
         .from("blogs")
-        .update(
-          updatePayload
-        )
-        .eq(
-          "id",
-          existingId
-        );
+        .update({
+          title,
+          slug,
+          excerpt:
+            excerpt || null,
+          introduction:
+            introduction || null,
+          cover_image:
+            coverImage,
+          category,
+          author:
+            author || null,
+          tags,
+          content_blocks:
+            contentBlocks,
+          faqs,
+          published,
+          featured,
+          meta_title:
+            metaTitle || null,
+          meta_description:
+            metaDescription ||
+            null,
+          published_at:
+            publishedAt,
+        })
+        .eq("id", id)
+        .select("*")
+        .single();
 
-    if (updateError) {
+    if (error) {
       console.error(
-        "PUT update error:",
-        updateError
+        "UPDATE BLOG ERROR:",
+        error
       );
 
-      if (
-        uploadedNewCover
-      ) {
+      /*
+       * If a new image was uploaded but the database
+       * update failed, remove the new image.
+       */
+      if (newCoverImage) {
         await deleteCoverImage(
-          uploadedNewCover
+          newCoverImage
         );
       }
 
@@ -1671,61 +1339,19 @@ export async function PUT(
         {
           success: false,
           error:
-            updateError.message,
+            error.message ||
+            "Failed to update article.",
         },
         500
       );
     }
 
-    const {
-      data: updatedRows,
-      error: fetchUpdatedError,
-    } =
-      await supabaseAdmin
-        .from("blogs")
-        .select("*")
-        .eq(
-          "id",
-          existingId
-        )
-        .limit(1);
-
-    if (fetchUpdatedError) {
-      console.error(
-        "Fetch updated article error:",
-        fetchUpdatedError
-      );
-
-      return jsonResponse(
-        {
-          success: false,
-          error:
-            "Article was updated, but the updated article could not be loaded. " +
-            fetchUpdatedError.message,
-        },
-        500
-      );
-    }
+    /* =====================================================
+       DELETE OLD IMAGE AFTER SUCCESSFUL UPDATE
+    ===================================================== */
 
     if (
-      !updatedRows ||
-      updatedRows.length === 0
-    ) {
-      return jsonResponse(
-        {
-          success: false,
-          error:
-            "Article was updated, but it could not be retrieved afterward.",
-        },
-        500
-      );
-    }
-
-    const updatedBlog =
-      updatedRows[0] as BlogRow;
-
-    if (
-      uploadedNewCover &&
+      newCoverImage &&
       existingBlog.cover_image
     ) {
       await deleteCoverImage(
@@ -1735,7 +1361,7 @@ export async function PUT(
 
     if (
       removeCoverImage &&
-      !uploadedNewCover &&
+      !newCoverImage &&
       existingBlog.cover_image
     ) {
       await deleteCoverImage(
@@ -1743,28 +1369,17 @@ export async function PUT(
       );
     }
 
-    console.log(
-      "[PUT /api/blogs] Article updated successfully:",
-      updatedBlog.id
-    );
-
     return jsonResponse({
       success: true,
-      blog: updatedBlog,
+      blog: data,
+      message:
+        "Article updated successfully.",
     });
   } catch (error) {
     console.error(
-      "PUT /api/blogs unexpected error:",
+      "PUT BLOG UNEXPECTED ERROR:",
       error
     );
-
-    if (
-      uploadedNewCover
-    ) {
-      await deleteCoverImage(
-        uploadedNewCover
-      );
-    }
 
     return jsonResponse(
       {
@@ -1772,7 +1387,7 @@ export async function PUT(
         error:
           error instanceof Error
             ? error.message
-            : "Failed to update article.",
+            : "Unexpected server error.",
       },
       500
     );
@@ -1781,257 +1396,115 @@ export async function PUT(
 
 /* =========================================================
    PATCH
-   PUBLISH / UNPUBLISH
-   ========================================================= */
+========================================================= */
 
 export async function PATCH(
   request: NextRequest
 ) {
-  const auth =
-    await requireAdmin(request);
-
-  if (
-    auth.error ||
-    !auth.user
-  ) {
-    return jsonResponse(
-      {
-        success: false,
-        error:
-          auth.error ||
-          "Authentication required.",
-      },
-      401
-    );
-  }
-
   try {
-    const body =
-      await request.json();
+    /* =====================================================
+       ADMIN AUTH
+    ===================================================== */
 
-    const id =
-      body.id;
+    const auth =
+      await requireAdmin(request);
 
     if (
-      id === undefined ||
-      id === null ||
-      id === ""
+      auth.error ||
+      !auth.user
     ) {
       return jsonResponse(
         {
           success: false,
           error:
-            "Article ID is required.",
+            auth.error ||
+            "Authentication required.",
         },
-        400
+        401
       );
     }
 
-    const numericId =
-      Number(id);
+    /* =====================================================
+       FORM DATA / JSON
+    ===================================================== */
+
+    const contentType =
+      request.headers.get(
+        "content-type"
+      ) || "";
+
+    let id: string | null =
+      null;
+
+    let published:
+      | boolean
+      | undefined;
+
+    let featured:
+      | boolean
+      | undefined;
 
     if (
-      !Number.isFinite(
-        numericId
+      contentType.includes(
+        "application/json"
       )
     ) {
-      return jsonResponse(
-        {
-          success: false,
-          error:
-            "Invalid article ID.",
-        },
-        400
-      );
+      const body =
+        await request.json();
+
+      id =
+        body?.id
+          ? String(body.id)
+          : null;
+
+      if (
+        typeof body?.published ===
+        "boolean"
+      ) {
+        published =
+          body.published;
+      }
+
+      if (
+        typeof body?.featured ===
+        "boolean"
+      ) {
+        featured =
+          body.featured;
+      }
+    } else {
+      const formData =
+        await request.formData();
+
+      id =
+        String(
+          formData.get("id") || ""
+        ).trim();
+
+      if (
+        formData.has("published")
+      ) {
+        published =
+          parseBoolean(
+            formData.get(
+              "published"
+            ),
+            false
+          );
+      }
+
+      if (
+        formData.has("featured")
+      ) {
+        featured =
+          parseBoolean(
+            formData.get(
+              "featured"
+            ),
+            false
+          );
+      }
     }
-
-    const published =
-      parseBoolean(
-        body.published,
-        false
-      );
-
-    const {
-      data: existingRows,
-      error: findError,
-    } =
-      await supabaseAdmin
-        .from("blogs")
-        .select(
-          "id,published,published_at"
-        )
-        .eq(
-          "id",
-          numericId
-        )
-        .limit(1);
-
-    if (findError) {
-      return jsonResponse(
-        {
-          success: false,
-          error:
-            findError.message,
-        },
-        500
-      );
-    }
-
-    if (
-      !existingRows ||
-      existingRows.length === 0
-    ) {
-      return jsonResponse(
-        {
-          success: false,
-          error:
-            "Article not found.",
-        },
-        404
-      );
-    }
-
-    const existing =
-      existingRows[0];
-
-    let publishedAt =
-      existing.published_at;
-
-    if (
-      published &&
-      !publishedAt
-    ) {
-      publishedAt =
-        new Date().toISOString();
-    }
-
-    const {
-      error: updateError,
-    } =
-      await supabaseAdmin
-        .from("blogs")
-        .update({
-          published,
-          published_at:
-            publishedAt,
-          updated_at:
-            new Date().toISOString(),
-        })
-        .eq(
-          "id",
-          numericId
-        );
-
-    if (updateError) {
-      console.error(
-        "PATCH publish error:",
-        updateError
-      );
-
-      return jsonResponse(
-        {
-          success: false,
-          error:
-            updateError.message,
-        },
-        500
-      );
-    }
-
-    const {
-      data: updatedRows,
-      error: fetchError,
-    } =
-      await supabaseAdmin
-        .from("blogs")
-        .select("*")
-        .eq(
-          "id",
-          numericId
-        )
-        .limit(1);
-
-    if (fetchError) {
-      return jsonResponse(
-        {
-          success: false,
-          error:
-            fetchError.message,
-        },
-        500
-      );
-    }
-
-    if (
-      !updatedRows ||
-      updatedRows.length === 0
-    ) {
-      return jsonResponse(
-        {
-          success: false,
-          error:
-            "Article was updated but could not be retrieved.",
-        },
-        500
-      );
-    }
-
-    return jsonResponse({
-      success: true,
-      blog: updatedRows[0],
-    });
-  } catch (error) {
-    console.error(
-      "PATCH /api/blogs error:",
-      error
-    );
-
-    return jsonResponse(
-      {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to update article.",
-      },
-      500
-    );
-  }
-}
-
-/* =========================================================
-   DELETE
-   ========================================================= */
-
-export async function DELETE(
-  request: NextRequest
-) {
-  const auth =
-    await requireAdmin(request);
-
-  if (
-    auth.error ||
-    !auth.user
-  ) {
-    return jsonResponse(
-      {
-        success: false,
-        error:
-          auth.error ||
-          "Authentication required.",
-      },
-      401
-    );
-  }
-
-  try {
-    const { searchParams } =
-      new URL(request.url);
-
-    const id =
-      searchParams.get(
-        "id"
-      );
 
     if (!id) {
       return jsonResponse(
@@ -2044,54 +1517,39 @@ export async function DELETE(
       );
     }
 
-    const numericId =
-      Number(id);
-
-    if (
-      !Number.isFinite(
-        numericId
-      )
-    ) {
-      return jsonResponse(
-        {
-          success: false,
-          error:
-            "Invalid article ID.",
-        },
-        400
-      );
-    }
+    /* =====================================================
+       FIND EXISTING
+    ===================================================== */
 
     const {
-      data: rows,
-      error: findError,
+      data: existingBlog,
+      error:
+        existingError,
     } =
       await supabaseAdmin
         .from("blogs")
-        .select(
-          "id,cover_image"
-        )
-        .eq(
-          "id",
-          numericId
-        )
-        .limit(1);
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
 
-    if (findError) {
+    if (existingError) {
+      console.error(
+        "PATCH FIND BLOG ERROR:",
+        existingError
+      );
+
       return jsonResponse(
         {
           success: false,
           error:
-            findError.message,
+            existingError.message ||
+            "Failed to find article.",
         },
         500
       );
     }
 
-    if (
-      !rows ||
-      rows.length === 0
-    ) {
+    if (!existingBlog) {
       return jsonResponse(
         {
           success: false,
@@ -2102,8 +1560,215 @@ export async function DELETE(
       );
     }
 
-    const blog =
-      rows[0];
+    /* =====================================================
+       BUILD UPDATE
+    ===================================================== */
+
+    const updateData: Record<
+      string,
+      unknown
+    > = {};
+
+    if (
+      typeof published ===
+      "boolean"
+    ) {
+      updateData.published =
+        published;
+
+      if (
+        published &&
+        !existingBlog.published
+      ) {
+        updateData.published_at =
+          new Date().toISOString();
+      }
+
+      if (!published) {
+        updateData.published_at =
+          null;
+      }
+    }
+
+    if (
+      typeof featured ===
+      "boolean"
+    ) {
+      updateData.featured =
+        featured;
+    }
+
+    if (
+      Object.keys(updateData)
+        .length === 0
+    ) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "No valid fields were provided for update.",
+        },
+        400
+      );
+    }
+
+    /* =====================================================
+       UPDATE
+    ===================================================== */
+
+    const {
+      data,
+      error,
+    } =
+      await supabaseAdmin
+        .from("blogs")
+        .update(updateData)
+        .eq("id", id)
+        .select("*")
+        .single();
+
+    if (error) {
+      console.error(
+        "PATCH BLOG ERROR:",
+        error
+      );
+
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            error.message ||
+            "Failed to update article.",
+        },
+        500
+      );
+    }
+
+    return jsonResponse({
+      success: true,
+      blog: data,
+      message:
+        "Article updated successfully.",
+    });
+  } catch (error) {
+    console.error(
+      "PATCH BLOG UNEXPECTED ERROR:",
+      error
+    );
+
+    return jsonResponse(
+      {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unexpected server error.",
+      },
+      500
+    );
+  }
+}
+
+/* =========================================================
+   DELETE
+========================================================= */
+
+export async function DELETE(
+  request: NextRequest
+) {
+  try {
+    /* =====================================================
+       ADMIN AUTH
+    ===================================================== */
+
+    const auth =
+      await requireAdmin(request);
+
+    if (
+      auth.error ||
+      !auth.user
+    ) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            auth.error ||
+            "Authentication required.",
+        },
+        401
+      );
+    }
+
+    /* =====================================================
+       GET ID
+    ===================================================== */
+
+    const {
+      searchParams,
+    } = request.nextUrl;
+
+    const id =
+      searchParams.get("id");
+
+    if (!id) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Article ID is required.",
+        },
+        400
+      );
+    }
+
+    /* =====================================================
+       FIND BLOG
+    ===================================================== */
+
+    const {
+      data: existingBlog,
+      error:
+        findError,
+    } =
+      await supabaseAdmin
+        .from("blogs")
+        .select(
+          "id, cover_image"
+        )
+        .eq("id", id)
+        .maybeSingle();
+
+    if (findError) {
+      console.error(
+        "DELETE FIND BLOG ERROR:",
+        findError
+      );
+
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            findError.message ||
+            "Failed to find article.",
+        },
+        500
+      );
+    }
+
+    if (!existingBlog) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Article not found.",
+        },
+        404
+      );
+    }
+
+    /* =====================================================
+       DELETE DATABASE ROW
+    ===================================================== */
 
     const {
       error: deleteError,
@@ -2111,14 +1776,11 @@ export async function DELETE(
       await supabaseAdmin
         .from("blogs")
         .delete()
-        .eq(
-          "id",
-          numericId
-        );
+        .eq("id", id);
 
     if (deleteError) {
       console.error(
-        "DELETE blog error:",
+        "DELETE BLOG ERROR:",
         deleteError
       );
 
@@ -2126,15 +1788,22 @@ export async function DELETE(
         {
           success: false,
           error:
-            deleteError.message,
+            deleteError.message ||
+            "Failed to delete article.",
         },
         500
       );
     }
 
-    if (blog.cover_image) {
+    /* =====================================================
+       DELETE COVER IMAGE
+    ===================================================== */
+
+    if (
+      existingBlog.cover_image
+    ) {
       await deleteCoverImage(
-        blog.cover_image
+        existingBlog.cover_image
       );
     }
 
@@ -2145,7 +1814,7 @@ export async function DELETE(
     });
   } catch (error) {
     console.error(
-      "DELETE /api/blogs error:",
+      "DELETE BLOG UNEXPECTED ERROR:",
       error
     );
 
@@ -2155,7 +1824,7 @@ export async function DELETE(
         error:
           error instanceof Error
             ? error.message
-            : "Failed to delete article.",
+            : "Unexpected server error.",
       },
       500
     );

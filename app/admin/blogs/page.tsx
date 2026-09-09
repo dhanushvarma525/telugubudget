@@ -59,6 +59,28 @@ export default function AdminBlogsPage() {
   const [userEmail, setUserEmail] = useState("");
 
   // =====================================================
+  // GET ACCESS TOKEN
+  // =====================================================
+
+  async function getAccessToken() {
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession();
+
+    if (error) {
+      console.error(
+        "Get session error:",
+        error
+      );
+
+      return null;
+    }
+
+    return session?.access_token || null;
+  }
+
+  // =====================================================
   // AUTH + LOAD
   // =====================================================
 
@@ -90,7 +112,9 @@ export default function AdminBlogsPage() {
           error
         );
 
-        router.replace("/admin/login");
+        if (mounted) {
+          router.replace("/admin/login");
+        }
       } finally {
         if (mounted) {
           setLoading(false);
@@ -113,30 +137,53 @@ export default function AdminBlogsPage() {
     try {
       setLoading(true);
 
+      const accessToken =
+        await getAccessToken();
+
+      if (!accessToken) {
+        router.replace("/admin/login");
+        return;
+      }
+
       const response = await fetch(
         "/api/blogs?admin=true&limit=100",
         {
           method: "GET",
           cache: "no-store",
           headers: {
+            Authorization: `Bearer ${accessToken}`,
             "Cache-Control": "no-cache",
           },
         }
       );
 
-      const data = await response.json().catch(() => null);
+      const data =
+        await response
+          .json()
+          .catch(() => null);
+
+      if (
+        response.status === 401
+      ) {
+        await supabase.auth.signOut();
+
+        router.replace("/admin/login");
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(
-          data?.error || "Failed to load articles."
+          data?.error ||
+            "Failed to load articles."
         );
       }
 
-      const blogList = Array.isArray(data?.blogs)
-        ? data.blogs
-        : Array.isArray(data)
-        ? data
-        : [];
+      const blogList =
+        Array.isArray(data?.blogs)
+          ? data.blogs
+          : Array.isArray(data)
+          ? data
+          : [];
 
       setBlogs(blogList);
     } catch (error) {
@@ -179,17 +226,24 @@ export default function AdminBlogsPage() {
   // STATISTICS
   // =====================================================
 
-  const totalArticles = blogs.length;
+  const totalArticles =
+    blogs.length;
 
-  const publishedArticles = blogs.filter(
-    (blog) => blog.published === true
-  ).length;
+  const publishedArticles =
+    blogs.filter(
+      (blog) =>
+        blog.published === true
+    ).length;
 
-  const draftArticles = blogs.filter(
-    (blog) => blog.published === false
-  ).length;
+  const draftArticles =
+    blogs.filter(
+      (blog) =>
+        blog.published === false
+    ).length;
 
-  function categoryCount(category: string) {
+  function categoryCount(
+    category: string
+  ) {
     return blogs.filter(
       (blog) =>
         blog.category?.toLowerCase() ===
@@ -497,57 +551,63 @@ export default function AdminBlogsPage() {
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
 
-            {CATEGORIES.map((category) => {
-              const Icon =
-                CATEGORY_ICONS[category];
-
-              const count =
-                categoryCount(category);
-
-              return (
-                <Link
-                  key={category}
-                  href={`/admin/blogs/all?category=${encodeURIComponent(
+            {CATEGORIES.map(
+              (category) => {
+                const Icon =
+                  CATEGORY_ICONS[
                     category
-                  )}`}
-                  className="
-                    group
-                    rounded-xl
-                    border
-                    border-zinc-200
-                    bg-white
-                    p-4
-                    transition
-                    hover:border-zinc-300
-                    hover:shadow-sm
-                  "
-                >
+                  ];
 
-                  <div className="flex items-center justify-between">
+                const count =
+                  categoryCount(
+                    category
+                  );
 
-                    <div className="rounded-lg bg-zinc-100 p-2">
-                      <Icon className="h-4 w-4 text-zinc-700" />
+                return (
+                  <Link
+                    key={category}
+                    href={`/admin/blogs/all?category=${encodeURIComponent(
+                      category
+                    )}`}
+                    className="
+                      group
+                      rounded-xl
+                      border
+                      border-zinc-200
+                      bg-white
+                      p-4
+                      transition
+                      hover:border-zinc-300
+                      hover:shadow-sm
+                    "
+                  >
+
+                    <div className="flex items-center justify-between">
+
+                      <div className="rounded-lg bg-zinc-100 p-2">
+                        <Icon className="h-4 w-4 text-zinc-700" />
+                      </div>
+
+                      <span className="text-2xl font-bold text-zinc-950">
+                        {count}
+                      </span>
+
                     </div>
 
-                    <span className="text-2xl font-bold text-zinc-950">
-                      {count}
-                    </span>
+                    <p className="mt-4 text-sm font-semibold text-zinc-900">
+                      {category}
+                    </p>
 
-                  </div>
+                    <p className="mt-0.5 text-xs text-zinc-500">
+                      {count === 1
+                        ? "article"
+                        : "articles"}
+                    </p>
 
-                  <p className="mt-4 text-sm font-semibold text-zinc-900">
-                    {category}
-                  </p>
-
-                  <p className="mt-0.5 text-xs text-zinc-500">
-                    {count === 1
-                      ? "article"
-                      : "articles"}
-                  </p>
-
-                </Link>
-              );
-            })}
+                  </Link>
+                );
+              }
+            )}
 
           </div>
 
