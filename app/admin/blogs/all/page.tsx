@@ -111,6 +111,33 @@ export default function AllArticlesPage() {
   const [publishingId, setPublishingId] =
     useState<number | null>(null);
 
+  // =====================================================
+  // GET ACCESS TOKEN
+  // =====================================================
+
+  async function getAccessToken() {
+    const {
+      data: { session },
+      error,
+    } =
+      await supabase.auth.getSession();
+
+    if (error) {
+      console.error(
+        "GET SESSION ERROR:",
+        error
+      );
+
+      return null;
+    }
+
+    return session?.access_token || null;
+  }
+
+  // =====================================================
+  // LOAD BLOGS
+  // =====================================================
+
   async function loadBlogs(
     requestedPage = page
   ) {
@@ -118,14 +145,10 @@ export default function AllArticlesPage() {
       setLoading(true);
       setError("");
 
-      const {
-        data: {
-          user,
-        },
-      } =
-        await supabase.auth.getUser();
+      const accessToken =
+        await getAccessToken();
 
-      if (!user) {
+      if (!accessToken) {
         router.replace(
           "/admin/login"
         );
@@ -183,40 +206,66 @@ export default function AllArticlesPage() {
         await fetch(
           `/api/blogs?${params.toString()}`,
           {
+            method: "GET",
             cache: "no-store",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Cache-Control":
+                "no-cache",
+            },
           }
         );
 
       const data =
-        await response.json();
+        await response
+          .json()
+          .catch(() => null);
+
+      if (
+        response.status === 401
+      ) {
+        await supabase.auth.signOut();
+
+        router.replace(
+          "/admin/login"
+        );
+
+        return;
+      }
 
       if (
         !response.ok ||
-        !data.success
+        !data?.success
       ) {
         throw new Error(
-          data.error ||
+          data?.error ||
             "Failed to load articles."
         );
       }
 
       setBlogs(
-        data.blogs || []
+        Array.isArray(
+          data.blogs
+        )
+          ? data.blogs
+          : []
       );
 
       setTotal(
-        data.total || 0
+        Number(data.total) || 0
       );
 
       setTotalPages(
         Math.max(
           1,
-          data.totalPages || 1
+          Number(
+            data.totalPages
+          ) || 1
         )
       );
 
       setPage(
-        data.page ||
+        Number(data.page) ||
           requestedPage
       );
     } catch (err) {
@@ -235,6 +284,10 @@ export default function AllArticlesPage() {
     }
   }
 
+  // =====================================================
+  // INITIAL LOAD + FILTER CHANGES
+  // =====================================================
+
   useEffect(() => {
     loadBlogs(1);
   }, [
@@ -242,13 +295,21 @@ export default function AllArticlesPage() {
     status,
   ]);
 
+  // =====================================================
+  // SEARCH
+  // =====================================================
+
   async function handleSearch(
     event: React.FormEvent
   ) {
     event.preventDefault();
 
-    loadBlogs(1);
+    await loadBlogs(1);
   }
+
+  // =====================================================
+  // DELETE
+  // =====================================================
 
   async function handleDelete(
     id: number,
@@ -266,23 +327,51 @@ export default function AllArticlesPage() {
     try {
       setDeletingId(id);
 
+      const accessToken =
+        await getAccessToken();
+
+      if (!accessToken) {
+        router.replace(
+          "/admin/login"
+        );
+        return;
+      }
+
       const response =
         await fetch(
           `/api/blogs?id=${id}`,
           {
             method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+            cache: "no-store",
           }
         );
 
       const data =
-        await response.json();
+        await response
+          .json()
+          .catch(() => null);
+
+      if (
+        response.status === 401
+      ) {
+        await supabase.auth.signOut();
+
+        router.replace(
+          "/admin/login"
+        );
+
+        return;
+      }
 
       if (
         !response.ok ||
-        !data.success
+        !data?.success
       ) {
         throw new Error(
-          data.error ||
+          data?.error ||
             "Failed to delete article."
         );
       }
@@ -309,11 +398,25 @@ export default function AllArticlesPage() {
     }
   }
 
+  // =====================================================
+  // PUBLISH
+  // =====================================================
+
   async function handlePublish(
     id: number
   ) {
     try {
       setPublishingId(id);
+
+      const accessToken =
+        await getAccessToken();
+
+      if (!accessToken) {
+        router.replace(
+          "/admin/login"
+        );
+        return;
+      }
 
       const response =
         await fetch(
@@ -323,23 +426,39 @@ export default function AllArticlesPage() {
             headers: {
               "Content-Type":
                 "application/json",
+              Authorization: `Bearer ${accessToken}`,
             },
             body: JSON.stringify({
               id,
               published: true,
             }),
+            cache: "no-store",
           }
         );
 
       const data =
-        await response.json();
+        await response
+          .json()
+          .catch(() => null);
+
+      if (
+        response.status === 401
+      ) {
+        await supabase.auth.signOut();
+
+        router.replace(
+          "/admin/login"
+        );
+
+        return;
+      }
 
       if (
         !response.ok ||
-        !data.success
+        !data?.success
       ) {
         throw new Error(
-          data.error ||
+          data?.error ||
             "Failed to publish article."
         );
       }
@@ -362,6 +481,10 @@ export default function AllArticlesPage() {
       setPublishingId(null);
     }
   }
+
+  // =====================================================
+  // PAGINATION
+  // =====================================================
 
   function goToPage(
     nextPage: number
@@ -441,12 +564,18 @@ export default function AllArticlesPage() {
       totalPages,
     ]);
 
+  // =====================================================
+  // UI
+  // =====================================================
+
   return (
     <main className="min-h-screen bg-zinc-50">
       <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+
         {/* Header */}
 
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
           <div>
             <Link
               href="/admin/blogs"
@@ -617,8 +746,11 @@ export default function AllArticlesPage() {
                     className="p-4 transition hover:bg-zinc-50 sm:p-5"
                   >
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+
                       <div className="min-w-0 flex-1">
+
                         <div className="flex flex-wrap items-center gap-2">
+
                           <span className="rounded-lg bg-zinc-100 px-2.5 py-1 text-xs font-semibold text-zinc-600">
                             {blog.category}
                           </span>
@@ -632,6 +764,7 @@ export default function AllArticlesPage() {
                               Draft
                             </span>
                           )}
+
                         </div>
 
                         <h2 className="mt-3 line-clamp-2 text-base font-semibold text-zinc-950 sm:text-lg">
@@ -647,14 +780,17 @@ export default function AllArticlesPage() {
                           {formatDate(
                             blog.created_at
                           )}
+
                           {blog.published_at &&
                             ` • Published ${formatDate(
                               blog.published_at
                             )}`}
                         </p>
+
                       </div>
 
                       <div className="flex flex-wrap gap-2">
+
                         <Link
                           href={`/admin/blogs/${blog.id}/edit`}
                           className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100"
@@ -711,6 +847,7 @@ export default function AllArticlesPage() {
 
                           Delete
                         </button>
+
                       </div>
                     </div>
                   </div>
@@ -725,6 +862,7 @@ export default function AllArticlesPage() {
         {!loading &&
           totalPages > 1 && (
             <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+
               <button
                 type="button"
                 onClick={() =>
@@ -791,8 +929,10 @@ export default function AllArticlesPage() {
                 Next
                 <ChevronRight className="h-4 w-4" />
               </button>
+
             </div>
           )}
+
       </div>
     </main>
   );

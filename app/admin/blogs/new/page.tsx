@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -63,9 +64,13 @@ function calculateTitleSimilarity(
   /*
    * Exact phrase containment.
    */
+
   if (a.includes(b) || b.includes(a)) {
-    const shorter = a.length < b.length ? a : b;
-    const longer = a.length >= b.length ? a : b;
+    const shorter =
+      a.length < b.length ? a : b;
+
+    const longer =
+      a.length >= b.length ? a : b;
 
     return Math.min(
       99,
@@ -78,10 +83,14 @@ function calculateTitleSimilarity(
   /*
    * Word overlap.
    */
+
   const wordsA = getWords(a);
   const wordsB = getWords(b);
 
-  if (wordsA.size === 0 || wordsB.size === 0) {
+  if (
+    wordsA.size === 0 ||
+    wordsB.size === 0
+  ) {
     return 0;
   }
 
@@ -130,10 +139,13 @@ export default function NewBlogPage() {
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
   const [category, setCategory] = useState("");
-  const [author, setAuthor] = useState("Dhanush Varma");
+  const [author, setAuthor] =
+    useState("Dhanush Varma");
+
   const [tags, setTags] = useState("");
   const [excerpt, setExcerpt] = useState("");
-  const [introduction, setIntroduction] = useState("");
+  const [introduction, setIntroduction] =
+    useState("");
 
   const [coverImage, setCoverImage] =
     useState<File | null>(null);
@@ -147,7 +159,9 @@ export default function NewBlogPage() {
   const [faqs, setFaqs] =
     useState<BlogFAQ[]>([]);
 
-  const [metaTitle, setMetaTitle] = useState("");
+  const [metaTitle, setMetaTitle] =
+    useState("");
+
   const [metaDescription, setMetaDescription] =
     useState("");
 
@@ -181,6 +195,10 @@ export default function NewBlogPage() {
   /*
    * =========================================================
    * LOAD EXISTING TITLES
+   *
+   * IMPORTANT:
+   * /api/blogs?admin=true is protected.
+   * Therefore we must send the Supabase access token.
    * =========================================================
    */
 
@@ -191,47 +209,98 @@ export default function NewBlogPage() {
       try {
         setTitlesLoading(true);
 
-        const response = await fetch(
-          "/api/blogs?admin=true&limit=1000",
-          {
-            method: "GET",
-            cache: "no-store",
-            headers: {
-              "Cache-Control": "no-cache",
-            },
+        const {
+          data: { session },
+          error: sessionError,
+        } =
+          await supabase.auth.getSession();
+
+        if (
+          sessionError ||
+          !session?.access_token
+        ) {
+          console.error(
+            "TITLE AUTH ERROR:",
+            sessionError
+          );
+
+          if (mounted) {
+            router.replace(
+              "/admin/login"
+            );
           }
-        );
+
+          return;
+        }
+
+        const response =
+          await fetch(
+            "/api/blogs?admin=true&limit=1000",
+            {
+              method: "GET",
+              cache: "no-store",
+              headers: {
+                Authorization: `Bearer ${session.access_token}`,
+                "Cache-Control":
+                  "no-cache",
+              },
+            }
+          );
+
+        const data =
+          await response
+            .json()
+            .catch(() => null);
+
+        if (
+          response.status === 401
+        ) {
+          await supabase.auth.signOut();
+
+          if (mounted) {
+            router.replace(
+              "/admin/login"
+            );
+          }
+
+          return;
+        }
 
         if (!response.ok) {
           throw new Error(
-            "Failed to load previous article titles."
+            data?.error ||
+              "Failed to load previous article titles."
           );
         }
 
-        const data = await response.json();
-
-        const blogList = Array.isArray(data)
-          ? data
-          : Array.isArray(data.blogs)
-            ? data.blogs
-            : [];
+        const blogList =
+          Array.isArray(data)
+            ? data
+            : Array.isArray(
+                  data?.blogs
+                )
+              ? data.blogs
+              : [];
 
         const titles: ExistingBlogTitle[] =
           blogList
             .filter(
               (blog: unknown) =>
                 blog &&
-                typeof blog === "object" &&
+                typeof blog ===
+                  "object" &&
                 typeof (
                   blog as {
                     id?: unknown;
                   }
-                ).id === "number" &&
+                ).id ===
+                  "number" &&
                 typeof (
                   blog as {
                     title?: unknown;
                   }
-                ).title === "string"
+                ).title ===
+                  "string"
             )
             .map(
               (blog: {
@@ -239,16 +308,22 @@ export default function NewBlogPage() {
                 title: string;
               }) => ({
                 id: blog.id,
-                title: blog.title.trim(),
+                title:
+                  blog.title.trim(),
               })
             )
             .filter(
-              (blog: ExistingBlogTitle) =>
-                blog.title.length > 0
+              (
+                blog: ExistingBlogTitle
+              ) =>
+                blog.title.length >
+                0
             );
 
         if (mounted) {
-          setExistingTitles(titles);
+          setExistingTitles(
+            titles
+          );
         }
       } catch (err) {
         console.error(
@@ -271,7 +346,7 @@ export default function NewBlogPage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [router]);
 
   /*
    * =========================================================
@@ -280,7 +355,8 @@ export default function NewBlogPage() {
    */
 
   const titleMatches = useMemo(() => {
-    const currentTitle = title.trim();
+    const currentTitle =
+      title.trim();
 
     if (!currentTitle) {
       return [];
@@ -296,7 +372,8 @@ export default function NewBlogPage() {
           ),
       }))
       .filter(
-        (blog) => blog.similarity >= 35
+        (blog) =>
+          blog.similarity >= 35
       )
       .sort(
         (a, b) =>
@@ -304,7 +381,10 @@ export default function NewBlogPage() {
           a.similarity
       )
       .slice(0, 8);
-  }, [title, existingTitles]);
+  }, [
+    title,
+    existingTitles,
+  ]);
 
   const highestTitleMatch =
     titleMatches.length > 0
@@ -343,7 +423,9 @@ export default function NewBlogPage() {
     setTitle(value);
 
     if (!slug) {
-      setSlug(createSlug(value));
+      setSlug(
+        createSlug(value)
+      );
     }
   }
 
@@ -369,12 +451,17 @@ export default function NewBlogPage() {
       "image/webp",
     ];
 
-    if (!allowedTypes.includes(file.type)) {
+    if (
+      !allowedTypes.includes(
+        file.type
+      )
+    ) {
       setError(
         "Please select a PNG, JPG, JPEG, or WEBP image."
       );
 
       event.target.value = "";
+
       return;
     }
 
@@ -387,6 +474,7 @@ export default function NewBlogPage() {
       );
 
       event.target.value = "";
+
       return;
     }
 
@@ -557,6 +645,7 @@ export default function NewBlogPage() {
           unknown
         >
       | null;
+
     rawText: string;
   }> {
     const rawText =
@@ -585,6 +674,7 @@ export default function NewBlogPage() {
               string,
               unknown
             >,
+
           rawText,
         };
       }
@@ -621,6 +711,7 @@ export default function NewBlogPage() {
       setError(
         "Please enter a blog title."
       );
+
       return;
     }
 
@@ -628,6 +719,7 @@ export default function NewBlogPage() {
       setError(
         "Please enter a valid slug."
       );
+
       return;
     }
 
@@ -635,6 +727,7 @@ export default function NewBlogPage() {
       setError(
         "Please select a category."
       );
+
       return;
     }
 
@@ -642,6 +735,7 @@ export default function NewBlogPage() {
       setError(
         "Please enter an article excerpt."
       );
+
       return;
     }
 
@@ -649,6 +743,7 @@ export default function NewBlogPage() {
       setError(
         "Please enter an author name."
       );
+
       return;
     }
 
@@ -656,6 +751,7 @@ export default function NewBlogPage() {
       setError(
         "Please write an article introduction."
       );
+
       return;
     }
 
@@ -674,15 +770,12 @@ export default function NewBlogPage() {
       setError(
         "Please complete all FAQ questions and answers, or delete empty FAQs."
       );
+
       return;
     }
 
     /*
      * DUPLICATE TITLE WARNING
-     *
-     * We do NOT block publishing.
-     * We only warn if another title is
-     * extremely similar.
      */
 
     if (
@@ -701,6 +794,12 @@ export default function NewBlogPage() {
     setSaving(true);
 
     try {
+      /*
+       * =====================================================
+       * FORM DATA
+       * =====================================================
+       */
+
       const formData =
         new FormData();
 
@@ -852,17 +951,26 @@ export default function NewBlogPage() {
        * =====================================================
        * SUPABASE AUTHENTICATION
        * =====================================================
-       *
-       * Retrieve the current Supabase Auth session and
-       * send its access token to the protected API route.
        */
 
       const {
-        data: {
-          session,
-        },
+        data: { session },
+        error: sessionError,
       } =
         await supabase.auth.getSession();
+
+      if (
+        sessionError
+      ) {
+        console.error(
+          "SAVE SESSION ERROR:",
+          sessionError
+        );
+
+        throw new Error(
+          "Unable to verify your admin session. Please sign in again."
+        );
+      }
 
       if (
         !session?.access_token
@@ -873,12 +981,13 @@ export default function NewBlogPage() {
       }
 
       /*
+       * =====================================================
        * API REQUEST
        *
        * IMPORTANT:
        * Do NOT manually set Content-Type.
-       * The browser handles multipart/form-data
-       * boundaries automatically when using FormData.
+       * The browser handles multipart/form-data.
+       * =====================================================
        */
 
       const response =
@@ -886,15 +995,19 @@ export default function NewBlogPage() {
           "/api/blogs",
           {
             method: "POST",
+
             headers: {
               Authorization: `Bearer ${session.access_token}`,
             },
+
             body: formData,
           }
         );
 
       /*
+       * =====================================================
        * SAFE RESPONSE
+       * =====================================================
        */
 
       const {
@@ -906,7 +1019,25 @@ export default function NewBlogPage() {
         );
 
       /*
+       * =====================================================
+       * AUTH ERROR
+       * =====================================================
+       */
+
+      if (
+        response.status === 401
+      ) {
+        await supabase.auth.signOut();
+
+        throw new Error(
+          "Your admin session has expired. Please sign in again."
+        );
+      }
+
+      /*
+       * =====================================================
        * API ERROR
+       * =====================================================
        */
 
       if (!response.ok) {
@@ -926,7 +1057,9 @@ export default function NewBlogPage() {
       }
 
       /*
+       * =====================================================
        * SUCCESS
+       * =====================================================
        */
 
       setSuccess(
@@ -936,7 +1069,9 @@ export default function NewBlogPage() {
       );
 
       /*
+       * =====================================================
        * REDIRECT
+       * =====================================================
        */
 
       setTimeout(() => {
@@ -1020,11 +1155,13 @@ export default function NewBlogPage() {
 
   return (
     <main className="min-h-screen bg-gray-50">
+
       {/* HEADER */}
 
       <header className="border-b border-gray-200 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-gray-900">
                 Create New Article
@@ -1036,6 +1173,7 @@ export default function NewBlogPage() {
             </div>
 
             <div className="flex flex-wrap gap-2">
+
               <button
                 type="button"
                 onClick={() =>
@@ -1073,6 +1211,7 @@ export default function NewBlogPage() {
                   ? "Publishing..."
                   : "Publish"}
               </button>
+
             </div>
           </div>
         </div>
@@ -1083,14 +1222,17 @@ export default function NewBlogPage() {
       {(error ||
         success) && (
         <div className="mx-auto max-w-7xl px-4 pt-5 sm:px-6 lg:px-8">
+
           {error && (
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
               <div className="flex items-start gap-3">
+
                 <span className="text-lg">
                   ⚠️
                 </span>
 
                 <div className="min-w-0">
+
                   <p className="font-semibold">
                     Unable to save article
                   </p>
@@ -1098,6 +1240,7 @@ export default function NewBlogPage() {
                   <p className="mt-1 break-words">
                     {error}
                   </p>
+
                 </div>
               </div>
             </div>
@@ -1108,25 +1251,32 @@ export default function NewBlogPage() {
               {success}
             </div>
           )}
+
         </div>
       )}
 
       {/* MAIN */}
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+
           <div className="space-y-8">
+
             {/* ARTICLE INFORMATION */}
 
             <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+
               <h2 className="text-lg font-bold text-gray-900">
                 Article Information
               </h2>
 
               <div className="mt-6 space-y-5">
+
                 {/* TITLE */}
 
                 <div>
+
                   <label className="mb-2 block text-sm font-semibold text-gray-700">
                     Title
                   </label>
@@ -1134,12 +1284,9 @@ export default function NewBlogPage() {
                   <input
                     type="text"
                     value={title}
-                    onChange={(
-                      event
-                    ) =>
+                    onChange={(event) =>
                       handleTitleChange(
-                        event.target
-                          .value
+                        event.target.value
                       )
                     }
                     placeholder="Enter article title..."
@@ -1150,7 +1297,9 @@ export default function NewBlogPage() {
 
                   {title.trim() && (
                     <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+
                       <div className="flex items-center justify-between gap-3">
+
                         <div>
                           <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
                             Previous Title Check
@@ -1167,27 +1316,27 @@ export default function NewBlogPage() {
                             titles checked
                           </span>
                         )}
+
                       </div>
 
                       {titlesLoading ? (
                         <p className="mt-4 text-sm text-gray-500">
                           Checking previous titles...
                         </p>
-                      ) : titleMatches.length ===
-                        0 ? (
+                      ) : titleMatches.length === 0 ? (
                         <p className="mt-4 text-sm font-medium text-green-700">
                           ✓ No similar article titles found.
                         </p>
                       ) : (
                         <div className="mt-4 space-y-2">
+
                           {titleMatches.map(
                             (match) => (
                               <div
-                                key={
-                                  match.id
-                                }
+                                key={match.id}
                                 className="flex items-center justify-between gap-4 rounded-lg border border-gray-200 bg-white px-3 py-2.5"
                               >
+
                                 <p className="min-w-0 flex-1 text-sm font-medium text-gray-800">
                                   {match.title}
                                 </p>
@@ -1203,23 +1352,25 @@ export default function NewBlogPage() {
                                         : "text-gray-500"
                                   }`}
                                 >
-                                  {
-                                    match.similarity
-                                  }
-                                  %
+                                  {match.similarity}%
                                 </span>
+
                               </div>
                             )
                           )}
+
                         </div>
                       )}
+
                     </div>
                   )}
+
                 </div>
 
                 {/* SLUG */}
 
                 <div>
+
                   <label className="mb-2 block text-sm font-semibold text-gray-700">
                     Slug
                   </label>
@@ -1227,13 +1378,10 @@ export default function NewBlogPage() {
                   <input
                     type="text"
                     value={slug}
-                    onChange={(
-                      event
-                    ) =>
+                    onChange={(event) =>
                       setSlug(
                         createSlug(
-                          event.target
-                            .value
+                          event.target.value
                         )
                       )
                     }
@@ -1246,24 +1394,24 @@ export default function NewBlogPage() {
                     {slug ||
                       "article-slug"}
                   </p>
+
                 </div>
 
                 {/* CATEGORY + AUTHOR */}
 
                 <div className="grid gap-5 sm:grid-cols-2">
+
                   <div>
+
                     <label className="mb-2 block text-sm font-semibold text-gray-700">
                       Category
                     </label>
 
                     <select
                       value={category}
-                      onChange={(
-                        event
-                      ) =>
+                      onChange={(event) =>
                         setCategory(
-                          event.target
-                            .value
+                          event.target.value
                         )
                       }
                       className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-gray-900"
@@ -1296,9 +1444,11 @@ export default function NewBlogPage() {
                         Explained
                       </option>
                     </select>
+
                   </div>
 
                   <div>
+
                     <label className="mb-2 block text-sm font-semibold text-gray-700">
                       Author
                     </label>
@@ -1306,22 +1456,22 @@ export default function NewBlogPage() {
                     <input
                       type="text"
                       value={author}
-                      onChange={(
-                        event
-                      ) =>
+                      onChange={(event) =>
                         setAuthor(
-                          event.target
-                            .value
+                          event.target.value
                         )
                       }
                       className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
                     />
+
                   </div>
+
                 </div>
 
                 {/* TAGS */}
 
                 <div>
+
                   <label className="mb-2 block text-sm font-semibold text-gray-700">
                     Tags
                   </label>
@@ -1329,12 +1479,9 @@ export default function NewBlogPage() {
                   <input
                     type="text"
                     value={tags}
-                    onChange={(
-                      event
-                    ) =>
+                    onChange={(event) =>
                       setTags(
-                        event.target
-                          .value
+                        event.target.value
                       )
                     }
                     placeholder="AI, Google, Gemini, Technology"
@@ -1344,13 +1491,16 @@ export default function NewBlogPage() {
                   <p className="mt-2 text-xs text-gray-500">
                     Separate tags with commas.
                   </p>
+
                 </div>
+
               </div>
             </section>
 
             {/* COVER IMAGE */}
 
             <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+
               <h2 className="text-lg font-bold text-gray-900">
                 Cover Image
               </h2>
@@ -1360,11 +1510,13 @@ export default function NewBlogPage() {
               </p>
 
               <div className="mt-5">
+
                 {!coverImagePreview ? (
                   <label
                     htmlFor="cover-image"
                     className="flex min-h-[220px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center transition hover:border-gray-900 hover:bg-gray-100"
                   >
+
                     <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white text-3xl shadow-sm">
                       📷
                     </div>
@@ -1390,25 +1542,29 @@ export default function NewBlogPage() {
                         handleCoverImageChange
                       }
                     />
+
                   </label>
                 ) : (
                   <div>
+
                     <div className="mb-3 flex items-center justify-between gap-4">
+
                       <div className="min-w-0">
+
                         <p className="text-sm font-semibold text-gray-900">
                           Selected Image
                         </p>
 
                         {coverImage && (
                           <p className="mt-1 truncate text-xs text-gray-500">
-                            {
-                              coverImage.name
-                            }
+                            {coverImage.name}
                           </p>
                         )}
+
                       </div>
 
                       <div className="flex shrink-0 gap-2">
+
                         <label
                           htmlFor="cover-image-change"
                           className="cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
@@ -1435,10 +1591,13 @@ export default function NewBlogPage() {
                         >
                           Remove
                         </button>
+
                       </div>
+
                     </div>
 
                     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-100">
+
                       <img
                         src={
                           coverImagePreview
@@ -1449,69 +1608,74 @@ export default function NewBlogPage() {
                         }
                         className="max-h-[420px] w-full object-cover"
                       />
+
                     </div>
+
                   </div>
                 )}
+
               </div>
+
             </section>
 
             {/* INTRODUCTION */}
 
             <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+
               <h2 className="text-lg font-bold text-gray-900">
                 Article Introduction
               </h2>
 
               <div className="mt-5 space-y-5">
+
                 <div>
+
                   <label className="mb-2 block text-sm font-semibold text-gray-700">
                     Excerpt
                   </label>
 
                   <textarea
                     value={excerpt}
-                    onChange={(
-                      event
-                    ) =>
+                    onChange={(event) =>
                       setExcerpt(
-                        event.target
-                          .value
+                        event.target.value
                       )
                     }
                     rows={3}
                     placeholder="Short description of the article..."
                     className="w-full resize-y rounded-xl border border-gray-300 px-4 py-3 text-sm leading-7 outline-none focus:border-gray-900"
                   />
+
                 </div>
 
                 <div>
+
                   <label className="mb-2 block text-sm font-semibold text-gray-700">
                     Introduction
                   </label>
 
                   <textarea
-                    value={
-                      introduction
-                    }
-                    onChange={(
-                      event
-                    ) =>
+                    value={introduction}
+                    onChange={(event) =>
                       setIntroduction(
-                        event.target
-                          .value
+                        event.target.value
                       )
                     }
                     rows={8}
                     placeholder="Write the article introduction..."
                     className="w-full resize-y rounded-xl border border-gray-300 px-4 py-3 text-sm leading-7 outline-none focus:border-gray-900"
                   />
+
                 </div>
+
               </div>
+
             </section>
 
             {/* CONTENT BUILDER */}
 
             <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+
               <BlogBlockEditor
                 blocks={
                   contentBlocks
@@ -1520,13 +1684,17 @@ export default function NewBlogPage() {
                   setContentBlocks
                 }
               />
+
             </section>
 
             {/* FAQ */}
 
             <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+
               <div className="flex items-center justify-between gap-4">
+
                 <div>
+
                   <h2 className="text-lg font-bold text-gray-900">
                     Frequently Asked Questions
                   </h2>
@@ -1534,6 +1702,7 @@ export default function NewBlogPage() {
                   <p className="mt-1 text-sm text-gray-500">
                     Add useful questions and answers for readers.
                   </p>
+
                 </div>
 
                 <button
@@ -1543,11 +1712,12 @@ export default function NewBlogPage() {
                 >
                   + Add FAQ
                 </button>
+
               </div>
 
               <div className="mt-6 space-y-5">
-                {faqs.length ===
-                  0 && (
+
+                {faqs.length === 0 && (
                   <div className="rounded-xl border border-dashed border-gray-300 px-5 py-8 text-center text-sm text-gray-500">
                     No FAQs added yet.
                   </div>
@@ -1565,11 +1735,11 @@ export default function NewBlogPage() {
                       }
                       className="rounded-xl border border-gray-200 bg-gray-50 p-5"
                     >
+
                       <div className="flex items-center justify-between">
+
                         <span className="text-sm font-bold text-gray-700">
-                          FAQ{" "}
-                          {index +
-                            1}
+                          FAQ {index + 1}
                         </span>
 
                         <button
@@ -1583,22 +1753,21 @@ export default function NewBlogPage() {
                         >
                           Delete
                         </button>
+
                       </div>
 
                       <div className="mt-4 space-y-4">
+
                         <input
                           type="text"
                           value={
                             faq.question
                           }
-                          onChange={(
-                            event
-                          ) =>
+                          onChange={(event) =>
                             updateFAQ(
                               index,
                               "question",
-                              event.target
-                                .value
+                              event.target.value
                             )
                           }
                           placeholder="Enter question..."
@@ -1609,30 +1778,32 @@ export default function NewBlogPage() {
                           value={
                             faq.answer
                           }
-                          onChange={(
-                            event
-                          ) =>
+                          onChange={(event) =>
                             updateFAQ(
                               index,
                               "answer",
-                              event.target
-                                .value
+                              event.target.value
                             )
                           }
                           placeholder="Enter answer..."
                           rows={5}
                           className="w-full resize-y rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm leading-7 outline-none focus:border-gray-900"
                         />
+
                       </div>
+
                     </div>
                   )
                 )}
+
               </div>
+
             </section>
 
             {/* SEO */}
 
             <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+
               <h2 className="text-lg font-bold text-gray-900">
                 SEO
               </h2>
@@ -1642,30 +1813,29 @@ export default function NewBlogPage() {
               </p>
 
               <div className="mt-5 space-y-5">
+
                 <div>
+
                   <label className="mb-2 block text-sm font-semibold text-gray-700">
                     SEO Title
                   </label>
 
                   <input
                     type="text"
-                    value={
-                      metaTitle
-                    }
-                    onChange={(
-                      event
-                    ) =>
+                    value={metaTitle}
+                    onChange={(event) =>
                       setMetaTitle(
-                        event.target
-                          .value
+                        event.target.value
                       )
                     }
                     placeholder="SEO title..."
                     className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900"
                   />
+
                 </div>
 
                 <div>
+
                   <label className="mb-2 block text-sm font-semibold text-gray-700">
                     SEO Description
                   </label>
@@ -1674,35 +1844,40 @@ export default function NewBlogPage() {
                     value={
                       metaDescription
                     }
-                    onChange={(
-                      event
-                    ) =>
+                    onChange={(event) =>
                       setMetaDescription(
-                        event.target
-                          .value
+                        event.target.value
                       )
                     }
                     rows={4}
                     placeholder="SEO description..."
                     className="w-full resize-y rounded-xl border border-gray-300 px-4 py-3 text-sm leading-7 outline-none focus:border-gray-900"
                   />
+
                 </div>
+
               </div>
+
             </section>
+
           </div>
 
           {/* SIDEBAR */}
 
           <aside>
+
             <div className="sticky top-6 space-y-6">
+
               {/* PUBLICATION */}
 
               <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+
                 <h3 className="font-bold text-gray-900">
                   Publication
                 </h3>
 
                 <div className="mt-4 space-y-3">
+
                   <button
                     type="button"
                     onClick={() =>
@@ -1744,30 +1919,32 @@ export default function NewBlogPage() {
                       ? "Publishing..."
                       : "Publish Article"}
                   </button>
+
                 </div>
+
               </section>
 
               {/* FEATURED */}
 
               <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+
                 <label className="flex cursor-pointer items-start gap-3">
+
                   <input
                     type="checkbox"
                     checked={
                       featured
                     }
-                    onChange={(
-                      event
-                    ) =>
+                    onChange={(event) =>
                       setFeatured(
-                        event.target
-                          .checked
+                        event.target.checked
                       )
                     }
                     className="mt-1 h-4 w-4 rounded border-gray-300"
                   />
 
                   <div>
+
                     <p className="text-sm font-semibold text-gray-900">
                       Featured Article
                     </p>
@@ -1775,18 +1952,23 @@ export default function NewBlogPage() {
                     <p className="mt-1 text-xs leading-5 text-gray-500">
                       Mark this article as featured on the homepage.
                     </p>
+
                   </div>
+
                 </label>
+
               </section>
 
               {/* SUMMARY */}
 
               <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+
                 <h3 className="font-bold text-gray-900">
                   Article Summary
                 </h3>
 
                 <div className="mt-4 space-y-3 text-sm">
+
                   <div className="flex justify-between">
                     <span className="text-gray-500">
                       Blocks
@@ -1819,15 +2001,12 @@ export default function NewBlogPage() {
                     <span className="font-semibold">
                       {
                         tags
-                          .split(
-                            ","
-                          )
+                          .split(",")
                           .filter(
-                            (
-                              tag
-                            ) =>
+                            (tag) =>
                               tag.trim()
-                          ).length
+                          )
+                          .length
                       }
                     </span>
                   </div>
@@ -1854,12 +2033,18 @@ export default function NewBlogPage() {
                         : "None"}
                     </span>
                   </div>
+
                 </div>
+
               </section>
+
             </div>
+
           </aside>
+
         </div>
       </div>
     </main>
   );
 }
+
