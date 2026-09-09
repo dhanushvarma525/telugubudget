@@ -15,6 +15,8 @@ import { useParams, useRouter } from "next/navigation";
 import BlogBlockEditor from "@/components/blog/BlogBlockEditor";
 import BlogPreview from "@/components/blog/BlogPreview";
 
+import { supabase } from "@/lib/supabase";
+
 import type { BlogContentBlock } from "@/types/blog";
 
 const CATEGORIES = [
@@ -56,12 +58,7 @@ type Blog = {
 };
 
 /*
- * IMPORTANT:
- *
- * Get the exact blog type expected by BlogPreview itself.
- *
- * This avoids a mismatch between the API Blog type and
- * BlogPreview's BlogFormData type.
+ * Get the exact blog type expected by BlogPreview.
  */
 type PreviewBlog = ComponentProps<
   typeof BlogPreview
@@ -98,13 +95,6 @@ function normalizeFAQs(value: unknown): FAQ[] {
   });
 }
 
-/*
- * IMPORTANT:
- * Use the canonical BlogContentBlock type
- * from @/types/blog.
- *
- * Do not create a local BlogBlock type here.
- */
 function normalizeBlocks(
   value: unknown
 ): BlogContentBlock[] {
@@ -252,6 +242,21 @@ export default function EditBlogPage() {
         setError("");
         setSuccess("");
 
+        /*
+         * The API's admin=true endpoint is protected.
+         * Get the current Supabase session and send
+         * the access token to the server.
+         */
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session?.access_token) {
+          throw new Error(
+            "Your admin session has expired. Please sign in again."
+          );
+        }
+
         const isNumeric = /^\d+$/.test(
           routeIdentifier
         );
@@ -273,11 +278,15 @@ export default function EditBlogPage() {
           `/api/blogs?${query}`,
           {
             method: "GET",
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
             cache: "no-store",
           }
         );
 
-        const result = await response.json();
+        const result =
+          await response.json();
 
         if (!response.ok) {
           throw new Error(
@@ -443,6 +452,35 @@ export default function EditBlogPage() {
       return;
     }
 
+    /*
+     * Basic client-side validation.
+     */
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/gif",
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      setError(
+        "Only JPG, PNG, WEBP and GIF images are allowed."
+      );
+      return;
+    }
+
+    if (
+      file.size >
+      10 * 1024 * 1024
+    ) {
+      setError(
+        "Cover image must be 10MB or smaller."
+      );
+      return;
+    }
+
+    setError("");
+
     setSelectedCoverFile(file);
 
     setRemoveExistingCover(false);
@@ -477,8 +515,6 @@ export default function EditBlogPage() {
     /*
      * Only automatically generate the slug
      * when this is a new/empty slug.
-     *
-     * Existing article slugs are preserved.
      */
     if (!slug && !originalSlug) {
       setSlug(slugify(value));
@@ -632,6 +668,22 @@ export default function EditBlogPage() {
       setError("");
       setSuccess("");
 
+      /*
+       * Get the current Supabase Auth session.
+       *
+       * The API route requires this token before
+       * allowing the update.
+       */
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error(
+          "Your admin session has expired. Please sign in again."
+        );
+      }
+
       const formData =
         new FormData();
 
@@ -708,8 +760,6 @@ export default function EditBlogPage() {
 
       /*
        * Preserve existing publication date.
-       * If publishing an article for the first time,
-       * the API can create one.
        */
       formData.append(
         "published_at",
@@ -737,7 +787,8 @@ export default function EditBlogPage() {
       if (selectedCoverFile) {
         formData.append(
           "cover_image",
-          selectedCoverFile
+          selectedCoverFile,
+          selectedCoverFile.name
         );
       }
 
@@ -751,7 +802,21 @@ export default function EditBlogPage() {
           "/api/blogs",
           {
             method: "PUT",
+
+            /*
+             * IMPORTANT:
+             *
+             * Do NOT set Content-Type manually.
+             *
+             * Browser automatically creates the
+             * multipart/form-data boundary.
+             */
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+
             body: formData,
+
             cache: "no-store",
           }
         );
@@ -778,9 +843,6 @@ export default function EditBlogPage() {
       /*
        * Update local state using the actual
        * URL returned from Supabase.
-       *
-       * Do NOT store blob: preview URLs as
-       * the permanent cover image.
        */
       const returnedCoverImage =
         normalizeString(
@@ -832,11 +894,8 @@ export default function EditBlogPage() {
       );
 
       /*
-       * Update URL if the slug changed.
-       *
-       * We continue using the database ID
-       * because the admin route currently
-       * supports /admin/blogs/[id]/edit.
+       * Update URL if the route identifier
+       * is different from the database ID.
        */
       if (
         updatedBlog.id !== null &&
@@ -886,17 +945,6 @@ export default function EditBlogPage() {
      PREVIEW BLOG
   ======================================================= */
 
-  /*
-   * IMPORTANT FIX:
-   *
-   * BlogPreview expects BlogFormData.
-   *
-   * Instead of forcing this object into our local Blog type,
-   * derive the exact expected type from BlogPreview.
-   *
-   * The ID is explicitly converted to a number because
-   * BlogPreview's BlogFormData expects number | undefined.
-   */
   const previewBlog =
     useMemo<PreviewBlog>(() => {
       let numericId:

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { requireAdmin } from "@/lib/adminAuth";
 
 const CATEGORIES = [
   "AI",
@@ -578,8 +579,27 @@ export async function GET(
 export async function POST(
   request: NextRequest
 ) {
+  const auth =
+    await requireAdmin(request);
+
+  if (
+    auth.error ||
+    !auth.user
+  ) {
+    return jsonResponse(
+      {
+        success: false,
+        error:
+          auth.error ||
+          "Authentication required.",
+      },
+      401
+    );
+  }
+
   let uploadedCoverImage:
-    string | null = null;
+    | string
+    | null = null;
 
   try {
     const contentType =
@@ -876,11 +896,15 @@ export async function POST(
       );
     }
 
+    /* -------------------------------------------------------
+       DUPLICATE SLUG CHECK
+       ------------------------------------------------------- */
+
     const {
       data: existingRows,
       error: duplicateError,
     } =
-      await supabase
+      await supabaseAdmin
         .from("blogs")
         .select("id")
         .eq(
@@ -947,7 +971,7 @@ export async function POST(
       data,
       error,
     } =
-      await supabase
+      await supabaseAdmin
         .from("blogs")
         .insert({
           title,
@@ -1070,6 +1094,24 @@ export async function POST(
 export async function PUT(
   request: NextRequest
 ) {
+  const auth =
+    await requireAdmin(request);
+
+  if (
+    auth.error ||
+    !auth.user
+  ) {
+    return jsonResponse(
+      {
+        success: false,
+        error:
+          auth.error ||
+          "Authentication required.",
+      },
+      401
+    );
+  }
+
   let uploadedNewCover:
     | string
     | null = null;
@@ -1332,7 +1374,7 @@ export async function PUT(
       data: existingRows,
       error: existingError,
     } =
-      await supabase
+      await supabaseAdmin
         .from("blogs")
         .select("*")
         .eq(
@@ -1376,7 +1418,7 @@ export async function PUT(
         data: slugRows,
         error: slugError,
       } =
-        await supabase
+        await supabaseAdmin
           .from("blogs")
           .select("*")
           .eq(
@@ -1435,7 +1477,7 @@ export async function PUT(
         data: duplicateRows,
         error: duplicateError,
       } =
-        await supabase
+        await supabaseAdmin
           .from("blogs")
           .select("id")
           .eq(
@@ -1575,10 +1617,11 @@ export async function PUT(
      * 2. Check for error
      * 3. SELECT the updated article separately
      */
+
     const {
       error: updateError,
     } =
-      await supabase
+      await supabaseAdmin
         .from("blogs")
         .update(
           updatePayload
@@ -1620,7 +1663,7 @@ export async function PUT(
       data: updatedRows,
       error: fetchUpdatedError,
     } =
-      await supabase
+      await supabaseAdmin
         .from("blogs")
         .select("*")
         .eq(
@@ -1745,6 +1788,24 @@ export async function PUT(
 export async function PATCH(
   request: NextRequest
 ) {
+  const auth =
+    await requireAdmin(request);
+
+  if (
+    auth.error ||
+    !auth.user
+  ) {
+    return jsonResponse(
+      {
+        success: false,
+        error:
+          auth.error ||
+          "Authentication required.",
+      },
+      401
+    );
+  }
+
   try {
     const body =
       await request.json();
@@ -1799,7 +1860,7 @@ export async function PATCH(
       data: existingRows,
       error: findError,
     } =
-      await supabase
+      await supabaseAdmin
         .from("blogs")
         .select(
           "id,published,published_at"
@@ -1856,7 +1917,7 @@ export async function PATCH(
     const {
       error: updateError,
     } =
-      await supabase
+      await supabaseAdmin
         .from("blogs")
         .update({
           published,
@@ -1894,7 +1955,7 @@ export async function PATCH(
       data: updatedRows,
       error: fetchError,
     } =
-      await supabase
+      await supabaseAdmin
         .from("blogs")
         .select("*")
         .eq(
@@ -1958,6 +2019,24 @@ export async function PATCH(
 export async function DELETE(
   request: NextRequest
 ) {
+  const auth =
+    await requireAdmin(request);
+
+  if (
+    auth.error ||
+    !auth.user
+  ) {
+    return jsonResponse(
+      {
+        success: false,
+        error:
+          auth.error ||
+          "Authentication required.",
+      },
+      401
+    );
+  }
+
   try {
     const { searchParams } =
       new URL(request.url);
@@ -2004,7 +2083,7 @@ export async function DELETE(
       data: rows,
       error: findError,
     } =
-      await supabase
+      await supabaseAdmin
         .from("blogs")
         .select(
           "id,cover_image"
@@ -2050,7 +2129,7 @@ export async function DELETE(
     const {
       error: deleteError,
     } =
-      await supabase
+      await supabaseAdmin
         .from("blogs")
         .delete()
         .eq(

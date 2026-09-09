@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import BlogBlockEditor from "@/components/blog/BlogBlockEditor";
 import BlogPreview from "@/components/blog/BlogPreview";
 
+import { supabase } from "@/lib/supabase";
+
 import type {
   BlogContentBlock,
   BlogFAQ,
@@ -91,11 +93,10 @@ function calculateTitleSimilarity(
     }
   });
 
-  const unionSize =
-    new Set([
-      ...Array.from(wordsA),
-      ...Array.from(wordsB),
-    ]).size;
+  const unionSize = new Set([
+    ...Array.from(wordsA),
+    ...Array.from(wordsB),
+  ]).size;
 
   if (unionSize === 0) {
     return 0;
@@ -848,7 +849,36 @@ export default function NewBlogPage() {
       }
 
       /*
+       * =====================================================
+       * SUPABASE AUTHENTICATION
+       * =====================================================
+       *
+       * Retrieve the current Supabase Auth session and
+       * send its access token to the protected API route.
+       */
+
+      const {
+        data: {
+          session,
+        },
+      } =
+        await supabase.auth.getSession();
+
+      if (
+        !session?.access_token
+      ) {
+        throw new Error(
+          "Your admin session has expired. Please sign in again."
+        );
+      }
+
+      /*
        * API REQUEST
+       *
+       * IMPORTANT:
+       * Do NOT manually set Content-Type.
+       * The browser handles multipart/form-data
+       * boundaries automatically when using FormData.
        */
 
       const response =
@@ -856,6 +886,9 @@ export default function NewBlogPage() {
           "/api/blogs",
           {
             method: "POST",
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
             body: formData,
           }
         );
