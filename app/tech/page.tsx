@@ -1,11 +1,31 @@
+
 import BlogCategoryPage from "@/components/BlogCategoryPage";
 
-export default function TechPage() {
+export default async function TechPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    page?: string;
+  }>;
+}) {
+  const params = await searchParams;
+
+  const parsedPage = params?.page
+    ? Number.parseInt(params.page, 10)
+    : 1;
+
+  const page =
+    Number.isInteger(parsedPage) && parsedPage > 0
+      ? parsedPage
+      : 1;
+
   return (
     <BlogCategoryPage
       category="Tech"
       title="Technology"
       description="Explore technology news, trends, gadgets, software and useful developments shaping the digital world."
+      page={page}
     />
   );
 }
+

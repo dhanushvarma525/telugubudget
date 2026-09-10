@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -16,6 +17,8 @@ import {
   Smartphone,
   ShieldCheck,
   BookOpen,
+  Users,
+  Copy,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -23,6 +26,7 @@ import { supabase } from "@/lib/supabase";
 type Blog = {
   id: number;
   title: string;
+  slug: string;
   category: string;
   published: boolean;
   published_at: string | null;
@@ -69,11 +73,7 @@ export default function AdminBlogsPage() {
     } = await supabase.auth.getSession();
 
     if (error) {
-      console.error(
-        "Get session error:",
-        error
-      );
-
+      console.error("Get session error:", error);
       return null;
     }
 
@@ -107,10 +107,7 @@ export default function AdminBlogsPage() {
 
         await loadBlogs();
       } catch (error) {
-        console.error(
-          "Admin initialization error:",
-          error
-        );
+        console.error("Admin initialization error:", error);
 
         if (mounted) {
           router.replace("/admin/login");
@@ -137,8 +134,7 @@ export default function AdminBlogsPage() {
     try {
       setLoading(true);
 
-      const accessToken =
-        await getAccessToken();
+      const accessToken = await getAccessToken();
 
       if (!accessToken) {
         router.replace("/admin/login");
@@ -146,7 +142,7 @@ export default function AdminBlogsPage() {
       }
 
       const response = await fetch(
-        "/api/blogs?admin=true&limit=100",
+        "/api/blogs?admin=true&limit=1000",
         {
           method: "GET",
           cache: "no-store",
@@ -157,14 +153,9 @@ export default function AdminBlogsPage() {
         }
       );
 
-      const data =
-        await response
-          .json()
-          .catch(() => null);
+      const data = await response.json().catch(() => null);
 
-      if (
-        response.status === 401
-      ) {
+      if (response.status === 401) {
         await supabase.auth.signOut();
 
         router.replace("/admin/login");
@@ -173,24 +164,19 @@ export default function AdminBlogsPage() {
 
       if (!response.ok) {
         throw new Error(
-          data?.error ||
-            "Failed to load articles."
+          data?.error || "Failed to load articles."
         );
       }
 
-      const blogList =
-        Array.isArray(data?.blogs)
-          ? data.blogs
-          : Array.isArray(data)
-          ? data
-          : [];
+      const blogList = Array.isArray(data?.blogs)
+        ? data.blogs
+        : Array.isArray(data)
+        ? data
+        : [];
 
       setBlogs(blogList);
     } catch (error) {
-      console.error(
-        "Dashboard load error:",
-        error
-      );
+      console.error("Dashboard load error:", error);
 
       setBlogs([]);
 
@@ -215,10 +201,7 @@ export default function AdminBlogsPage() {
       router.replace("/admin/login");
       router.refresh();
     } catch (error) {
-      console.error(
-        "Sign out error:",
-        error
-      );
+      console.error("Sign out error:", error);
     }
   }
 
@@ -226,24 +209,17 @@ export default function AdminBlogsPage() {
   // STATISTICS
   // =====================================================
 
-  const totalArticles =
-    blogs.length;
+  const totalArticles = blogs.length;
 
-  const publishedArticles =
-    blogs.filter(
-      (blog) =>
-        blog.published === true
-    ).length;
+  const publishedArticles = blogs.filter(
+    (blog) => blog.published === true
+  ).length;
 
-  const draftArticles =
-    blogs.filter(
-      (blog) =>
-        blog.published === false
-    ).length;
+  const draftArticles = blogs.filter(
+    (blog) => blog.published === false
+  ).length;
 
-  function categoryCount(
-    category: string
-  ) {
+  function categoryCount(category: string) {
     return blogs.filter(
       (blog) =>
         blog.category?.toLowerCase() ===
@@ -260,7 +236,6 @@ export default function AdminBlogsPage() {
       <main className="flex min-h-screen items-center justify-center bg-zinc-50">
         <div className="flex items-center gap-3 text-sm text-zinc-500">
           <RefreshCw className="h-4 w-4 animate-spin" />
-
           Loading publishing dashboard...
         </div>
       </main>
@@ -279,9 +254,9 @@ export default function AdminBlogsPage() {
       ================================================= */}
 
       <header className="border-b border-zinc-200 bg-white">
-        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
 
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
 
             {/* BRAND / TITLE */}
 
@@ -299,7 +274,7 @@ export default function AdminBlogsPage() {
               </h1>
 
               <p className="mt-1 text-sm text-zinc-500">
-                Manage your articles and publishing activity.
+                Manage articles, authors and publishing activity.
               </p>
 
               {userEmail && (
@@ -311,7 +286,7 @@ export default function AdminBlogsPage() {
 
             {/* HEADER ACTIONS */}
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
 
               <button
                 type="button"
@@ -340,9 +315,7 @@ export default function AdminBlogsPage() {
               >
                 <RefreshCw
                   className={`h-4 w-4 ${
-                    loading
-                      ? "animate-spin"
-                      : ""
+                    loading ? "animate-spin" : ""
                   }`}
                 />
 
@@ -350,6 +323,30 @@ export default function AdminBlogsPage() {
                   Refresh
                 </span>
               </button>
+
+              <Link
+                href="/admin/authors"
+                className="
+                  inline-flex
+                  h-10
+                  items-center
+                  justify-center
+                  gap-2
+                  rounded-lg
+                  border
+                  border-zinc-200
+                  bg-white
+                  px-3
+                  text-sm
+                  font-medium
+                  text-zinc-700
+                  transition
+                  hover:bg-zinc-50
+                "
+              >
+                <Users className="h-4 w-4" />
+                <span>Authors</span>
+              </Link>
 
               <Link
                 href="/admin/blogs/new"
@@ -370,7 +367,6 @@ export default function AdminBlogsPage() {
                 "
               >
                 <Plus className="h-4 w-4" />
-
                 New Article
               </Link>
 
@@ -406,7 +402,7 @@ export default function AdminBlogsPage() {
           MAIN
       ================================================= */}
 
-      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
 
         {/* =================================================
             PRIMARY STATISTICS
@@ -551,63 +547,53 @@ export default function AdminBlogsPage() {
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
 
-            {CATEGORIES.map(
-              (category) => {
-                const Icon =
-                  CATEGORY_ICONS[
+            {CATEGORIES.map((category) => {
+              const Icon = CATEGORY_ICONS[category];
+
+              const count = categoryCount(category);
+
+              return (
+                <Link
+                  key={category}
+                  href={`/admin/blogs/all?category=${encodeURIComponent(
                     category
-                  ];
+                  )}`}
+                  className="
+                    group
+                    rounded-xl
+                    border
+                    border-zinc-200
+                    bg-white
+                    p-4
+                    transition
+                    hover:border-zinc-300
+                    hover:shadow-sm
+                  "
+                >
 
-                const count =
-                  categoryCount(
-                    category
-                  );
+                  <div className="flex items-center justify-between">
 
-                return (
-                  <Link
-                    key={category}
-                    href={`/admin/blogs/all?category=${encodeURIComponent(
-                      category
-                    )}`}
-                    className="
-                      group
-                      rounded-xl
-                      border
-                      border-zinc-200
-                      bg-white
-                      p-4
-                      transition
-                      hover:border-zinc-300
-                      hover:shadow-sm
-                    "
-                  >
-
-                    <div className="flex items-center justify-between">
-
-                      <div className="rounded-lg bg-zinc-100 p-2">
-                        <Icon className="h-4 w-4 text-zinc-700" />
-                      </div>
-
-                      <span className="text-2xl font-bold text-zinc-950">
-                        {count}
-                      </span>
-
+                    <div className="rounded-lg bg-zinc-100 p-2">
+                      <Icon className="h-4 w-4 text-zinc-700" />
                     </div>
 
-                    <p className="mt-4 text-sm font-semibold text-zinc-900">
-                      {category}
-                    </p>
+                    <span className="text-2xl font-bold text-zinc-950">
+                      {count}
+                    </span>
 
-                    <p className="mt-0.5 text-xs text-zinc-500">
-                      {count === 1
-                        ? "article"
-                        : "articles"}
-                    </p>
+                  </div>
 
-                  </Link>
-                );
-              }
-            )}
+                  <p className="mt-4 text-sm font-semibold text-zinc-900">
+                    {category}
+                  </p>
+
+                  <p className="mt-0.5 text-xs text-zinc-500">
+                    {count === 1 ? "article" : "articles"}
+                  </p>
+
+                </Link>
+              );
+            })}
 
           </div>
 
@@ -625,11 +611,11 @@ export default function AdminBlogsPage() {
             </h2>
 
             <p className="mt-1 text-sm text-zinc-500">
-              Keep article management separate from your dashboard.
+              Manage articles, titles and author profiles.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
 
             {/* ALL ARTICLES */}
 
@@ -707,6 +693,82 @@ export default function AdminBlogsPage() {
               </span>
             </Link>
 
+            {/* AUTHORS */}
+
+            <Link
+              href="/admin/authors"
+              className="
+                group
+                flex
+                items-center
+                gap-4
+                rounded-xl
+                border
+                border-zinc-200
+                bg-white
+                p-5
+                transition
+                hover:border-zinc-300
+                hover:shadow-sm
+              "
+            >
+              <div className="rounded-xl bg-zinc-100 p-3">
+                <Users className="h-5 w-5 text-zinc-700" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold text-zinc-950">
+                  Authors
+                </h3>
+
+                <p className="mt-1 text-xs text-zinc-500">
+                  Manage author profiles and details
+                </p>
+              </div>
+
+              <span className="text-zinc-400 transition group-hover:translate-x-1 group-hover:text-zinc-900">
+                →
+              </span>
+            </Link>
+
+            {/* ARTICLE TITLES */}
+
+            <Link
+              href="/admin/titles"
+              className="
+                group
+                flex
+                items-center
+                gap-4
+                rounded-xl
+                border
+                border-zinc-200
+                bg-white
+                p-5
+                transition
+                hover:border-zinc-300
+                hover:shadow-sm
+              "
+            >
+              <div className="rounded-xl bg-zinc-100 p-3">
+                <Copy className="h-5 w-5 text-zinc-700" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold text-zinc-950">
+                  Article Titles
+                </h3>
+
+                <p className="mt-1 text-xs text-zinc-500">
+                  Search and copy article titles
+                </p>
+              </div>
+
+              <span className="text-zinc-400 transition group-hover:translate-x-1 group-hover:text-zinc-900">
+                →
+              </span>
+            </Link>
+
             {/* NEW ARTICLE */}
 
             <Link
@@ -764,3 +826,4 @@ export default function AdminBlogsPage() {
     </main>
   );
 }
+

@@ -1,33 +1,23 @@
+
 import type { MetadataRoute } from "next";
 import { supabase } from "@/lib/supabase";
 
-/* =========================================================
-   SITEMAP CONFIGURATION
-========================================================= */
-
-/*
- * Always generate the sitemap dynamically.
- *
- * This ensures the sitemap reads the latest published
- * articles from Supabase instead of relying on stale data.
- */
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
-/*
- * IMPORTANT:
- * Use the same canonical hostname everywhere on the site.
- */
 const BASE_URL = "https://www.anatago.com";
 
-/* =========================================================
-   SITEMAP
-========================================================= */
+/*
+  Rebuild the sitemap periodically.
+
+  This means newly published blogs can appear in the sitemap
+  automatically without manually editing this file.
+*/
+export const revalidate = 60;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  /* =======================================================
-     STATIC PAGES
-  ======================================================= */
+  /*
+    =========================================================
+    STATIC PAGES
+    =========================================================
+  */
 
   const staticPages: MetadataRoute.Sitemap = [
     {
@@ -35,53 +25,43 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "daily",
       priority: 1,
     },
-
     {
       url: `${BASE_URL}/blog`,
       changeFrequency: "daily",
       priority: 0.9,
     },
-
     {
       url: `${BASE_URL}/categories`,
       changeFrequency: "weekly",
       priority: 0.7,
     },
-
     {
       url: `${BASE_URL}/about`,
       changeFrequency: "monthly",
-      priority: 0.5,
+      priority: 0.6,
     },
-
     {
       url: `${BASE_URL}/contact`,
       changeFrequency: "monthly",
-      priority: 0.5,
+      priority: 0.6,
     },
-
     {
       url: `${BASE_URL}/privacy`,
       changeFrequency: "yearly",
       priority: 0.3,
     },
-
     {
       url: `${BASE_URL}/terms`,
       changeFrequency: "yearly",
       priority: 0.3,
     },
-
-    {
-      url: `${BASE_URL}/disclaimer`,
-      changeFrequency: "yearly",
-      priority: 0.3,
-    },
   ];
 
-  /* =======================================================
-     CATEGORY PAGES
-  ======================================================= */
+  /*
+    =========================================================
+    CATEGORY PAGES
+    =========================================================
+  */
 
   const categories = [
     "ai",
@@ -92,16 +72,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "explained",
   ];
 
-  const categoryUrls: MetadataRoute.Sitemap =
-    categories.map((category) => ({
+  const categoryUrls: MetadataRoute.Sitemap = categories.map(
+    (category) => ({
       url: `${BASE_URL}/${category}`,
-      changeFrequency: "daily",
+      changeFrequency: "daily" as const,
       priority: 0.8,
-    }));
+    })
+  );
 
-  /* =======================================================
-     PUBLISHED BLOG ARTICLES
-  ======================================================= */
+  /*
+    =========================================================
+    PUBLISHED BLOG POSTS
+    =========================================================
+  */
 
   let blogUrls: MetadataRoute.Sitemap = [];
 
@@ -128,10 +111,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         nullsFirst: false,
       });
 
-    /* =====================================================
-       SUPABASE ERROR
-    ===================================================== */
-
     if (error) {
       console.error(
         "Sitemap: Failed to fetch blogs:",
@@ -139,37 +118,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       );
     } else {
       blogUrls = (blogs ?? [])
-        /* ---------------------------------------------------
-           Validate slug
-        --------------------------------------------------- */
-
         .filter(
           (blog) =>
             typeof blog.slug === "string" &&
             blog.slug.trim().length > 0
         )
-
-        /* ---------------------------------------------------
-           Create sitemap URL
-        --------------------------------------------------- */
-
         .map((blog) => {
           const slug = blog.slug.trim();
 
-          /*
-           * Prefer the most recent modification date.
-           */
           const lastModified =
             blog.updated_at ||
             blog.published_at ||
             blog.created_at;
 
           return {
-            /*
-             * IMPORTANT:
-             * encodeURIComponent safely handles special
-             * characters in a slug.
-             */
             url: `${BASE_URL}/blog/${encodeURIComponent(slug)}`,
 
             ...(lastModified
@@ -179,31 +141,105 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
               : {}),
 
             changeFrequency: "weekly" as const,
-
             priority: 0.8,
           };
         });
     }
   } catch (error) {
     console.error(
-      "Sitemap: Unexpected error while generating sitemap:",
+      "Sitemap: Unexpected error while generating blog URLs:",
       error
     );
   }
 
-  /* =======================================================
-     COMBINE ALL URLS
-  ======================================================= */
+  /*
+    =========================================================
+    AUTHOR PAGES
+    =========================================================
+
+    If the authors table exists, automatically include
+    public author profile pages.
+
+    Example:
+    /author/dhanush-varma
+  */
+
+  let authorUrls: MetadataRoute.Sitemap = [];
+
+  try {
+    const { data: authors, error } = await supabase
+      .from("authors")
+      .select(
+        `
+          slug,
+          updated_at,
+          created_at
+        `
+      )
+      .not("slug", "is", null);
+
+    if (error) {
+      console.error(
+        "Sitemap: Failed to fetch authors:",
+        error.message
+      );
+    } else {
+      authorUrls = (authors ?? [])
+        .filter(
+          (author) =>
+            typeof author.slug === "string" &&
+            author.slug.trim().length > 0
+        )
+        .map((author) => {
+          const slug = author.slug.trim();
+
+          const lastModified =
+            author.updated_at ||
+            author.created_at;
+
+          return {
+            url: `${BASE_URL}/author/${encodeURIComponent(slug)}`,
+
+            ...(lastModified
+              ? {
+                  lastModified: new Date(lastModified),
+                }
+              : {}),
+
+            changeFrequency: "monthly" as const,
+            priority: 0.6,
+          };
+        });
+    }
+  } catch (error) {
+    /*
+      If the authors table is unavailable for any reason,
+      the rest of the sitemap should still work.
+    */
+    console.error(
+      "Sitemap: Unexpected error while generating author URLs:",
+      error
+    );
+  }
+
+  /*
+    =========================================================
+    COMBINE ALL URLS
+    =========================================================
+  */
 
   const allUrls: MetadataRoute.Sitemap = [
     ...staticPages,
     ...categoryUrls,
+    ...authorUrls,
     ...blogUrls,
   ];
 
-  /* =======================================================
-     REMOVE DUPLICATES
-  ======================================================= */
+  /*
+    =========================================================
+    REMOVE DUPLICATE URLS
+    =========================================================
+  */
 
   const uniqueUrls = Array.from(
     new Map(
@@ -211,9 +247,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ).values()
   );
 
-  /* =======================================================
-     RETURN SITEMAP
-  ======================================================= */
-
   return uniqueUrls;
 }
+

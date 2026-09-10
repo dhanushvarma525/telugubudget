@@ -2,11 +2,9 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Suspense } from "react";
 import { unstable_cache } from "next/cache";
 
 import { supabase } from "@/lib/supabase";
-import AdBanner from "@/components/AdBanner";
 
 /* =========================================================
    CONFIGURATION
@@ -45,6 +43,19 @@ type FAQ = {
   id?: string;
   question?: string;
   answer?: string;
+};
+
+type Author = {
+  id: string;
+  name: string;
+  slug: string;
+  bio: string | null;
+  role: string | null;
+  avatar_url: string | null;
+  website_url: string | null;
+  facebook_url: string | null;
+  instagram_url: string | null;
+  whatsapp_url: string | null;
 };
 
 type Blog = {
@@ -93,7 +104,9 @@ function absoluteUrl(path: string) {
     return path;
   }
 
-  return `${BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+  return `${BASE_URL}${
+    path.startsWith("/") ? path : `/${path}`
+  }`;
 }
 
 function formatDate(date: string | null) {
@@ -317,7 +330,9 @@ function sanitizeRichText(html: string) {
       let styles = "";
 
       if (styleMatch?.[2]) {
-        styles = sanitizeInlineStyle(styleMatch[2]);
+        styles = sanitizeInlineStyle(
+          styleMatch[2]
+        );
       }
 
       if (colorMatch?.[2]) {
@@ -328,7 +343,9 @@ function sanitizeRichText(html: string) {
             .split(";")
             .map((item) => item.trim())
             .find((item) =>
-              item.toLowerCase().startsWith("color:")
+              item
+                .toLowerCase()
+                .startsWith("color:")
             );
 
           if (!existingColor) {
@@ -423,7 +440,10 @@ function sanitizeRichText(html: string) {
 
   safe = safe.replace(
     /<\/?([a-z0-9]+)(?:\s[^>]*)?>/gi,
-    (match, tagName: string) => {
+    (
+      match,
+      tagName: string
+    ) => {
       const tag = tagName.toLowerCase();
 
       if (allowedTags.includes(tag)) {
@@ -464,27 +484,33 @@ function sanitizeRichText(html: string) {
       --------------------------------------------------- */
 
       if (tag === "a") {
-        const hrefMatch = attributeString.match(
-          /href\s*=\s*(["'])(.*?)\1/i
-        );
+        const hrefMatch =
+          attributeString.match(
+            /href\s*=\s*(["'])(.*?)\1/i
+          );
 
-        const targetMatch = attributeString.match(
-          /target\s*=\s*(["'])(.*?)\1/i
-        );
+        const targetMatch =
+          attributeString.match(
+            /target\s*=\s*(["'])(.*?)\1/i
+          );
 
-        const relMatch = attributeString.match(
-          /rel\s*=\s*(["'])(.*?)\1/i
-        );
+        const relMatch =
+          attributeString.match(
+            /rel\s*=\s*(["'])(.*?)\1/i
+          );
 
-        const titleMatch = attributeString.match(
-          /title\s*=\s*(["'])(.*?)\1/i
-        );
+        const titleMatch =
+          attributeString.match(
+            /title\s*=\s*(["'])(.*?)\1/i
+          );
 
-        const styleMatch = attributeString.match(
-          /style\s*=\s*(["'])(.*?)\1/i
-        );
+        const styleMatch =
+          attributeString.match(
+            /style\s*=\s*(["'])(.*?)\1/i
+          );
 
-        const href = hrefMatch?.[2]?.trim() || "";
+        const href =
+          hrefMatch?.[2]?.trim() || "";
 
         /* -----------------------------------------------
            SAFE HREF
@@ -513,37 +539,34 @@ function sanitizeRichText(html: string) {
            PRESERVE SAFE EXISTING STYLE
         ------------------------------------------------ */
 
-        const existingStyle = styleMatch
-          ? sanitizeInlineStyle(styleMatch[2])
-          : "";
+        const existingStyle =
+          styleMatch
+            ? sanitizeInlineStyle(
+                styleMatch[2]
+              )
+            : "";
 
-        /*
-         * IMPORTANT:
-         *
-         * We deliberately remove any existing color and
-         * text-decoration declarations from the saved link.
-         *
-         * This guarantees that every inline article link
-         * has the same visible link style on the public page.
-         */
+        const filteredExistingStyles =
+          existingStyle
+            .split(";")
+            .map((item) => item.trim())
+            .filter(Boolean)
+            .filter((item) => {
+              const property = item
+                .split(":")[0]
+                ?.trim()
+                .toLowerCase();
 
-        const filteredExistingStyles = existingStyle
-          .split(";")
-          .map((item) => item.trim())
-          .filter(Boolean)
-          .filter((item) => {
-            const property = item
-              .split(":")[0]
-              ?.trim()
-              .toLowerCase();
-
-            return (
-              property !== "color" &&
-              property !== "text-decoration" &&
-              property !== "text-decoration-thickness" &&
-              property !== "text-underline-offset"
-            );
-          });
+              return (
+                property !== "color" &&
+                property !==
+                  "text-decoration" &&
+                property !==
+                  "text-decoration-thickness" &&
+                property !==
+                  "text-underline-offset"
+              );
+            });
 
         /* -----------------------------------------------
            STANDARD ARTICLE LINK STYLE
@@ -562,22 +585,27 @@ function sanitizeRichText(html: string) {
         ].join("; ");
 
         const attributes = [
-          `href="${escapeHtmlAttribute(safeHref)}"`,
-
+          `href="${escapeHtmlAttribute(
+            safeHref
+          )}"`,
           target
-            ? `target="${escapeHtmlAttribute(target)}"`
+            ? `target="${escapeHtmlAttribute(
+                target
+              )}"`
             : "",
-
           rel
-            ? `rel="${escapeHtmlAttribute(rel)}"`
+            ? `rel="${escapeHtmlAttribute(
+                rel
+              )}"`
             : "",
-
           title
-            ? `title="${escapeHtmlAttribute(title)}"`
+            ? `title="${escapeHtmlAttribute(
+                title
+              )}"`
             : "",
-
-          `style="${escapeHtmlAttribute(finalStyle)}"`,
-
+          `style="${escapeHtmlAttribute(
+            finalStyle
+          )}"`,
           `class="article-inline-link"`,
         ]
           .filter(Boolean)
@@ -590,12 +618,15 @@ function sanitizeRichText(html: string) {
          ALL OTHER ALLOWED TAGS
       --------------------------------------------------- */
 
-      const styleMatch = attributeString.match(
-        /style\s*=\s*(["'])(.*?)\1/i
-      );
+      const styleMatch =
+        attributeString.match(
+          /style\s*=\s*(["'])(.*?)\1/i
+        );
 
       const safeStyle = styleMatch
-        ? sanitizeInlineStyle(styleMatch[2])
+        ? sanitizeInlineStyle(
+            styleMatch[2]
+          )
         : "";
 
       if (safeStyle) {
@@ -616,9 +647,12 @@ function sanitizeRichText(html: string) {
 ========================================================= */
 
 function containsHtml(value: string) {
-  const decoded = decodeHtmlEntities(value);
+  const decoded =
+    decodeHtmlEntities(value);
 
-  return /<\/?[a-z][\s\S]*>/i.test(decoded);
+  return /<\/?[a-z][\s\S]*>/i.test(
+    decoded
+  );
 }
 
 /* =========================================================
@@ -632,8 +666,11 @@ function RichText({
   html: string;
   className?: string;
 }) {
-  const decodedHtml = decodeHtmlEntities(html);
-  const safeHtml = sanitizeRichText(decodedHtml);
+  const decodedHtml =
+    decodeHtmlEntities(html);
+
+  const safeHtml =
+    sanitizeRichText(decodedHtml);
 
   if (!safeHtml) {
     return null;
@@ -656,34 +693,36 @@ function RichText({
 async function fetchBlog(
   slug: string
 ): Promise<Blog | null> {
-  const decodedSlug = decodeSlug(slug);
+  const decodedSlug =
+    decodeSlug(slug);
 
-  const { data, error } = await supabase
-    .from("blogs")
-    .select(`
-      id,
-      title,
-      slug,
-      excerpt,
-      introduction,
-      cover_image,
-      category,
-      author,
-      tags,
-      content_blocks,
-      faqs,
-      published,
-      featured,
-      views,
-      meta_title,
-      meta_description,
-      published_at,
-      created_at,
-      updated_at
-    `)
-    .eq("slug", decodedSlug)
-    .eq("published", true)
-    .maybeSingle();
+  const { data, error } =
+    await supabase
+      .from("blogs")
+      .select(`
+        id,
+        title,
+        slug,
+        excerpt,
+        introduction,
+        cover_image,
+        category,
+        author,
+        tags,
+        content_blocks,
+        faqs,
+        published,
+        featured,
+        views,
+        meta_title,
+        meta_description,
+        published_at,
+        created_at,
+        updated_at
+      `)
+      .eq("slug", decodedSlug)
+      .eq("published", true)
+      .maybeSingle();
 
   if (error) {
     console.error(
@@ -702,53 +741,112 @@ async function fetchBlog(
 ========================================================= */
 
 async function getBlog(slug: string) {
-  const decodedSlug = decodeSlug(slug);
+  const decodedSlug =
+    decodeSlug(slug);
 
-  const cachedFetch = unstable_cache(
-    async () => fetchBlog(decodedSlug),
-    ["blog", decodedSlug],
-    {
-      revalidate: 60,
-      tags: [
-        "blogs",
-        `blog-${decodedSlug}`,
-      ],
-    }
-  );
+  const cachedFetch =
+    unstable_cache(
+      async () =>
+        fetchBlog(decodedSlug),
+      ["blog", decodedSlug],
+      {
+        revalidate: 60,
+        tags: [
+          "blogs",
+          `blog-${decodedSlug}`,
+        ],
+      }
+    );
 
   return cachedFetch();
+}
+
+/* =========================================================
+   FETCH AUTHOR
+========================================================= */
+
+async function getAuthorByName(
+  authorName: string | null
+): Promise<Author | null> {
+  const name =
+    normalizeText(authorName);
+
+  if (!name) {
+    return null;
+  }
+
+  try {
+    const { data, error } =
+      await supabase
+        .from("authors")
+        .select(`
+          id,
+          name,
+          slug,
+          bio,
+          role,
+          avatar_url,
+          website_url,
+          facebook_url,
+          instagram_url,
+          whatsapp_url
+        `)
+        .ilike("name", name)
+        .maybeSingle();
+
+    if (error) {
+      console.error(
+        "Failed to fetch author:",
+        error.message
+      );
+
+      return null;
+    }
+
+    return data as Author | null;
+  } catch (error) {
+    console.error(
+      "Unexpected author fetch error:",
+      error
+    );
+
+    return null;
+  }
 }
 
 /* =========================================================
    RELATED BLOGS
 ========================================================= */
 
-async function getRelatedBlogs(blog: Blog) {
+async function getRelatedBlogs(
+  blog: Blog
+) {
   if (!blog.category) {
     return [];
   }
 
   try {
-    const { data, error } = await supabase
-      .from("blogs")
-      .select(`
-        id,
-        title,
-        slug,
-        excerpt,
-        cover_image,
-        category,
-        published_at
-      `)
-      .eq("published", true)
-      .eq("category", blog.category)
-      .neq("id", blog.id)
-      .not("slug", "is", null)
-      .order("published_at", {
-        ascending: false,
-        nullsFirst: false,
-      })
-      .limit(6);
+    const { data, error } =
+      await supabase
+        .from("blogs")
+        .select(`
+          id,
+          title,
+          slug,
+          excerpt,
+          cover_image,
+          category,
+          published_at
+        `)
+        .eq("published", true)
+        .eq("category", blog.category)
+        .neq("id", blog.id)
+        .not("slug", "is", null)
+        .order("published_at", {
+          ascending: false,
+          nullsFirst: false,
+        })
+        .limit(6);
 
     if (error) {
       console.error(
@@ -781,11 +879,13 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
 
-  const blog = await getBlog(slug);
+  const blog =
+    await getBlog(slug);
 
   if (!blog) {
     return {
-      title: "Article Not Found | AnantaGo",
+      title:
+        "Article Not Found | AnantaGo",
       description:
         "The requested article could not be found.",
       robots: {
@@ -796,14 +896,20 @@ export async function generateMetadata({
   }
 
   const title =
-    normalizeText(blog.meta_title) ||
+    normalizeText(
+      blog.meta_title
+    ) ||
     normalizeText(blog.title) ||
     "AnantaGo";
 
   const description =
-    normalizeText(blog.meta_description) ||
+    normalizeText(
+      blog.meta_description
+    ) ||
     normalizeText(blog.excerpt) ||
-    normalizeText(blog.introduction) ||
+    normalizeText(
+      blog.introduction
+    ) ||
     "Read the latest technology news, guides, explainers, app tips, AI updates and security advice on AnantaGo.";
 
   const canonicalUrl =
@@ -811,9 +917,12 @@ export async function generateMetadata({
       blog.slug
     )}`;
 
-  const imageUrl = blog.cover_image
-    ? absoluteUrl(blog.cover_image)
-    : `${BASE_URL}/favicon.png`;
+  const imageUrl =
+    blog.cover_image
+      ? absoluteUrl(
+          blog.cover_image
+        )
+      : `${BASE_URL}/favicon.png`;
 
   return {
     title,
@@ -833,7 +942,8 @@ export async function generateMetadata({
         follow: true,
         noimageindex: false,
         "max-video-preview": -1,
-        "max-image-preview": "large",
+        "max-image-preview":
+          "large",
         "max-snippet": -1,
       },
     },
@@ -842,7 +952,10 @@ export async function generateMetadata({
       ? [{ name: blog.author }]
       : [{ name: "AnantaGo" }],
 
-    creator: blog.author || "AnantaGo",
+    creator:
+      blog.author ||
+      "AnantaGo",
+
     publisher: "AnantaGo",
 
     openGraph: {
@@ -854,7 +967,8 @@ export async function generateMetadata({
       locale: "en_IN",
 
       publishedTime:
-        blog.published_at || undefined,
+        blog.published_at ||
+        undefined,
 
       modifiedTime:
         blog.updated_at ||
@@ -867,10 +981,12 @@ export async function generateMetadata({
         : ["AnantaGo"],
 
       section:
-        blog.category || undefined,
+        blog.category ||
+        undefined,
 
       tags:
-        blog.tags || undefined,
+        blog.tags ||
+        undefined,
 
       images: [
         {
@@ -883,7 +999,8 @@ export async function generateMetadata({
     },
 
     twitter: {
-      card: "summary_large_image",
+      card:
+        "summary_large_image",
       title,
       description,
       images: [imageUrl],
@@ -900,19 +1017,31 @@ function renderContentBlock(
   index: number
 ) {
   const type =
-    normalizeText(block.type).toLowerCase();
+    normalizeText(
+      block.type
+    ).toLowerCase();
 
   const heading =
-    normalizeText(block.heading) ||
-    normalizeText(block.title);
+    normalizeText(
+      block.heading
+    ) ||
+    normalizeText(
+      block.title
+    );
 
   const text =
     normalizeText(block.text) ||
-    normalizeText(block.content);
+    normalizeText(
+      block.content
+    );
 
   const image =
-    normalizeText(block.image) ||
-    normalizeText(block.image_url) ||
+    normalizeText(
+      block.image
+    ) ||
+    normalizeText(
+      block.image_url
+    ) ||
     normalizeText(block.src) ||
     normalizeText(block.url);
 
@@ -922,7 +1051,9 @@ function renderContentBlock(
     "AnantaGo article image";
 
   const caption =
-    normalizeText(block.caption);
+    normalizeText(
+      block.caption
+    );
 
   const key =
     block.id ||
@@ -939,9 +1070,10 @@ function renderContentBlock(
     type === "h4" ||
     type === "section"
   ) {
-    const headingText = cleanHeadingText(
-      heading || text
-    );
+    const headingText =
+      cleanHeadingText(
+        heading || text
+      );
 
     if (!headingText) {
       return null;
@@ -959,7 +1091,7 @@ function renderContentBlock(
       return (
         <h4
           key={key}
-          className="mt-8 mb-3 text-lg font-bold leading-7 tracking-tight text-gray-900 sm:text-xl"
+          className="mt-8 mb-3 text-lg font-bold leading-7 tracking-tight text-[#0f172a] sm:text-xl"
         >
           {headingText}
         </h4>
@@ -970,7 +1102,7 @@ function renderContentBlock(
       return (
         <h3
           key={key}
-          className="mt-10 mb-4 text-xl font-bold leading-tight tracking-tight text-gray-950 sm:text-2xl"
+          className="mt-11 mb-4 text-xl font-bold leading-tight tracking-tight text-[#0f172a] sm:text-2xl"
         >
           {headingText}
         </h3>
@@ -980,7 +1112,7 @@ function renderContentBlock(
     return (
       <h2
         key={key}
-        className="mt-12 mb-5 text-2xl font-bold leading-tight tracking-tight text-gray-950 sm:text-3xl"
+        className="mt-14 mb-5 text-2xl font-bold leading-tight tracking-tight text-[#0b1830] sm:text-3xl"
       >
         {headingText}
       </h2>
@@ -1011,8 +1143,8 @@ function renderContentBlock(
             my-5
             text-[17px]
             leading-8
-            text-gray-700
-            sm:text-lg
+            text-[#475569]
+            sm:text-[18px]
             sm:leading-9
           "
         />
@@ -1022,7 +1154,7 @@ function renderContentBlock(
     return (
       <p
         key={key}
-        className="my-5 text-[17px] leading-8 text-gray-700 sm:text-lg sm:leading-9"
+        className="my-5 text-[17px] leading-8 text-[#475569] sm:text-[18px] sm:leading-9"
       >
         {text}
       </p>
@@ -1044,7 +1176,7 @@ function renderContentBlock(
     return (
       <figure
         key={key}
-        className="my-9 overflow-hidden rounded-2xl"
+        className="my-10 overflow-hidden rounded-2xl border border-[#e2e8f0] bg-[#f8fafc]"
       >
         <img
           src={absoluteUrl(image)}
@@ -1057,7 +1189,7 @@ function renderContentBlock(
         />
 
         {caption && (
-          <figcaption className="mt-3 text-center text-sm leading-6 text-gray-500">
+          <figcaption className="px-4 py-3 text-center text-sm leading-6 text-[#64748b]">
             {caption}
           </figcaption>
         )}
@@ -1077,7 +1209,8 @@ function renderContentBlock(
     const items =
       block.items?.filter(
         (item) =>
-          typeof item === "string" &&
+          typeof item ===
+            "string" &&
           item.trim()
       ) || [];
 
@@ -1088,16 +1221,23 @@ function renderContentBlock(
     return (
       <ul
         key={key}
-        className="my-7 list-disc space-y-3 pl-7 text-[17px] leading-8 text-gray-700 sm:text-lg"
+        className="my-7 list-disc space-y-3 pl-7 text-[17px] leading-8 text-[#475569] sm:text-[18px]"
       >
         {items.map(
-          (item, itemIndex) => (
+          (
+            item,
+            itemIndex
+          ) => (
             <li
               key={itemIndex}
               className="pl-1"
             >
-              {containsHtml(item) ? (
-                <RichText html={item} />
+              {containsHtml(
+                item
+              ) ? (
+                <RichText
+                  html={item}
+                />
               ) : (
                 item
               )}
@@ -1113,13 +1253,16 @@ function renderContentBlock(
   ------------------------------------------------------- */
 
   if (
-    type === "numbered-list" ||
-    type === "ordered-list"
+    type ===
+      "numbered-list" ||
+    type ===
+      "ordered-list"
   ) {
     const items =
       block.items?.filter(
         (item) =>
-          typeof item === "string" &&
+          typeof item ===
+            "string" &&
           item.trim()
       ) || [];
 
@@ -1130,16 +1273,23 @@ function renderContentBlock(
     return (
       <ol
         key={key}
-        className="my-7 list-decimal space-y-3 pl-7 text-[17px] leading-8 text-gray-700 sm:text-lg"
+        className="my-7 list-decimal space-y-3 pl-7 text-[17px] leading-8 text-[#475569] sm:text-[18px]"
       >
         {items.map(
-          (item, itemIndex) => (
+          (
+            item,
+            itemIndex
+          ) => (
             <li
               key={itemIndex}
               className="pl-1"
             >
-              {containsHtml(item) ? (
-                <RichText html={item} />
+              {containsHtml(
+                item
+              ) ? (
+                <RichText
+                  html={item}
+                />
               ) : (
                 item
               )}
@@ -1165,15 +1315,17 @@ function renderContentBlock(
     return (
       <blockquote
         key={key}
-        className="my-10 border-l-4 border-gray-900 bg-gray-50 px-6 py-6 sm:px-8"
+        className="my-10 border-l-4 border-[#2563eb] bg-[#f8fafc] px-6 py-6 sm:px-8"
       >
-        {containsHtml(text) ? (
+        {containsHtml(
+          text
+        ) ? (
           <RichText
             html={text}
-            className="text-lg font-medium italic leading-8 text-gray-800 sm:text-xl sm:leading-9"
+            className="text-lg font-medium italic leading-8 text-[#334155] sm:text-xl sm:leading-9"
           />
         ) : (
-          <p className="text-lg font-medium italic leading-8 text-gray-800 sm:text-xl sm:leading-9">
+          <p className="text-lg font-medium italic leading-8 text-[#334155] sm:text-xl sm:leading-9">
             “{text}”
           </p>
         )}
@@ -1197,21 +1349,25 @@ function renderContentBlock(
     return (
       <aside
         key={key}
-        className="my-9 rounded-2xl border border-gray-200 bg-gray-50 p-6 sm:p-7"
+        className="my-10 rounded-2xl border border-[#dbe4f0] bg-[#f8fafc] p-6 sm:p-7"
       >
         {heading && (
-          <h3 className="mb-3 text-lg font-bold text-gray-900 sm:text-xl">
-            {cleanHeadingText(heading)}
+          <h3 className="mb-3 text-lg font-bold text-[#0f172a] sm:text-xl">
+            {cleanHeadingText(
+              heading
+            )}
           </h3>
         )}
 
-        {containsHtml(text) ? (
+        {containsHtml(
+          text
+        ) ? (
           <RichText
             html={text}
-            className="text-base leading-8 text-gray-700 sm:text-lg"
+            className="text-base leading-8 text-[#475569] sm:text-lg"
           />
         ) : (
-          <p className="text-base leading-8 text-gray-700 sm:text-lg">
+          <p className="text-base leading-8 text-[#475569] sm:text-lg">
             {text}
           </p>
         )}
@@ -1228,12 +1384,20 @@ function renderContentBlock(
     type === "button"
   ) {
     const href =
-      normalizeText(block.href) ||
-      normalizeText(block.url);
+      normalizeText(
+        block.href
+      ) ||
+      normalizeText(
+        block.url
+      );
 
     const label =
-      normalizeText(block.label) ||
-      cleanHeadingText(heading) ||
+      normalizeText(
+        block.label
+      ) ||
+      cleanHeadingText(
+        heading
+      ) ||
       text ||
       "Read more";
 
@@ -1245,11 +1409,11 @@ function renderContentBlock(
       return (
         <div
           key={key}
-          className="my-6"
+          className="my-7"
         >
           <Link
             href={href}
-            className="font-semibold text-blue-600 underline decoration-blue-300 underline-offset-4 transition hover:text-blue-700 hover:decoration-blue-500"
+            className="font-semibold text-[#2563eb] underline decoration-[#93c5fd] underline-offset-4 transition hover:text-[#1d4ed8] hover:decoration-[#60a5fa]"
           >
             {label}
           </Link>
@@ -1260,13 +1424,13 @@ function renderContentBlock(
     return (
       <div
         key={key}
-        className="my-6"
+        className="my-7"
       >
         <a
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="font-semibold text-blue-600 underline decoration-blue-300 underline-offset-4 transition hover:text-blue-700 hover:decoration-blue-500"
+          className="font-semibold text-[#2563eb] underline decoration-[#93c5fd] underline-offset-4 transition hover:text-[#1d4ed8] hover:decoration-[#60a5fa]"
         >
           {label}
         </a>
@@ -1295,21 +1459,24 @@ function renderContentBlock(
     return (
       <div
         key={key}
-        className="my-9 overflow-hidden rounded-2xl border border-gray-200"
+        className="my-10 overflow-hidden rounded-2xl border border-[#e2e8f0] bg-white"
       >
         <div className="overflow-x-auto">
           <table className="min-w-[600px] w-full border-collapse text-sm sm:text-base">
-            {headers.length > 0 && (
+            {headers.length >
+              0 && (
               <thead>
-                <tr className="bg-gray-50">
+                <tr className="bg-[#f8fafc]">
                   {headers.map(
                     (
                       header,
                       headerIndex
                     ) => (
                       <th
-                        key={headerIndex}
-                        className="border-b border-gray-200 px-4 py-4 text-left font-bold text-gray-950"
+                        key={
+                          headerIndex
+                        }
+                        className="border-b border-[#e2e8f0] px-4 py-4 text-left font-bold text-[#0f172a]"
                       >
                         {header}
                       </th>
@@ -1327,7 +1494,7 @@ function renderContentBlock(
                 ) => (
                   <tr
                     key={rowIndex}
-                    className="border-b border-gray-100 last:border-b-0"
+                    className="border-b border-[#f1f5f9] last:border-b-0"
                   >
                     {row.map(
                       (
@@ -1335,11 +1502,19 @@ function renderContentBlock(
                         cellIndex
                       ) => (
                         <td
-                          key={cellIndex}
-                          className="px-4 py-4 leading-7 text-gray-700"
+                          key={
+                            cellIndex
+                          }
+                          className="px-4 py-4 leading-7 text-[#475569]"
                         >
-                          {containsHtml(cell) ? (
-                            <RichText html={cell} />
+                          {containsHtml(
+                            cell
+                          ) ? (
+                            <RichText
+                              html={
+                                cell
+                              }
+                            />
                           ) : (
                             cell
                           )}
@@ -1373,8 +1548,8 @@ function renderContentBlock(
           my-5
           text-[17px]
           leading-8
-          text-gray-700
-          sm:text-lg
+          text-[#475569]
+          sm:text-[18px]
           sm:leading-9
         "
       />
@@ -1384,7 +1559,7 @@ function renderContentBlock(
   return (
     <p
       key={key}
-      className="my-5 text-[17px] leading-8 text-gray-700 sm:text-lg sm:leading-9"
+      className="my-5 text-[17px] leading-8 text-[#475569] sm:text-[18px] sm:leading-9"
     >
       {text}
     </p>
@@ -1398,18 +1573,31 @@ function renderContentBlock(
 export default async function BlogPage({
   params,
 }: {
-  params: Promise<{ slug: string }>;
+  params: Promise<{
+    slug: string;
+  }>;
 }) {
-  const { slug } = await params;
+  const { slug } =
+    await params;
 
-  const blog = await getBlog(slug);
+  const blog =
+    await getBlog(slug);
 
   if (!blog) {
     notFound();
   }
 
-  const relatedBlogs =
-    await getRelatedBlogs(blog);
+  /*
+   * Fetch related articles and author
+   * at the same time for better performance.
+   */
+  const [relatedBlogs, author] =
+    await Promise.all([
+      getRelatedBlogs(blog),
+      getAuthorByName(
+        blog.author
+      ),
+    ]);
 
   const canonicalUrl =
     `${BASE_URL}/blog/${encodeURIComponent(
@@ -1427,18 +1615,25 @@ export default async function BlogPage({
     blog.created_at ||
     null;
 
-  const imageUrl = blog.cover_image
-    ? absoluteUrl(blog.cover_image)
-    : `${BASE_URL}/favicon.png`;
+  const imageUrl =
+    blog.cover_image
+      ? absoluteUrl(
+          blog.cover_image
+        )
+      : `${BASE_URL}/favicon.png`;
 
   /* =======================================================
      ARTICLE SCHEMA
   ======================================================= */
 
   const articleSchema = {
-    "@context": "https://schema.org",
+    "@context":
+      "https://schema.org",
+
     "@type": "Article",
-    "@id": `${canonicalUrl}#article`,
+
+    "@id":
+      `${canonicalUrl}#article`,
 
     mainEntityOfPage: {
       "@type": "WebPage",
@@ -1456,17 +1651,43 @@ export default async function BlogPage({
     image: [imageUrl],
 
     datePublished:
-      publishedDate || undefined,
+      publishedDate ||
+      undefined,
 
     dateModified:
-      modifiedDate || undefined,
+      modifiedDate ||
+      undefined,
 
-    author: {
-      "@type": "Person",
-      name:
-        blog.author ||
-        "AnantaGo",
-    },
+    author: author
+      ? {
+          "@type": "Person",
+          "@id": `${BASE_URL}/author/${encodeURIComponent(
+            author.slug
+          )}#person`,
+          name: author.name,
+          url: `${BASE_URL}/author/${encodeURIComponent(
+            author.slug
+          )}`,
+          ...(author.avatar_url
+            ? {
+                image: absoluteUrl(
+                  author.avatar_url
+                ),
+              }
+            : {}),
+          ...(author.role
+            ? {
+                jobTitle:
+                  author.role,
+              }
+            : {}),
+        }
+      : {
+          "@type": "Person",
+          name:
+            blog.author ||
+            "AnantaGo",
+        },
 
     publisher: {
       "@type": "Organization",
@@ -1481,7 +1702,8 @@ export default async function BlogPage({
     },
 
     articleSection:
-      blog.category || undefined,
+      blog.category ||
+      undefined,
 
     keywords:
       blog.tags &&
@@ -1497,8 +1719,11 @@ export default async function BlogPage({
   ======================================================= */
 
   const breadcrumbSchema = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
+    "@context":
+      "https://schema.org",
+
+    "@type":
+      "BreadcrumbList",
 
     itemListElement: [
       {
@@ -1536,7 +1761,9 @@ export default async function BlogPage({
           blog.category
             ? 4
             : 3,
+
         name: blog.title,
+
         item: canonicalUrl,
       },
     ],
@@ -1581,7 +1808,8 @@ export default async function BlogPage({
 
                   text:
                     decodeHtmlEntities(
-                      faq.answer || ""
+                      faq.answer ||
+                        ""
                     ),
                 },
               })
@@ -1639,8 +1867,12 @@ export default async function BlogPage({
         />
       )}
 
-      <main className="bg-white">
-        <article className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
+      {/* ===================================================
+          ARTICLE PAGE
+      =================================================== */}
+
+      <main className="min-h-screen bg-white text-[#0f172a]">
+        <article className="mx-auto max-w-6xl px-4 pb-16 pt-7 sm:px-6 sm:pb-20 sm:pt-10 lg:px-8">
 
           {/* =================================================
               BREADCRUMBS
@@ -1648,29 +1880,29 @@ export default async function BlogPage({
 
           <nav
             aria-label="Breadcrumb"
-            className="mb-7 text-sm text-gray-500"
+            className="mb-7 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[#64748b]"
           >
             <Link
               href="/"
-              className="hover:text-gray-900"
+              className="transition-colors hover:text-[#2563eb]"
             >
               Home
             </Link>
 
-            <span className="mx-2">
+            <span aria-hidden="true">
               /
             </span>
 
             <Link
               href="/blog"
-              className="hover:text-gray-900"
+              className="transition-colors hover:text-[#2563eb]"
             >
               Blog
             </Link>
 
             {blog.category && (
               <>
-                <span className="mx-2">
+                <span aria-hidden="true">
                   /
                 </span>
 
@@ -1678,7 +1910,7 @@ export default async function BlogPage({
                   href={`/${categorySlug(
                     blog.category
                   )}`}
-                  className="hover:text-gray-900"
+                  className="transition-colors hover:text-[#2563eb]"
                 >
                   {blog.category}
                 </Link>
@@ -1687,78 +1919,91 @@ export default async function BlogPage({
           </nav>
 
           {/* =================================================
-              CATEGORY
+              ARTICLE HEADER
           ================================================= */}
 
-          {blog.category && (
-            <div className="mb-4">
+          <header className="max-w-4xl">
+
+            {/* CATEGORY */}
+
+            {blog.category && (
               <Link
                 href={`/${categorySlug(
                   blog.category
                 )}`}
-                className="text-sm font-semibold uppercase tracking-wider text-blue-600"
+                className="inline-flex items-center rounded-full border border-[#dbeafe] bg-[#eff6ff] px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-[#2563eb] transition hover:border-[#bfdbfe] hover:bg-[#dbeafe]"
               >
                 {blog.category}
               </Link>
-            </div>
-          )}
-
-          {/* =================================================
-              TITLE
-          ================================================= */}
-
-          <h1 className="text-4xl font-extrabold leading-tight tracking-tight text-gray-950 sm:text-5xl lg:text-6xl">
-            {blog.title}
-          </h1>
-
-          {/* =================================================
-              EXCERPT
-          ================================================= */}
-
-          {blog.excerpt && (
-            <p className="mt-6 text-lg leading-8 text-gray-600 sm:text-xl">
-              {blog.excerpt}
-            </p>
-          )}
-
-          {/* =================================================
-              AUTHOR / DATE
-          ================================================= */}
-
-          <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-500">
-            <span>
-              By{" "}
-              <span className="font-medium text-gray-700">
-                {blog.author ||
-                  "AnantaGo"}
-              </span>
-            </span>
-
-            {publishedDate && (
-              <>
-                <span aria-hidden="true">
-                  •
-                </span>
-
-                <time
-                  dateTime={
-                    publishedDate
-                  }
-                >
-                  {formatDate(
-                    publishedDate
-                  )}
-                </time>
-              </>
             )}
-          </div>
+
+            {/* TITLE */}
+
+            <h1 className="mt-5 text-[2.35rem] font-extrabold leading-[1.08] tracking-[-0.035em] text-[#0b1830] sm:text-5xl sm:leading-[1.08] lg:text-[3.75rem]">
+              {blog.title}
+            </h1>
+
+            {/* EXCERPT */}
+
+            {blog.excerpt && (
+              <p className="mt-6 max-w-3xl text-[18px] leading-8 text-[#64748b] sm:text-xl sm:leading-9">
+                {blog.excerpt}
+              </p>
+            )}
+
+            {/* AUTHOR / DATE */}
+
+            <div className="mt-7 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-[#64748b]">
+
+              <span>
+                By{" "}
+
+                {author ? (
+                  <Link
+                    href={`/author/${encodeURIComponent(
+                      author.slug
+                    )}`}
+                    className="font-semibold text-[#334155] underline decoration-transparent underline-offset-4 transition-colors hover:text-[#2563eb] hover:decoration-[#93c5fd]"
+                  >
+                    {author.name}
+                  </Link>
+                ) : (
+                  <span className="font-semibold text-[#334155]">
+                    {blog.author ||
+                      "AnantaGo"}
+                  </span>
+                )}
+              </span>
+
+              {publishedDate && (
+                <>
+                  <span
+                    aria-hidden="true"
+                    className="text-[#cbd5e1]"
+                  >
+                    •
+                  </span>
+
+                  <time
+                    dateTime={
+                      publishedDate
+                    }
+                  >
+                    {formatDate(
+                      publishedDate
+                    )}
+                  </time>
+                </>
+              )}
+            </div>
+          </header>
 
           {/* =================================================
               COVER IMAGE
           ================================================= */}
 
           {blog.cover_image && (
-            <figure className="mt-9 overflow-hidden rounded-2xl">
+            <figure className="mt-9 overflow-hidden rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] sm:mt-11">
               <img
                 src={imageUrl}
                 alt={blog.title}
@@ -1773,304 +2018,367 @@ export default async function BlogPage({
           )}
 
           {/* =================================================
-              ADVERTISEMENT
+              READING AREA
           ================================================= */}
 
-          <div className="my-8">
-            <Suspense fallback={null}>
-              <AdBanner position="top" />
-            </Suspense>
-          </div>
+          <div className="mt-9 lg:grid lg:grid-cols-[minmax(0,760px)_1fr] lg:gap-16">
 
-          {/* =================================================
-              INTRODUCTION
-          ================================================= */}
+            <div>
 
-          {blog.introduction && (
-            <section
-              aria-label="Introduction"
-              className="mt-8"
-            >
-              <div className="text-[18px] leading-8 text-gray-700 sm:text-xl sm:leading-9">
-                {blog.introduction
-                  .split(/\n+/)
-                  .filter(Boolean)
-                  .map(
-                    (
-                      paragraph,
-                      index
-                    ) => {
-                      const cleanParagraph =
-                        paragraph.trim();
+              {/* =================================================
+                  INTRODUCTION
+              ================================================= */}
 
-                      if (
-                        containsHtml(
-                          cleanParagraph
-                        )
-                      ) {
-                        return (
-                          <RichText
-                            key={index}
-                            html={
-                              cleanParagraph
-                            }
-                            className="mb-5"
-                          />
-                        );
-                      }
-
-                      return (
-                        <p
-                          key={index}
-                          className="mb-5"
-                        >
-                          {cleanParagraph}
-                        </p>
-                      );
-                    }
-                  )}
-              </div>
-            </section>
-          )}
-
-          {/* =================================================
-              ARTICLE CONTENT
-          ================================================= */}
-
-          {blog.content_blocks &&
-            blog.content_blocks.length >
-              0 && (
-              <section
-                aria-label="Article content"
-                className="mt-8"
-              >
-                {blog.content_blocks.map(
-                  (
-                    block,
-                    index
-                  ) =>
-                    renderContentBlock(
-                      block,
-                      index
-                    )
-                )}
-              </section>
-            )}
-
-          {/* =================================================
-              FAQ SECTION
-          ================================================= */}
-
-          {validFaqs.length > 0 && (
-            <section
-              aria-labelledby="faq-heading"
-              className="mt-14 border-t border-gray-200 pt-10"
-            >
-              <h2
-                id="faq-heading"
-                className="text-3xl font-bold tracking-tight text-gray-950"
-              >
-                Frequently Asked Questions
-              </h2>
-
-              <div className="mt-7 space-y-5">
-                {validFaqs.map(
-                  (
-                    faq,
-                    index
-                  ) => (
-                    <details
-                      key={
-                        faq.id ||
-                        `faq-${index}`
-                      }
-                      className="group rounded-2xl border border-gray-200 p-5"
-                    >
-                      <summary className="cursor-pointer list-none font-semibold text-gray-900">
-                        <span className="flex items-center justify-between gap-4">
-                          <span>
-                            {
-                              faq.question
-                            }
-                          </span>
-
-                          <span className="text-xl text-gray-400 transition-transform group-open:rotate-45">
-                            +
-                          </span>
-                        </span>
-                      </summary>
-
-                      <div className="mt-4 leading-7 text-gray-700">
-                        {containsHtml(
-                          faq.answer || ""
-                        ) ? (
-                          <RichText
-                            html={
-                              faq.answer ||
-                              ""
-                            }
-                          />
-                        ) : (
-                          decodeHtmlEntities(
-                            faq.answer ||
-                              ""
-                          )
-                        )}
-                      </div>
-                    </details>
-                  )
-                )}
-              </div>
-            </section>
-          )}
-
-          {/* =================================================
-              TAGS
-          ================================================= */}
-
-          {blog.tags &&
-            blog.tags.length > 0 && (
-              <div className="mt-10 flex flex-wrap gap-2 border-t border-gray-200 pt-7">
-                {blog.tags.map(
-                  (
-                    tag,
-                    index
-                  ) => (
-                    <span
-                      key={`${tag}-${index}`}
-                      className="rounded-full bg-gray-100 px-3 py-1.5 text-sm text-gray-600"
-                    >
-                      #{tag}
-                    </span>
-                  )
-                )}
-              </div>
-            )}
-
-          {/* =================================================
-              RELATED ARTICLES
-          ================================================= */}
-
-          {relatedBlogs.length >
-            0 && (
-            <section
-              aria-labelledby="related-heading"
-              className="mt-16 border-t border-gray-200 pt-10"
-            >
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-wider text-blue-600">
-                    Keep Reading
-                  </p>
-
-                  <h2
-                    id="related-heading"
-                    className="mt-2 text-3xl font-bold tracking-tight text-gray-950"
-                  >
-                    Related Articles
-                  </h2>
-                </div>
-
-                <Link
-                  href="/blog"
-                  className="hidden text-sm font-semibold text-blue-600 hover:text-blue-700 sm:block"
+              {blog.introduction && (
+                <section
+                  aria-label="Introduction"
+                  className="border-b border-[#e2e8f0] pb-7"
                 >
-                  View all
-                </Link>
-              </div>
+                  <div className="text-[18px] leading-8 text-[#475569] sm:text-xl sm:leading-9">
 
-              <div className="mt-7 grid gap-6 sm:grid-cols-2">
-                {relatedBlogs.map(
-                  (related) => (
-                    <Link
-                      key={
-                        related.id
-                      }
-                      href={`/blog/${encodeURIComponent(
-                        related.slug
-                      )}`}
-                      className="group overflow-hidden rounded-2xl border border-gray-200 bg-white transition hover:-translate-y-0.5 hover:shadow-md"
-                    >
-                      {related.cover_image && (
-                        <img
-                          src={absoluteUrl(
-                            related.cover_image
-                          )}
-                          alt={
-                            related.title
+                    {blog.introduction
+                      .split(/\n+/)
+                      .filter(Boolean)
+                      .map(
+                        (
+                          paragraph,
+                          index
+                        ) => {
+                          const cleanParagraph =
+                            paragraph.trim();
+
+                          if (
+                            containsHtml(
+                              cleanParagraph
+                            )
+                          ) {
+                            return (
+                              <RichText
+                                key={
+                                  index
+                                }
+                                html={
+                                  cleanParagraph
+                                }
+                                className="mb-5"
+                              />
+                            );
                           }
-                          width={800}
-                          height={450}
-                          loading="lazy"
-                          decoding="async"
-                          className="aspect-video w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                        />
+
+                          return (
+                            <p
+                              key={
+                                index
+                              }
+                              className="mb-5 last:mb-0"
+                            >
+                              {
+                                cleanParagraph
+                              }
+                            </p>
+                          );
+                        }
                       )}
 
-                      <div className="p-5">
-                        {related.category && (
-                          <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">
-                            {
-                              related.category
-                            }
-                          </p>
-                        )}
+                  </div>
+                </section>
+              )}
 
-                        <h3 className="mt-2 line-clamp-3 text-lg font-bold leading-7 text-gray-900 group-hover:text-blue-600">
-                          {
-                            related.title
-                          }
-                        </h3>
+              {/* =================================================
+                  ARTICLE CONTENT
+              ================================================= */}
 
-                        {related.excerpt && (
-                          <p className="mt-2 line-clamp-2 text-sm leading-6 text-gray-600">
-                            {
-                              related.excerpt
-                            }
-                          </p>
-                        )}
-
-                        {related.published_at && (
-                          <time
-                            dateTime={
-                              related.published_at
-                            }
-                            className="mt-4 block text-xs text-gray-500"
-                          >
-                            {formatDate(
-                              related.published_at
-                            )}
-                          </time>
-                        )}
-                      </div>
-                    </Link>
-                  )
+              {blog.content_blocks &&
+                blog.content_blocks.length >
+                  0 && (
+                  <section
+                    aria-label="Article content"
+                    className="mt-2"
+                  >
+                    {blog.content_blocks.map(
+                      (
+                        block,
+                        index
+                      ) =>
+                        renderContentBlock(
+                          block,
+                          index
+                        )
+                    )}
+                  </section>
                 )}
-              </div>
 
-              <div className="mt-6 sm:hidden">
+              {/* =================================================
+                  FAQ SECTION
+              ================================================= */}
+
+              {validFaqs.length > 0 && (
+                <section
+                  aria-labelledby="faq-heading"
+                  className="mt-16 border-t border-[#e2e8f0] pt-10"
+                >
+                  <div className="mb-7">
+
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#2563eb]">
+                      Helpful answers
+                    </p>
+
+                    <h2
+                      id="faq-heading"
+                      className="mt-2 text-2xl font-bold tracking-tight text-[#0b1830] sm:text-3xl"
+                    >
+                      Frequently Asked Questions
+                    </h2>
+
+                  </div>
+
+                  <div className="space-y-3">
+
+                    {validFaqs.map(
+                      (
+                        faq,
+                        index
+                      ) => (
+                        <details
+                          key={
+                            faq.id ||
+                            `faq-${index}`
+                          }
+                          className="group rounded-xl border border-[#e2e8f0] bg-white px-5 py-4 transition-colors open:border-[#bfdbfe] open:bg-[#f8fbff]"
+                        >
+                          <summary className="cursor-pointer list-none font-semibold text-[#1e293b]">
+                            <span className="flex items-center justify-between gap-5">
+
+                              <span>
+                                {
+                                  faq.question
+                                }
+                              </span>
+
+                              <span className="shrink-0 text-xl font-normal text-[#94a3b8] transition-transform group-open:rotate-45">
+                                +
+                              </span>
+
+                            </span>
+                          </summary>
+
+                          <div className="mt-4 border-t border-[#f1f5f9] pt-4 leading-7 text-[#475569]">
+
+                            {containsHtml(
+                              faq.answer ||
+                                ""
+                            ) ? (
+                              <RichText
+                                html={
+                                  faq.answer ||
+                                  ""
+                                }
+                              />
+                            ) : (
+                              decodeHtmlEntities(
+                                faq.answer ||
+                                  ""
+                              )
+                            )}
+
+                          </div>
+                        </details>
+                      )
+                    )}
+
+                  </div>
+                </section>
+              )}
+
+              {/* =================================================
+                  TAGS
+              ================================================= */}
+
+              {blog.tags &&
+                blog.tags.length > 0 && (
+                  <div className="mt-10 flex flex-wrap gap-2 border-t border-[#e2e8f0] pt-7">
+
+                    {blog.tags.map(
+                      (
+                        tag,
+                        index
+                      ) => (
+                        <span
+                          key={`${tag}-${index}`}
+                          className="rounded-full border border-[#e2e8f0] bg-[#f8fafc] px-3 py-1.5 text-sm text-[#64748b]"
+                        >
+                          #{tag}
+                        </span>
+                      )
+                    )}
+
+                  </div>
+                )}
+
+              {/* =================================================
+                  RELATED ARTICLES
+              ================================================= */}
+
+              {relatedBlogs.length >
+                0 && (
+                <section
+                  aria-labelledby="related-heading"
+                  className="mt-16 border-t border-[#e2e8f0] pt-10"
+                >
+
+                  <div className="flex items-end justify-between gap-4">
+
+                    <div>
+
+                      <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#2563eb]">
+                        Keep reading
+                      </p>
+
+                      <h2
+                        id="related-heading"
+                        className="mt-2 text-2xl font-bold tracking-tight text-[#0b1830] sm:text-3xl"
+                      >
+                        Related Articles
+                      </h2>
+
+                    </div>
+
+                    <Link
+                      href="/blog"
+                      className="hidden text-sm font-semibold text-[#2563eb] transition hover:text-[#1d4ed8] sm:block"
+                    >
+                      View all
+                    </Link>
+
+                  </div>
+
+                  <div className="mt-7 grid gap-5 sm:grid-cols-2">
+
+                    {relatedBlogs.map(
+                      (related) => (
+                        <Link
+                          key={
+                            related.id
+                          }
+                          href={`/blog/${encodeURIComponent(
+                            related.slug
+                          )}`}
+                          className="group overflow-hidden rounded-2xl border border-[#e2e8f0] bg-white transition duration-200 hover:-translate-y-0.5 hover:border-[#bfdbfe] hover:shadow-[0_8px_30px_rgba(15,23,42,0.07)]"
+                        >
+
+                          {related.cover_image && (
+                            <img
+                              src={absoluteUrl(
+                                related.cover_image
+                              )}
+                              alt={
+                                related.title
+                              }
+                              width={800}
+                              height={450}
+                              loading="lazy"
+                              decoding="async"
+                              className="aspect-video w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                            />
+                          )}
+
+                          <div className="p-5">
+
+                            {related.category && (
+                              <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#2563eb]">
+                                {
+                                  related.category
+                                }
+                              </p>
+                            )}
+
+                            <h3 className="mt-2 line-clamp-3 text-lg font-bold leading-7 text-[#0f172a] transition-colors group-hover:text-[#2563eb]">
+                              {
+                                related.title
+                              }
+                            </h3>
+
+                            {related.excerpt && (
+                              <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#64748b]">
+                                {
+                                  related.excerpt
+                                }
+                              </p>
+                            )}
+
+                            {related.published_at && (
+                              <time
+                                dateTime={
+                                  related.published_at
+                                }
+                                className="mt-4 block text-xs text-[#94a3b8]"
+                              >
+                                {formatDate(
+                                  related.published_at
+                                )}
+                              </time>
+                            )}
+
+                          </div>
+
+                        </Link>
+                      )
+                    )}
+
+                  </div>
+
+                  <div className="mt-6 sm:hidden">
+                    <Link
+                      href="/blog"
+                      className="text-sm font-semibold text-[#2563eb]"
+                    >
+                      View all articles →
+                    </Link>
+                  </div>
+
+                </section>
+              )}
+
+              {/* =================================================
+                  BACK TO BLOG
+              ================================================= */}
+
+              <div className="mt-12 border-t border-[#e2e8f0] pt-8">
                 <Link
                   href="/blog"
-                  className="text-sm font-semibold text-blue-600"
+                  className="inline-flex items-center font-semibold text-[#2563eb] transition hover:text-[#1d4ed8]"
                 >
-                  View all articles →
+                  ← Back to all articles
                 </Link>
               </div>
-            </section>
-          )}
 
-          {/* =================================================
-              BACK TO BLOG
-          ================================================= */}
+            </div>
 
-          <div className="mt-12 border-t border-gray-200 pt-8">
-            <Link
-              href="/blog"
-              className="inline-flex items-center font-semibold text-blue-600 hover:text-blue-700"
+            {/* =================================================
+                DESKTOP SIDE SPACE
+            ================================================= */}
+
+            <aside
+              aria-hidden="true"
+              className="hidden lg:block"
             >
-              ← Back to all articles
-            </Link>
+              <div className="sticky top-24">
+                <div className="rounded-2xl border border-[#eef2f7] bg-[#fafcff] p-5">
+
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#94a3b8]">
+                    AnantaGo
+                  </p>
+
+                  <p className="mt-2 text-sm leading-6 text-[#64748b]">
+                    Technology, made easier.
+                  </p>
+
+                </div>
+              </div>
+            </aside>
+
           </div>
+
         </article>
       </main>
     </>

@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from "next/server";
 
 import { supabase } from "@/lib/supabase";
@@ -62,7 +63,11 @@ function jsonResponse(
 ========================================================= */
 
 function parseBoolean(
-  value: FormDataEntryValue | string | null | undefined,
+  value:
+    | FormDataEntryValue
+    | string
+    | null
+    | undefined,
   fallback = false
 ): boolean {
   if (value === null || value === undefined) {
@@ -99,7 +104,10 @@ function parseBoolean(
 ========================================================= */
 
 function parseJsonValue<T>(
-  value: FormDataEntryValue | null | undefined,
+  value:
+    | FormDataEntryValue
+    | null
+    | undefined,
   fallback: T
 ): T {
   if (value === null || value === undefined) {
@@ -150,6 +158,43 @@ function isValidCategory(
 }
 
 /* =========================================================
+   CATEGORY NORMALIZER
+=========================================================
+
+   Public category URLs send values such as:
+
+   AI
+   Tech
+   How-To
+   Apps
+   Security
+   Explained
+
+   We normalize the incoming value so that accidental
+   casing differences do not break category pages.
+
+========================================================= */
+
+function normalizeCategory(
+  value: string | null
+): BlogCategory | null {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = value
+    .trim()
+    .toLowerCase();
+
+  const category = CATEGORIES.find(
+    (item) =>
+      item.toLowerCase() === normalized
+  );
+
+  return category ?? null;
+}
+
+/* =========================================================
    STORAGE URL -> PATH
 ========================================================= */
 
@@ -166,7 +211,8 @@ function getStoragePathFromPublicUrl(
     const marker =
       "/storage/v1/object/public/blog-images/";
 
-    const index = parsed.pathname.indexOf(marker);
+    const index =
+      parsed.pathname.indexOf(marker);
 
     if (index === -1) {
       return null;
@@ -197,7 +243,9 @@ async function deleteCoverImage(
   }
 
   const path =
-    getStoragePathFromPublicUrl(coverImage);
+    getStoragePathFromPublicUrl(
+      coverImage
+    );
 
   if (!path) {
     return;
@@ -257,9 +305,12 @@ async function uploadCoverImage(
       ?.toLowerCase() || "jpg";
 
   const safeExtension =
-    ["jpg", "jpeg", "png", "webp"].includes(
-      extension
-    )
+    [
+      "jpg",
+      "jpeg",
+      "png",
+      "webp",
+    ].includes(extension)
       ? extension
       : "jpg";
 
@@ -300,7 +351,9 @@ async function uploadCoverImage(
   } =
     supabaseAdmin.storage
       .from("blog-images")
-      .getPublicUrl(filePath);
+      .getPublicUrl(
+        filePath
+      );
 
   if (
     !publicUrlData?.publicUrl
@@ -342,6 +395,25 @@ export async function GET(
     const limitParam =
       searchParams.get("limit");
 
+    /*
+     * IMPORTANT:
+     * Read the category parameter.
+     *
+     * Category pages call:
+     *
+     * /api/blogs?category=AI
+     * /api/blogs?category=Tech
+     * /api/blogs?category=How-To
+     * etc.
+     */
+    const categoryParam =
+      searchParams.get("category");
+
+    const category =
+      normalizeCategory(
+        categoryParam
+      );
+
     const page = Math.max(
       1,
       Number(pageParam) || 1
@@ -377,6 +449,30 @@ export async function GET(
           401
         );
       }
+    }
+
+    /* =====================================================
+       INVALID CATEGORY
+    =====================================================
+
+       If a category was explicitly requested but it does
+       not match one of the supported categories, return
+       an error instead of accidentally returning ALL blogs.
+
+    ===================================================== */
+
+    if (
+      categoryParam &&
+      !category
+    ) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Invalid article category.",
+        },
+        400
+      );
     }
 
     /* =====================================================
@@ -484,6 +580,36 @@ export async function GET(
             count: "exact",
           })
           .eq("published", true);
+
+    /* =====================================================
+       CATEGORY FILTER
+    =====================================================
+
+       THIS IS THE FIX.
+
+       Previously category was sent from
+       BlogCategoryPage.tsx but never applied to Supabase.
+
+       Now:
+
+       /ai       -> category = AI
+       /tech     -> category = Tech
+       /how-to   -> category = How-To
+       /apps     -> category = Apps
+       /security -> category = Security
+       /explained -> category = Explained
+
+       Because this filter is applied before count and range,
+       pagination is also calculated correctly per category.
+
+    ===================================================== */
+
+    if (category) {
+      query = query.eq(
+        "category",
+        category
+      );
+    }
 
     /* =====================================================
        ADMIN STATUS FILTER
@@ -888,11 +1014,6 @@ export async function POST(
         error
       );
 
-      /*
-       * If database insert fails after an image upload,
-       * clean up the uploaded image so Storage doesn't
-       * accumulate orphaned files.
-       */
       if (coverImage) {
         await deleteCoverImage(
           coverImage
@@ -1127,6 +1248,19 @@ export async function PUT(
       );
     }
 
+    if (
+      !Array.isArray(tags)
+    ) {
+      return jsonResponse(
+        {
+          success: false,
+          error:
+            "Tags must be a valid array.",
+        },
+        400
+      );
+    }
+
     /* =====================================================
        FIND EXISTING BLOG
     ===================================================== */
@@ -1314,6 +1448,8 @@ export async function PUT(
             null,
           published_at:
             publishedAt,
+          updated_at:
+            new Date().toISOString(),
         })
         .eq("id", id)
         .select("*")
@@ -1325,10 +1461,6 @@ export async function PUT(
         error
       );
 
-      /*
-       * If a new image was uploaded but the database
-       * update failed, remove the new image.
-       */
       if (newCoverImage) {
         await deleteCoverImage(
           newCoverImage
@@ -1612,6 +1744,9 @@ export async function PATCH(
       );
     }
 
+    updateData.updated_at =
+      new Date().toISOString();
+
     /* =====================================================
        UPDATE
     ===================================================== */
@@ -1830,3 +1965,4 @@ export async function DELETE(
     );
   }
 }
+
