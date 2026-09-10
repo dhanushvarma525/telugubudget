@@ -21,31 +21,22 @@ const BASE_URL = "https://www.anatago.com";
 type ContentBlock = {
   id?: string;
   type?: string;
-
   heading?: string;
   title?: string;
-
   text?: string;
   content?: string;
-
   image?: string;
   image_url?: string;
   src?: string;
-
   alt?: string;
   caption?: string;
-
   items?: string[];
-
   rows?: string[][];
   headers?: string[];
-
   url?: string;
   href?: string;
   label?: string;
-
   external?: boolean;
-
   level?: number;
   headingType?: string;
 };
@@ -58,31 +49,21 @@ type FAQ = {
 
 type Blog = {
   id: number;
-
   title: string;
   slug: string;
-
   excerpt: string | null;
   introduction: string | null;
-
   cover_image: string | null;
-
   category: string | null;
   author: string | null;
-
   tags: string[] | null;
-
   content_blocks: ContentBlock[] | null;
   faqs: FAQ[] | null;
-
   published: boolean;
   featured: boolean | null;
-
   views: number | null;
-
   meta_title: string | null;
   meta_description: string | null;
-
   published_at: string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -150,21 +131,6 @@ function categorySlug(category: string) {
    CLEAN HEADING TEXT
 ========================================================= */
 
-/**
- * IMPORTANT:
- *
- * Some older blog records contain malformed heading values such as:
- *
- * ## <p>Why Google Says Search Quality Could Get Worse</p>
- *
- * or:
- *
- * <h2>Why Google Says Search Quality Could Get Worse</h2>
- *
- * This function converts them into clean plain heading text.
- *
- * It is intentionally used ONLY for heading blocks.
- */
 function cleanHeadingText(value: unknown) {
   if (typeof value !== "string") {
     return "";
@@ -172,7 +138,6 @@ function cleanHeadingText(value: unknown) {
 
   let text = value;
 
-  // Decode escaped HTML first.
   text = decodeHtmlEntities(text);
 
   // Remove Markdown heading prefixes.
@@ -184,13 +149,11 @@ function cleanHeadingText(value: unknown) {
   text = text.replace(/<\/?div\b[^>]*>/gi, "");
   text = text.replace(/<br\s*\/?>/gi, " ");
 
-  // Remove any remaining HTML tags.
+  // Remove remaining HTML tags.
   text = text.replace(/<[^>]*>/g, "");
 
-  // Decode again in case removing wrappers exposed entities.
   text = decodeHtmlEntities(text);
 
-  // Convert whitespace to normal spaces.
   text = text.replace(/\s+/g, " ").trim();
 
   return text;
@@ -206,16 +169,6 @@ function decodeHtmlEntities(value: string) {
   }
 
   let decoded = value;
-
-  /*
-   * Decode multiple times so content such as:
-   *
-   * &amp;lt;p&amp;gt;Hello&amp;lt;/p&amp;gt;
-   *
-   * can become:
-   *
-   * <p>Hello</p>
-   */
 
   for (let i = 0; i < 3; i++) {
     const previous = decoded;
@@ -295,6 +248,8 @@ function sanitizeInlineStyle(style: string) {
     "color",
     "background-color",
     "text-decoration",
+    "text-decoration-thickness",
+    "text-underline-offset",
   ];
 
   const safeDeclarations: string[] = [];
@@ -338,9 +293,6 @@ function sanitizeRichText(html: string) {
     return "";
   }
 
-  /*
-   * Decode escaped HTML before sanitizing it.
-   */
   let safe = decodeHtmlEntities(html);
 
   /* -------------------------------------------------------
@@ -558,12 +510,56 @@ function sanitizeRichText(html: string) {
         const title = titleMatch?.[2];
 
         /* -----------------------------------------------
-           SAFE LINK STYLE
+           PRESERVE SAFE EXISTING STYLE
         ------------------------------------------------ */
 
-        const safeStyle = styleMatch
+        const existingStyle = styleMatch
           ? sanitizeInlineStyle(styleMatch[2])
           : "";
+
+        /*
+         * IMPORTANT:
+         *
+         * We deliberately remove any existing color and
+         * text-decoration declarations from the saved link.
+         *
+         * This guarantees that every inline article link
+         * has the same visible link style on the public page.
+         */
+
+        const filteredExistingStyles = existingStyle
+          .split(";")
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .filter((item) => {
+            const property = item
+              .split(":")[0]
+              ?.trim()
+              .toLowerCase();
+
+            return (
+              property !== "color" &&
+              property !== "text-decoration" &&
+              property !== "text-decoration-thickness" &&
+              property !== "text-underline-offset"
+            );
+          });
+
+        /* -----------------------------------------------
+           STANDARD ARTICLE LINK STYLE
+        ------------------------------------------------ */
+
+        const linkStyleParts = [
+          "color: #2563eb",
+          "text-decoration: underline",
+          "text-decoration-thickness: 1.5px",
+          "text-underline-offset: 3px",
+        ];
+
+        const finalStyle = [
+          ...linkStyleParts,
+          ...filteredExistingStyles,
+        ].join("; ");
 
         const attributes = [
           `href="${escapeHtmlAttribute(safeHref)}"`,
@@ -580,9 +576,9 @@ function sanitizeRichText(html: string) {
             ? `title="${escapeHtmlAttribute(title)}"`
             : "",
 
-          safeStyle
-            ? `style="${escapeHtmlAttribute(safeStyle)}"`
-            : "",
+          `style="${escapeHtmlAttribute(finalStyle)}"`,
+
+          `class="article-inline-link"`,
         ]
           .filter(Boolean)
           .join(" ");
@@ -943,22 +939,6 @@ function renderContentBlock(
     type === "h4" ||
     type === "section"
   ) {
-    /*
-     * IMPORTANT FIX:
-     *
-     * Never render raw heading HTML/Markdown.
-     *
-     * Examples:
-     *
-     * ## <p>Heading</p>
-     * ### <p>Heading</p>
-     * <h2>Heading</h2>
-     *
-     * all become:
-     *
-     * Heading
-     */
-
     const headingText = cleanHeadingText(
       heading || text
     );
@@ -1111,10 +1091,7 @@ function renderContentBlock(
         className="my-7 list-disc space-y-3 pl-7 text-[17px] leading-8 text-gray-700 sm:text-lg"
       >
         {items.map(
-          (
-            item,
-            itemIndex
-          ) => (
+          (item, itemIndex) => (
             <li
               key={itemIndex}
               className="pl-1"
@@ -1156,10 +1133,7 @@ function renderContentBlock(
         className="my-7 list-decimal space-y-3 pl-7 text-[17px] leading-8 text-gray-700 sm:text-lg"
       >
         {items.map(
-          (
-            item,
-            itemIndex
-          ) => (
+          (item, itemIndex) => (
             <li
               key={itemIndex}
               className="pl-1"
@@ -1464,7 +1438,6 @@ export default async function BlogPage({
   const articleSchema = {
     "@context": "https://schema.org",
     "@type": "Article",
-
     "@id": `${canonicalUrl}#article`,
 
     mainEntityOfPage: {
@@ -2098,7 +2071,6 @@ export default async function BlogPage({
               ← Back to all articles
             </Link>
           </div>
-
         </article>
       </main>
     </>

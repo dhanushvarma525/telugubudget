@@ -312,8 +312,8 @@ function normalizeEditorHtml(
     );
 
   /*
-   * Convert legacy <font> elements
-   * into supported <span> elements.
+   * Convert legacy <font color="">
+   * into supported <span style="">
    */
   documentNode
     .querySelectorAll("font")
@@ -359,7 +359,7 @@ function normalizeEditorHtml(
     });
 
   /*
-   * Normalize only supported inline styles.
+   * Normalize supported inline styles.
    */
   documentNode
     .querySelectorAll(
@@ -407,6 +407,37 @@ function normalizeEditorHtml(
       }
     });
 
+  /*
+   * Make sure links have a predictable
+   * class that can be styled both inside
+   * the editor and on the published page.
+   */
+  documentNode
+    .querySelectorAll("a")
+    .forEach((element) => {
+      const anchor =
+        element as HTMLAnchorElement;
+
+      anchor.classList.add(
+        "article-inline-link"
+      );
+
+      const href =
+        anchor.getAttribute(
+          "href"
+        );
+
+      if (
+        href &&
+        href.startsWith("/blog/")
+      ) {
+        anchor.setAttribute(
+          "data-internal-link",
+          "true"
+        );
+      }
+    });
+
   return documentNode.body.innerHTML;
 }
 
@@ -431,10 +462,6 @@ function ToolButton({
       title={label}
       aria-label={label}
       onMouseDown={(event) => {
-        /*
-         * Prevent the editor from losing its selection
-         * before the toolbar command executes.
-         */
         event.preventDefault();
         onClick();
       }}
@@ -463,12 +490,6 @@ export function RichTextEditor({
   const editorRef =
     useRef<HTMLDivElement>(null);
 
-  /*
-   * This range is ONLY used for toolbar operations.
-   *
-   * Normal typing does NOT restore or save the range.
-   * This is important for stable Space/caret behavior.
-   */
   const savedRange =
     useRef<Range | null>(null);
 
@@ -518,13 +539,10 @@ export function RichTextEditor({
       return;
     }
 
-    /*
-     * Never replace the editor DOM while the user is actively
-     * typing. Doing so can reset the caret.
-     */
     if (
       document.activeElement !== editor &&
-      editor.innerHTML !== (value || "")
+      editor.innerHTML !==
+        (value || "")
     ) {
       editor.innerHTML =
         value || "";
@@ -532,7 +550,7 @@ export function RichTextEditor({
   }, [value]);
 
   /* -------------------------------------------------------
-     Check whether a range belongs to this editor
+     Check selection
   ------------------------------------------------------- */
 
   function isRangeInsideEditor(
@@ -640,10 +658,6 @@ export function RichTextEditor({
           editor.innerHTML
         );
 
-      /*
-       * Only replace the DOM when normalization actually
-       * changed the HTML.
-       */
       if (
         editor.innerHTML !==
         normalized
@@ -651,8 +665,9 @@ export function RichTextEditor({
         const selection =
           window.getSelection();
 
-        let range: Range | null =
-          null;
+        let range:
+          | Range
+          | null = null;
 
         if (
           selection &&
@@ -672,9 +687,6 @@ export function RichTextEditor({
         editor.innerHTML =
           normalized;
 
-        /*
-         * Restore the current selection after normalization.
-         */
         if (
           range &&
           isRangeInsideEditor(
@@ -688,7 +700,7 @@ export function RichTextEditor({
               range
             );
           } catch {
-            // Ignore invalid ranges.
+            // Ignore invalid selection.
           }
         }
       }
@@ -700,12 +712,6 @@ export function RichTextEditor({
       return;
     }
 
-    /*
-     * Normal typing path.
-     *
-     * Do not touch editor.innerHTML here.
-     * Do not save/restore selection here.
-     */
     onChange(
       editor.innerHTML
     );
@@ -726,10 +732,6 @@ export function RichTextEditor({
       return;
     }
 
-    /*
-     * Toolbar commands restore the last selection.
-     * Normal typing never comes through this function.
-     */
     restoreSelection();
 
     editor.focus();
@@ -743,16 +745,13 @@ export function RichTextEditor({
     const requiresNormalization =
       command === "foreColor" ||
       command === "hiliteColor" ||
-      command === "backColor";
+      command === "backColor" ||
+      command === "createLink";
 
     emitChange(
       requiresNormalization
     );
 
-    /*
-     * Save the new selection after the command,
-     * so another toolbar action operates on the new position.
-     */
     saveSelection();
   }
 
@@ -992,14 +991,44 @@ export function RichTextEditor({
   }
 
   /* -------------------------------------------------------
+     Find anchor at current selection
+  ------------------------------------------------------- */
+
+  function getSelectedAnchor() {
+    const selection =
+      window.getSelection();
+
+    if (
+      !selection ||
+      !selection.anchorNode
+    ) {
+      return null;
+    }
+
+    const node =
+      selection.anchorNode;
+
+    if (
+      node.nodeType ===
+      Node.ELEMENT_NODE
+    ) {
+      return (
+        node as HTMLElement
+      ).closest("a");
+    }
+
+    return (
+      node.parentElement?.closest(
+        "a"
+      ) || null
+    );
+  }
+
+  /* -------------------------------------------------------
      Link dialog
   ------------------------------------------------------- */
 
   function openLinkDialog() {
-    /*
-     * Save the exact current editor selection before
-     * opening the dialog.
-     */
     saveSelection();
 
     const selection =
@@ -1014,38 +1043,23 @@ export function RichTextEditor({
 
     let existingHref = "";
 
-    if (
-      selection &&
-      selection.anchorNode
-    ) {
-      let element =
-        selection.anchorNode
-          .parentElement;
+    const anchor =
+      getSelectedAnchor();
 
-      while (
-        element &&
-        element !==
-          editorRef.current
-      ) {
-        if (
-          element.tagName ===
-          "A"
-        ) {
-          existingHref =
-            element.getAttribute(
-              "href"
-            ) || "";
-
-          break;
-        }
-
-        element =
-          element.parentElement;
-      }
+    if (anchor) {
+      existingHref =
+        anchor.getAttribute(
+          "href"
+        ) || "";
     }
 
     setLinkUrl(
       existingHref
+    );
+
+    setOpenNewTab(
+      anchor?.target ===
+        "_blank"
     );
 
     setShowLinkDialog(
@@ -1106,6 +1120,11 @@ export function RichTextEditor({
       return;
     }
 
+    /*
+     * If text is already selected,
+     * createLink applies the URL to
+     * that exact selection.
+     */
     if (
       selectedText.trim()
     ) {
@@ -1115,6 +1134,10 @@ export function RichTextEditor({
         linkUrl.trim()
       );
     } else {
+      /*
+       * No selected text:
+       * insert a new anchor.
+       */
       const anchor =
         document.createElement(
           "a"
@@ -1132,6 +1155,23 @@ export function RichTextEditor({
 
         anchor.rel =
           "noopener noreferrer";
+      }
+
+      anchor.classList.add(
+        "article-inline-link"
+      );
+
+      if (
+        linkUrl
+          .trim()
+          .startsWith(
+            "/blog/"
+          )
+      ) {
+        anchor.setAttribute(
+          "data-internal-link",
+          "true"
+        );
       }
 
       range.deleteContents();
@@ -1156,51 +1196,43 @@ export function RichTextEditor({
     }
 
     /*
-     * Apply target/rel to the resulting anchor.
+     * Find the resulting anchor.
      */
-    const currentSelection =
-      window.getSelection();
+    const currentAnchor =
+      getSelectedAnchor();
 
-    const node =
-      currentSelection?.anchorNode;
+    if (currentAnchor) {
+      currentAnchor.classList.add(
+        "article-inline-link"
+      );
 
-    let anchor:
-      | HTMLAnchorElement
-      | null = null;
-
-    if (node) {
       if (
-        node.nodeType ===
-        Node.ELEMENT_NODE
+        currentAnchor
+          .getAttribute(
+            "href"
+          )
+          ?.startsWith(
+            "/blog/"
+          )
       ) {
-        const element =
-          node as HTMLElement;
-
-        anchor =
-          element.closest(
-            "a"
-          );
-      } else {
-        anchor =
-          node.parentElement?.closest(
-            "a"
-          ) || null;
+        currentAnchor.setAttribute(
+          "data-internal-link",
+          "true"
+        );
       }
-    }
 
-    if (anchor) {
       if (openNewTab) {
-        anchor.target =
+        currentAnchor.target =
           "_blank";
 
-        anchor.rel =
+        currentAnchor.rel =
           "noopener noreferrer";
       } else {
-        anchor.removeAttribute(
+        currentAnchor.removeAttribute(
           "target"
         );
 
-        anchor.removeAttribute(
+        currentAnchor.removeAttribute(
           "rel"
         );
       }
@@ -1237,13 +1269,13 @@ export function RichTextEditor({
       "unlink"
     );
 
-    emitChange();
+    emitChange(true);
 
     saveSelection();
   }
 
   /* -------------------------------------------------------
-     Internal article picker
+     INTERNAL ARTICLE API
   ------------------------------------------------------- */
 
   async function loadInternalArticles(
@@ -1254,58 +1286,124 @@ export function RichTextEditor({
         true
       );
 
+      /*
+       * Request existing articles.
+       *
+       * We intentionally use the existing
+       * admin endpoint because the editor
+       * is inside the admin area.
+       */
       const response =
         await fetch(
-          `/api/blogs?admin=true&limit=1000`
+          "/api/blogs?admin=true&limit=1000",
+          {
+            method: "GET",
+            cache: "no-store",
+            headers: {
+              Accept:
+                "application/json",
+            },
+          }
         );
 
       if (!response.ok) {
         throw new Error(
-          "Failed to load articles"
+          `Failed to load articles (${response.status})`
         );
       }
 
       const result =
         await response.json();
 
-      const raw =
-        Array.isArray(result)
-          ? result
-          : Array.isArray(
-              result.blogs
-            )
-          ? result.blogs
-          : Array.isArray(
-              result.data
-            )
-          ? result.data
-          : [];
+      /*
+       * Support all common response shapes
+       * used by your current API.
+       */
+      let raw: any[] = [];
 
+      if (
+        Array.isArray(result)
+      ) {
+        raw = result;
+      } else if (
+        Array.isArray(
+          result.blogs
+        )
+      ) {
+        raw =
+          result.blogs;
+      } else if (
+        Array.isArray(
+          result.data
+        )
+      ) {
+        raw =
+          result.data;
+      } else if (
+        Array.isArray(
+          result.items
+        )
+      ) {
+        raw =
+          result.items;
+      }
+
+      /*
+       * Normalize articles.
+       */
       const normalized =
         raw
           .map(
-            (article: any) => ({
-              id: Number(
-                article.id
-              ),
+            (
+              article: any,
+              articleIndex: number
+            ) => ({
+              id:
+                Number(
+                  article?.id
+                ) ||
+                articleIndex,
               title:
-                article.title ||
-                "",
+                typeof article?.title ===
+                "string"
+                  ? article.title.trim()
+                  : "",
               slug:
-                article.slug ||
-                "",
+                typeof article?.slug ===
+                "string"
+                  ? article.slug.trim()
+                  : "",
               excerpt:
-                article.excerpt ||
-                "",
+                typeof article?.excerpt ===
+                "string"
+                  ? article.excerpt
+                  : "",
             })
           )
           .filter(
             (
               article: ArticleSearchResult
             ) =>
-              article.title &&
-              article.slug
+              Boolean(
+                article.title &&
+                  article.slug
+              )
           );
+
+      /*
+       * Remove duplicate slugs.
+       */
+      const unique =
+        Array.from(
+          new Map(
+            normalized.map(
+              (article) => [
+                article.slug,
+                article,
+              ]
+            )
+          ).values()
+        );
 
       const search =
         query
@@ -1314,22 +1412,35 @@ export function RichTextEditor({
 
       const filtered =
         search
-          ? normalized.filter(
+          ? unique.filter(
               (
-                article: ArticleSearchResult
+                article
               ) =>
                 article.title
                   .toLowerCase()
                   .includes(
                     search
+                  ) ||
+                article.slug
+                  .toLowerCase()
+                  .includes(
+                    search
+                  ) ||
+                (
+                  article.excerpt ||
+                  ""
+                )
+                  .toLowerCase()
+                  .includes(
+                    search
                   )
             )
-          : normalized;
+          : unique;
 
       setInternalArticles(
         filtered.slice(
           0,
-          20
+          30
         )
       );
     } catch (error) {
@@ -1348,11 +1459,11 @@ export function RichTextEditor({
     }
   }
 
+  /* -------------------------------------------------------
+     Open internal picker
+  ------------------------------------------------------- */
+
   function openInternalPicker() {
-    /*
-     * Important:
-     * save the caret before opening the modal.
-     */
     saveSelection();
 
     setArticleSearch(
@@ -1367,6 +1478,10 @@ export function RichTextEditor({
       ""
     );
   }
+
+  /* -------------------------------------------------------
+     Insert internal article
+  ------------------------------------------------------- */
 
   function insertInternalArticle(
     article: ArticleSearchResult
@@ -1391,15 +1506,25 @@ export function RichTextEditor({
     editor.focus();
 
     const href =
-      `/blog/${encodeURIComponent(
-        article.slug
-      )}`;
+      `/blog/${article.slug}`;
 
     const selection =
       window.getSelection();
 
+    if (
+      !selection
+    ) {
+      setShowInternalPicker(
+        false
+      );
+
+      return;
+    }
+
     const selectedText =
-      selection?.toString().trim();
+      selection
+        .toString()
+        .trim();
 
     const anchor =
       document.createElement(
@@ -1413,8 +1538,22 @@ export function RichTextEditor({
       selectedText ||
       article.title;
 
+    /*
+     * Important:
+     * This class guarantees that the
+     * inserted internal link is visibly
+     * different from normal text.
+     */
+    anchor.classList.add(
+      "article-inline-link"
+    );
+
+    anchor.setAttribute(
+      "data-internal-link",
+      "true"
+    );
+
     const range =
-      selection &&
       selection.rangeCount
         ? selection.getRangeAt(
             0
@@ -1436,9 +1575,9 @@ export function RichTextEditor({
         true
       );
 
-      selection?.removeAllRanges();
+      selection.removeAllRanges();
 
-      selection?.addRange(
+      selection.addRange(
         range
       );
     } else {
@@ -1447,7 +1586,7 @@ export function RichTextEditor({
       );
     }
 
-    emitChange();
+    emitChange(true);
 
     setShowInternalPicker(
       false
@@ -1465,15 +1604,6 @@ export function RichTextEditor({
   function handleKeyDown(
     event: React.KeyboardEvent<HTMLDivElement>
   ) {
-    /*
-     * IMPORTANT:
-     *
-     * Do not call saveSelection() here.
-     *
-     * Normal keyboard typing must be completely controlled
-     * by contentEditable/browser caret behavior.
-     */
-
     if (
       event.ctrlKey ||
       event.metaKey
@@ -1536,11 +1666,100 @@ export function RichTextEditor({
   }
 
   /* -------------------------------------------------------
+     Rich editor styles
+  ------------------------------------------------------- */
+
+  const editorStyles = `
+    .article-rich-editor a,
+    .article-rich-editor a.article-inline-link {
+      color: #2563eb !important;
+      text-decoration: underline !important;
+      text-decoration-thickness: 1.5px;
+      text-underline-offset: 3px;
+      cursor: pointer;
+    }
+
+    .article-rich-editor a:hover,
+    .article-rich-editor a.article-inline-link:hover {
+      color: #1d4ed8 !important;
+    }
+
+    .article-rich-editor p {
+      margin-top: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .article-rich-editor p:first-child {
+      margin-top: 0;
+    }
+
+    .article-rich-editor p:last-child {
+      margin-bottom: 0;
+    }
+
+    .article-rich-editor h2 {
+      margin-top: 1.5rem;
+      margin-bottom: 0.75rem;
+      font-size: 1.5rem;
+      line-height: 1.3;
+      font-weight: 700;
+    }
+
+    .article-rich-editor h3 {
+      margin-top: 1.25rem;
+      margin-bottom: 0.65rem;
+      font-size: 1.25rem;
+      line-height: 1.4;
+      font-weight: 700;
+    }
+
+    .article-rich-editor blockquote {
+      margin-top: 1rem;
+      margin-bottom: 1rem;
+      border-left: 4px solid #d1d5db;
+      padding-left: 1rem;
+      font-style: italic;
+    }
+
+    .article-rich-editor ul {
+      margin-top: 0.75rem;
+      margin-bottom: 0.75rem;
+      padding-left: 1.5rem;
+      list-style-type: disc;
+    }
+
+    .article-rich-editor ol {
+      margin-top: 0.75rem;
+      margin-bottom: 0.75rem;
+      padding-left: 1.5rem;
+      list-style-type: decimal;
+    }
+
+    .article-rich-editor li {
+      margin-top: 0.25rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .article-rich-editor:empty::before {
+      content: attr(data-placeholder);
+      color: #9ca3af;
+      pointer-events: none;
+    }
+  `;
+
+  /* -------------------------------------------------------
      Toolbar
   ------------------------------------------------------- */
 
   return (
     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+      <style
+        dangerouslySetInnerHTML={{
+          __html:
+            editorStyles,
+        }}
+      />
+
       <div className="border-b border-gray-200 bg-gray-50 p-3">
         <div className="flex flex-wrap items-center gap-2">
           <ToolButton
@@ -1573,7 +1792,9 @@ export function RichTextEditor({
           <ToolButton
             label="Strikethrough"
             onClick={() =>
-              exec("strikeThrough")
+              exec(
+                "strikeThrough"
+              )
             }
           >
             <Strikethrough
@@ -1688,87 +1909,83 @@ export function RichTextEditor({
 
           {/* TEXT COLOR */}
 
-          <div>
-            <select
-              aria-label="Text color"
-              value={
-                textColor
-              }
-              onChange={(event) => {
-                const color =
-                  event.target.value;
+          <select
+            aria-label="Text color"
+            value={
+              textColor
+            }
+            onChange={(event) => {
+              const color =
+                event.target.value;
 
-                setTextColor(
-                  color
-                );
+              setTextColor(
+                color
+              );
 
-                applyTextColor(
-                  color
-                );
-              }}
-              className="h-9 rounded-lg border border-gray-200 bg-white px-2 text-xs font-semibold text-gray-700"
-            >
-              {TEXT_COLORS.map(
-                (color) => (
-                  <option
-                    key={
-                      color.value
-                    }
-                    value={
-                      color.value
-                    }
-                  >
-                    A{" "}
-                    {
-                      color.name
-                    }
-                  </option>
-                )
-              )}
-            </select>
-          </div>
+              applyTextColor(
+                color
+              );
+            }}
+            className="h-9 rounded-lg border border-gray-200 bg-white px-2 text-xs font-semibold text-gray-700"
+          >
+            {TEXT_COLORS.map(
+              (color) => (
+                <option
+                  key={
+                    color.value
+                  }
+                  value={
+                    color.value
+                  }
+                >
+                  A{" "}
+                  {
+                    color.name
+                  }
+                </option>
+              )
+            )}
+          </select>
 
           {/* HIGHLIGHT */}
 
-          <div>
-            <select
-              aria-label="Highlight color"
-              value={
-                highlightColor
-              }
-              onChange={(event) => {
-                const color =
-                  event.target.value;
+          <select
+            aria-label="Highlight color"
+            value={
+              highlightColor
+            }
+            onChange={(event) => {
+              const color =
+                event.target.value;
 
-                setHighlightColor(
-                  color
-                );
+              setHighlightColor(
+                color
+              );
 
-                applyHighlight(
-                  color
-                );
-              }}
-              className="h-9 rounded-lg border border-gray-200 bg-white px-2 text-xs font-semibold text-gray-700"
-            >
-              {HIGHLIGHT_COLORS.map(
-                (color) => (
-                  <option
-                    key={
-                      color.value
-                    }
-                    value={
-                      color.value
-                    }
-                  >
-                    Highlight{" "}
-                    {
-                      color.name
-                    }
-                  </option>
-                )
-              )}
-            </select>
-          </div>
+              applyHighlight(
+                color
+              );
+            }}
+            className="h-9 rounded-lg border border-gray-200 bg-white px-2 text-xs font-semibold text-gray-700"
+          >
+            {HIGHLIGHT_COLORS.map(
+              (color) => (
+                <option
+                  key={
+                    color.value
+                  }
+                  value={
+                    color.value
+                  }
+                >
+                  Highlight{" "}
+                  {
+                    color.name
+                  }
+                </option>
+              )
+            )}
+          </select>
 
           <div className="mx-1 h-6 w-px bg-gray-300" />
 
@@ -1835,26 +2052,44 @@ export function RichTextEditor({
         suppressContentEditableWarning
         onInput={() => {
           /*
-           * IMPORTANT:
-           * No selection manipulation here.
-           * No innerHTML replacement here.
-           *
-           * This keeps typing and Space completely natural.
+           * Never modify innerHTML during
+           * normal typing.
            */
           emitChange(false);
         }}
-        onKeyDown={handleKeyDown}
+        onKeyDown={
+          handleKeyDown
+        }
         onMouseUp={() => {
-          /*
-           * Save selection only after the user interacts
-           * with the editor using the mouse.
-           *
-           * This is needed for toolbar operations.
-           */
           saveSelection();
         }}
-        data-placeholder={placeholder}
-        className="prose prose-gray max-w-none px-5 py-5 text-[17px] leading-8 outline-none"
+        onKeyUp={(event) => {
+          /*
+           * Save selection after keyboard
+           * navigation, but not during
+           * input/change processing.
+           */
+          if (
+            event.key ===
+              "ArrowLeft" ||
+            event.key ===
+              "ArrowRight" ||
+            event.key ===
+              "ArrowUp" ||
+            event.key ===
+              "ArrowDown" ||
+            event.key ===
+              "Home" ||
+            event.key ===
+              "End"
+          ) {
+            saveSelection();
+          }
+        }}
+        data-placeholder={
+          placeholder
+        }
+        className="article-rich-editor prose prose-gray max-w-none px-5 py-5 text-[17px] leading-8 outline-none"
         style={{
           minHeight,
         }}
@@ -1926,7 +2161,8 @@ export function RichTextEditor({
                   }
                   onChange={(event) =>
                     setLinkText(
-                      event.target.value
+                      event.target
+                        .value
                     )
                   }
                   className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-gray-900"
@@ -1945,7 +2181,8 @@ export function RichTextEditor({
                   }
                   onChange={(event) =>
                     setLinkUrl(
-                      event.target.value
+                      event.target
+                        .value
                     )
                   }
                   className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-gray-900"
@@ -1961,7 +2198,8 @@ export function RichTextEditor({
                   }
                   onChange={(event) =>
                     setOpenNewTab(
-                      event.target.checked
+                      event.target
+                        .checked
                     )
                   }
                   className="h-4 w-4 rounded border-gray-300"
@@ -2013,8 +2251,7 @@ export function RichTextEditor({
                   </h3>
 
                   <p className="mt-1 text-sm text-gray-500">
-                    Choose one of your published or existing
-                    articles.
+                    Choose one of your existing articles.
                   </p>
                 </div>
 
@@ -2044,7 +2281,8 @@ export function RichTextEditor({
                   }
                   onChange={(event) => {
                     const searchValue =
-                      event.target.value;
+                      event.target
+                        .value;
 
                     setArticleSearch(
                       searchValue
@@ -2073,7 +2311,7 @@ export function RichTextEditor({
                   </p>
 
                   <p className="mt-1 text-xs text-gray-500">
-                    Try another title.
+                    Try another title or check the blog API.
                   </p>
                 </div>
               ) : (
@@ -2082,7 +2320,7 @@ export function RichTextEditor({
                     (article) => (
                       <button
                         key={
-                          article.id
+                          `${article.id}-${article.slug}`
                         }
                         type="button"
                         onClick={() =>
@@ -2093,19 +2331,27 @@ export function RichTextEditor({
                         className="w-full rounded-xl border border-gray-200 p-4 text-left transition hover:border-gray-400 hover:bg-gray-50"
                       >
                         <div className="flex items-start justify-between gap-4">
-                          <div>
+                          <div className="min-w-0">
                             <h4 className="font-semibold text-gray-900">
                               {
                                 article.title
                               }
                             </h4>
 
-                            <p className="mt-1 text-xs text-gray-500">
+                            <p className="mt-1 truncate text-xs text-gray-500">
                               /blog/
                               {
                                 article.slug
                               }
                             </p>
+
+                            {article.excerpt && (
+                              <p className="mt-2 line-clamp-2 text-xs leading-5 text-gray-500">
+                                {
+                                  article.excerpt
+                                }
+                              </p>
+                            )}
                           </div>
 
                           <Check
@@ -2202,7 +2448,9 @@ export default function BlogBlockEditor({
     const repairKey = blocks
       .map((block) =>
         block.type === "heading"
-          ? `${block.id}:${getBlockText(block)}`
+          ? `${block.id}:${getBlockText(
+              block
+            )}`
           : `${block.id}:${block.type}`
       )
       .join("|");
@@ -2372,18 +2620,20 @@ export default function BlogBlockEditor({
     const duplicate = {
       ...original,
       id: createId(),
-      items:
-        original.items
-          ? [
-              ...original.items,
-            ]
-          : undefined,
+
+      items: original.items
+        ? [
+            ...original.items,
+          ]
+        : undefined,
+
       headers:
         original.headers
           ? [
               ...original.headers,
             ]
           : undefined,
+
       rows:
         original.rows
           ? original.rows.map(
@@ -2913,7 +3163,7 @@ export default function BlogBlockEditor({
         {/* BLOCK BODY */}
 
         <div className="p-4 sm:p-5">
-          {/* TEXT / PARAGRAPH */}
+          {/* TEXT */}
 
           {(
             type === "text" ||
@@ -3035,8 +3285,7 @@ export default function BlogBlockEditor({
                 />
 
                 <p className="mt-2 text-xs text-gray-500">
-                  Headings are automatically stored as plain text.
-                  HTML and Markdown are removed.
+                  Headings are automatically stored as plain text. HTML and Markdown are removed.
                 </p>
               </div>
             </div>
@@ -3704,7 +3953,7 @@ export default function BlogBlockEditor({
   }
 
   /* -------------------------------------------------------
-     Add panel
+     ADD PANEL
   ------------------------------------------------------- */
 
   return (
@@ -3716,8 +3965,7 @@ export default function BlogBlockEditor({
           </h2>
 
           <p className="mt-1 text-sm text-gray-500">
-            Build your article section by section. Use the rich
-            text editor for formatting inside paragraphs.
+            Build your article section by section. Use the rich text editor for formatting inside paragraphs.
           </p>
         </div>
 
