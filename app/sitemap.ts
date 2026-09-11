@@ -1,16 +1,19 @@
-
 import type { MetadataRoute } from "next";
 import { supabase } from "@/lib/supabase";
 
 const BASE_URL = "https://www.anatago.com";
 
 /*
-  Rebuild the sitemap periodically.
+  =========================================================
+  SITEMAP CONFIGURATION
+  =========================================================
 
-  This means newly published blogs can appear in the sitemap
-  automatically without manually editing this file.
+  Generate the sitemap dynamically so newly published
+  articles can appear without waiting for a stale cached
+  sitemap response.
 */
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   /*
@@ -106,6 +109,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         ascending: false,
         nullsFirst: false,
       })
+      .order("updated_at", {
+        ascending: false,
+        nullsFirst: false,
+      })
       .order("created_at", {
         ascending: false,
         nullsFirst: false,
@@ -156,12 +163,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     =========================================================
     AUTHOR PAGES
     =========================================================
-
-    If the authors table exists, automatically include
-    public author profile pages.
-
-    Example:
-    /author/dhanush-varma
   */
 
   let authorUrls: MetadataRoute.Sitemap = [];
@@ -213,7 +214,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   } catch (error) {
     /*
-      If the authors table is unavailable for any reason,
+      If the authors table is unavailable,
       the rest of the sitemap should still work.
     */
     console.error(
@@ -247,6 +248,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ).values()
   );
 
+  /*
+    =========================================================
+    DEBUG LOG
+    =========================================================
+
+    This makes it easy to verify in Vercel logs that the
+    sitemap is actually receiving the latest blog data.
+  */
+
+  console.log(
+    `Sitemap generated: ${uniqueUrls.length} unique URLs, ${blogUrls.length} published blogs`
+  );
+
   return uniqueUrls;
 }
-
